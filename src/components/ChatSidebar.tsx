@@ -75,9 +75,7 @@ export const ChatSidebar = ({
       {/* Header */}
       <div className="p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-2 mb-4">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center">
-            <span className="text-white font-bold text-sm">B</span>
-          </div>
+          
           
         </div>
         <Button onClick={onNewChat} className="w-full justify-start gap-2 bg-sidebar-accent hover:bg-sidebar-accent/80 text-sidebar-foreground">
