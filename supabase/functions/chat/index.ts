@@ -1,128 +1,165 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.75.1';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-async function searchSportsbookOdds(query: string): Promise<string> {
-  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+async function fetchLiveOdds(query: string): Promise<string> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  console.log("Fetching live odds data for query:", query);
+
+  // Determine sport from query
+  let sport = 'americanfootball_nfl'; // default
+  const queryLower = query.toLowerCase();
   
-  if (!GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY is not configured");
+  if (queryLower.includes('nba') || queryLower.includes('basketball')) {
+    sport = 'basketball_nba';
+  } else if (queryLower.includes('mlb') || queryLower.includes('baseball')) {
+    sport = 'baseball_mlb';
+  } else if (queryLower.includes('nhl') || queryLower.includes('hockey')) {
+    sport = 'icehockey_nhl';
+  } else if (queryLower.includes('soccer') || queryLower.includes('mls')) {
+    sport = 'soccer_usa_mls';
   }
 
-  console.log("Searching for comprehensive betting data with Google Search grounding:", query);
-
-  // Optimize query for Google Search with preferred domains
-  const searchQuery = `${query} site:draftkings.com OR site:fanduel.com OR site:oddsshark.com OR site:vegasinsider.com OR site:espn.com -site:reddit.com -site:quora.com`;
-
   try {
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent", {
-      method: "POST",
+    // First, try to get recent odds from database (last 30 minutes)
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const { data: recentOdds, error: dbError } = await supabase
+      .from('betting_odds')
+      .select('*')
+      .eq('sport_key', sport)
+      .gte('last_updated', thirtyMinutesAgo)
+      .order('last_updated', { ascending: false });
+
+    if (dbError) {
+      console.error('Database query error:', dbError);
+    }
+
+    // If we have recent data, use it
+    if (recentOdds && recentOdds.length > 0) {
+      console.log(`Found ${recentOdds.length} recent odds entries in database`);
+      return formatOddsData(recentOdds, query);
+    }
+
+    // Otherwise, fetch fresh data from The Odds API
+    console.log('No recent data found, fetching fresh odds from API...');
+    const response = await fetch(`${supabaseUrl}/functions/v1/fetch-betting-odds`, {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": GEMINI_API_KEY,
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseServiceKey}`,
       },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: `You are a real-time sports betting data researcher with Google Search grounding enabled. Current timestamp: ${new Date().toISOString()}.
-
-CRITICAL SEARCH BEHAVIOR:
-- You MUST use Google Search to fetch CURRENT, LIVE betting data
-- ALWAYS prioritize data from: DraftKings, FanDuel, OddsShark, VegasInsider, ESPN
-- AVOID: Reddit, Quora, forums, opinion sites
-- Search for the most recent data (within last 60 minutes if possible)
-- If multiple conflicting values found, select from highest-trust domain
-
-DATA EXTRACTION REQUIREMENTS:
-1. LIVE BETTING LINES (REQUIRED):
-   - Current spread (e.g., "Cowboys -3.5")
-   - Moneyline odds (e.g., "Cowboys -150, Eagles +130")
-   - Total/Over-Under (e.g., "O/U 47.5")
-   - Opening line vs current line (track movement)
-   - Source URL and timestamp for each value
-
-2. PUBLIC VS SHARP MONEY (if available):
-   - Public betting percentages (% of bets on each side)
-   - Sharp money indicators (% of handle on each side)
-   - Reverse line movement signals
-
-3. KEY INJURIES (if relevant):
-   - Player status (Out, Questionable, Probable)
-   - Impact on line movement
-
-4. SITUATIONAL CONTEXT:
-   - Game date/time
-   - Rest days, travel, weather
-   - Recent form and head-to-head
-
-OUTPUT FORMAT:
-- Start with NUMERIC DATA FIRST (spreads, odds, totals)
-- Include source citations with URLs
-- Note timestamp of data retrieval
-- If data unavailable: explicitly state "No reliable data found"
-- If conflicts detected: state "Multiple conflicting values found" and list all sources
-
-VALIDATION:
-- Verify data is from last 60 minutes when possible
-- Cross-reference multiple sources for accuracy
-- Flag outdated or unverified information
-
-USER QUERY: ${searchQuery}`
-              }
-            ]
-          }
-        ],
-        tools: [
-          {
-            googleSearch: {}
-          }
-        ],
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 2000,
-        }
-      }),
+      body: JSON.stringify({ sport }),
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Gemini API error:", response.status, errorText);
-      throw new Error(`Gemini API error: ${response.status}`);
+      throw new Error(`Failed to fetch odds: ${response.status}`);
     }
 
-    const data = await response.json();
-    
-    // Extract content from response
-    const parts = data.candidates?.[0]?.content?.parts || [];
-    let content = '';
-    
-    for (const part of parts) {
-      if (part.text) {
-        content += part.text + '\n';
-      }
-      // Include grounding metadata if available
-      if (part.groundingMetadata) {
-        content += '\n[Search Sources Used]\n';
-      }
+    const result = await response.json();
+    console.log(`Fetched ${result.count} fresh odds entries`);
+
+    // Now query the database again for the fresh data
+    const { data: freshOdds, error: freshError } = await supabase
+      .from('betting_odds')
+      .select('*')
+      .eq('sport_key', sport)
+      .order('last_updated', { ascending: false })
+      .limit(200);
+
+    if (freshError) {
+      throw freshError;
     }
-    
-    if (!content.trim()) {
-      console.warn("No content returned from Gemini search");
-      return "No reliable betting data found in current search results. Please try again or check sportsbooks directly.";
-    }
-    
-    console.log("Search successful, data retrieved with Google grounding");
-    return content;
+
+    return formatOddsData(freshOdds || [], query);
   } catch (error) {
-    console.error("Error searching betting data:", error);
-    throw error;
+    console.error("Error fetching odds:", error);
+    return "Unable to fetch live odds at the moment. Please try again shortly.";
   }
+}
+
+function formatOddsData(odds: any[], query: string): string {
+  if (!odds || odds.length === 0) {
+    return "No betting odds found for this query. The game may not have lines available yet.";
+  }
+
+  // Group odds by event
+  const eventMap = new Map<string, any[]>();
+  for (const odd of odds) {
+    const eventKey = `${odd.home_team} vs ${odd.away_team}`;
+    if (!eventMap.has(eventKey)) {
+      eventMap.set(eventKey, []);
+    }
+    eventMap.get(eventKey)!.push(odd);
+  }
+
+  let result = `LIVE BETTING ODDS (Last Updated: ${new Date().toLocaleString()}):\n\n`;
+
+  for (const [event, eventOdds] of eventMap.entries()) {
+    const firstOdd = eventOdds[0];
+    const gameTime = new Date(firstOdd.commence_time).toLocaleString();
+    
+    result += `${event}\n`;
+    result += `Game Time: ${gameTime}\n`;
+    result += `Sport: ${firstOdd.sport_title}\n\n`;
+
+    // Group by bookmaker
+    const bookmakerMap = new Map<string, any[]>();
+    for (const odd of eventOdds) {
+      if (!bookmakerMap.has(odd.bookmaker)) {
+        bookmakerMap.set(odd.bookmaker, []);
+      }
+      bookmakerMap.get(odd.bookmaker)!.push(odd);
+    }
+
+    // Show top 3 bookmakers
+    let bookCount = 0;
+    for (const [bookmaker, bookOdds] of bookmakerMap.entries()) {
+      if (bookCount >= 3) break;
+      
+      result += `${bookmaker}:\n`;
+      
+      // Organize by market type
+      const h2hOdds = bookOdds.filter(o => o.market_key === 'h2h');
+      const spreadOdds = bookOdds.filter(o => o.market_key === 'spreads');
+      const totalsOdds = bookOdds.filter(o => o.market_key === 'totals');
+
+      if (h2hOdds.length > 0) {
+        result += `  Moneyline: `;
+        result += h2hOdds.map(o => `${o.outcome_name} ${o.outcome_price > 0 ? '+' : ''}${o.outcome_price}`).join(', ');
+        result += '\n';
+      }
+
+      if (spreadOdds.length > 0) {
+        result += `  Spread: `;
+        result += spreadOdds.map(o => `${o.outcome_name} ${o.outcome_point > 0 ? '+' : ''}${o.outcome_point} (${o.outcome_price > 0 ? '+' : ''}${o.outcome_price})`).join(', ');
+        result += '\n';
+      }
+
+      if (totalsOdds.length > 0) {
+        result += `  Total: `;
+        result += totalsOdds.map(o => `${o.outcome_name} ${o.outcome_point} (${o.outcome_price > 0 ? '+' : ''}${o.outcome_price})`).join(', ');
+        result += '\n';
+      }
+
+      result += '\n';
+      bookCount++;
+    }
+
+    result += '---\n\n';
+  }
+
+  result += `\nData Source: The Odds API (Live)\n`;
+  result += `Total Events: ${eventMap.size}\n`;
+  
+  return result;
 }
 
 serve(async (req) => {
@@ -152,15 +189,15 @@ serve(async (req) => {
                             messageContent.includes('tonight') ||
                             messageContent.includes('today');
 
-    // If asking for data or game analysis, search first then provide context
+    // If asking for data or game analysis, fetch live odds
     let dataContext = "";
     if (isAskingForData) {
       try {
-        console.log("User is asking for game data, searching...");
-        dataContext = await searchSportsbookOdds(lastMessage.content);
-        console.log("Data search result:", dataContext);
+        console.log("User is asking for game data, fetching live odds...");
+        dataContext = await fetchLiveOdds(lastMessage.content);
+        console.log("Data fetch result:", dataContext);
       } catch (error) {
-        console.error("Failed to search betting data:", error);
+        console.error("Failed to fetch betting data:", error);
         dataContext = "I couldn't fetch live data at the moment. Let me help with general analysis principles.";
       }
     }
