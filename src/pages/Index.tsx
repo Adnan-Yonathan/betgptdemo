@@ -5,6 +5,7 @@ import { ChatInput } from "@/components/ChatInput";
 import { ProfileDropdown } from "@/components/ProfileDropdown";
 import { ProfileSettings } from "@/components/ProfileSettings";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -33,6 +34,7 @@ const Index = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [mode, setMode] = useState<"coach" | "manager">("coach");
   const { toast } = useToast();
   const { user } = useAuth();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -164,7 +166,8 @@ const Index = () => {
           messages: messages.map(m => ({ 
             role: m.role, 
             content: m.content 
-          })).concat([{ role: "user", content }])
+          })).concat([{ role: "user", content }]),
+          mode
         }),
       });
 
@@ -272,9 +275,20 @@ const Index = () => {
       <main className="flex-1 flex flex-col">
         {/* Chat Header */}
         <header className="border-b border-border px-6 py-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">BetGPT Chat</h2>
-            <p className="text-sm text-muted-foreground">Your AI betting coach</p>
+          <div className="flex items-center gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">BetGPT Chat</h2>
+              <p className="text-sm text-muted-foreground">Your AI betting coach</p>
+            </div>
+            <Select value={mode} onValueChange={(value: "coach" | "manager") => setMode(value)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="coach">Betting Coach</SelectItem>
+                <SelectItem value="manager">Bankroll Manager</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <ProfileDropdown onOpenProfile={() => setProfileOpen(true)} />
         </header>
