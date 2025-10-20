@@ -1,4 +1,4 @@
-import { MessageSquare, Plus, Search, Trash2 } from "lucide-react";
+import { MessageSquare, Plus, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -143,9 +143,10 @@ export const ChatSidebar = ({ currentConversationId, onConversationSelect, onNew
                 </div>
                 <button
                   onClick={(e) => handleDelete(conv.id, e)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-destructive/10 rounded"
+                  className="p-1 hover:bg-destructive/10 rounded transition-colors flex-shrink-0"
+                  aria-label="Delete conversation"
                 >
-                  <Trash2 className="w-3 h-3 text-destructive" />
+                  <X className="w-4 h-4 text-muted-foreground hover:text-destructive" />
                 </button>
               </div>
             </button>
