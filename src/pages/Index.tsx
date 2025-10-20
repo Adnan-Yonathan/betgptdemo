@@ -4,6 +4,7 @@ import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
 import { ProfileDropdown } from "@/components/ProfileDropdown";
 import { ProfileSettings } from "@/components/ProfileSettings";
+import { ThinkingIndicator } from "@/components/ThinkingIndicator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -42,6 +43,7 @@ const Index = () => {
   const [mode, setMode] = useState<"coach" | "manager">("coach");
   const [messages, setMessages] = useState<Message[]>(mode === "coach" ? coachInitialMessages : managerInitialMessages);
   const [isTyping, setIsTyping] = useState(false);
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const { toast } = useToast();
@@ -50,9 +52,12 @@ const Index = () => {
 
   useEffect(() => {
     if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+      scrollAreaRef.current.scrollTo({
+        top: scrollAreaRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
     }
-  }, [messages]);
+  }, [messages, isTyping]);
 
   const saveMessageToDb = async (conversationId: string, role: "user" | "assistant", content: string) => {
     if (!user) return;
@@ -159,6 +164,7 @@ const Index = () => {
 
     setMessages((prev) => [...prev, userMessage]);
     setIsTyping(true);
+    setStreamingMessageId(null);
 
     // Save to database if user is logged in
     if (user) {
@@ -240,6 +246,7 @@ const Index = () => {
             const deltaContent = parsed.choices?.[0]?.delta?.content as string | undefined;
             if (deltaContent) {
               assistantContent += deltaContent;
+              setStreamingMessageId(assistantId);
               setMessages((prev) => {
                 const last = prev[prev.length - 1];
                 if (last?.id === assistantId) {
@@ -266,6 +273,7 @@ const Index = () => {
       }
 
       setIsTyping(false);
+      setStreamingMessageId(null);
 
       // Save assistant message to database if user is logged in
       if (user && currentConversationId && assistantContent) {
@@ -274,6 +282,7 @@ const Index = () => {
     } catch (error) {
       console.error("Error sending message:", error);
       setIsTyping(false);
+      setStreamingMessageId(null);
       toast({
         title: "Error",
         description: "Failed to get response. Please try again.",
@@ -315,9 +324,9 @@ const Index = () => {
 
         {/* Messages */}
         <ScrollArea className="flex-1 px-6 py-8">
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-4xl mx-auto" ref={scrollAreaRef}>
             {messages.length === 0 ? (
-              <div className="text-center py-12">
+              <div className="text-center py-12 animate-fade-in">
                 <h3 className="text-2xl font-semibold text-foreground mb-2">
                   What's on the agenda today?
                 </h3>
@@ -328,23 +337,14 @@ const Index = () => {
             ) : (
               <>
                 {messages.map((message) => (
-                  <ChatMessage key={message.id} {...message} />
+                  <ChatMessage 
+                    key={message.id} 
+                    {...message} 
+                    isStreaming={message.id === streamingMessageId}
+                  />
                 ))}
-                {isTyping && (
-                  <div className="flex gap-4 mb-6">
-                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-semibold text-foreground">B</span>
-                    </div>
-                    <div className="flex-1 max-w-3xl">
-                      <div className="rounded-2xl px-4 py-3 bg-chat-ai">
-                        <div className="flex gap-1">
-                          <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
-                          <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce [animation-delay:0.2s]" />
-                          <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce [animation-delay:0.4s]" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                {isTyping && streamingMessageId === null && (
+                  <ThinkingIndicator />
                 )}
               </>
             )}
