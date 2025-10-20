@@ -13,7 +13,7 @@ async function searchSportsbookOdds(query: string): Promise<string> {
     throw new Error("OPENAI_API_KEY is not configured");
   }
 
-  console.log("Searching for sportsbook odds:", query);
+  console.log("Searching for comprehensive betting data:", query);
 
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -27,14 +27,46 @@ async function searchSportsbookOdds(query: string): Promise<string> {
         messages: [
           {
             role: "system",
-            content: `You are a sports betting odds researcher. Today's date is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}. Search the web for current sportsbook odds and betting lines. Provide accurate, up-to-date information from reputable sportsbooks like DraftKings, FanDuel, BetMGM, etc. Include spreads, moneylines, and over/under totals when available. Be aware of today's games and upcoming matchups.`
+            content: `You are a comprehensive sports betting data researcher with web search capabilities. Today's date is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.
+
+Your task is to search the web and gather ALL of the following data points:
+
+1. LIVE ODDS & LINE MOVEMENT:
+   - Current spreads, moneylines, and totals from DraftKings, FanDuel, BetMGM, Caesars
+   - Opening lines vs current lines (track line movement)
+   - Identify which direction lines are moving and by how much
+
+2. PUBLIC VS SHARP MONEY:
+   - Public betting percentages (% of bets on each side)
+   - Sharp money indicators (% of money/handle on each side)
+   - Reverse line movement signals (line moves against public %)
+   - Search Action Network, Bet Labs, or covers.com for public betting data
+
+3. INJURY REPORTS:
+   - Key player injuries and their status (Out, Questionable, Probable)
+   - Impact on team performance and Vegas adjustments
+   - Check ESPN, team beat reporters, Rotoworld
+
+4. ADVANCED ANALYTICS:
+   - EPA (Expected Points Added) for offense and defense
+   - DVOA (Defense-adjusted Value Over Average) rankings
+   - Pace of play, efficiency metrics
+   - Search ESPN, Football Outsiders, TeamRankings.com
+
+5. SITUATIONAL CONTEXT:
+   - Rest days, travel distance, home/away splits
+   - Recent form, head-to-head history
+   - Weather conditions if applicable
+   - Motivation factors (playoff implications, rivalry games)
+
+Format your response with clear sections and actual numbers. If you cannot find specific data, explicitly state what is unavailable and search alternative sources.`
           },
           {
             role: "user",
-            content: `Search for current sportsbook odds: ${query}`
+            content: `Search the web for complete betting data and analysis: ${query}`
           }
         ],
-        max_completion_tokens: 1000,
+        max_completion_tokens: 2000,
       }),
     });
 
@@ -47,7 +79,7 @@ async function searchSportsbookOdds(query: string): Promise<string> {
     const data = await response.json();
     return data.choices[0].message.content;
   } catch (error) {
-    console.error("Error searching odds:", error);
+    console.error("Error searching betting data:", error);
     throw error;
   }
 }
@@ -65,23 +97,30 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Check if user is asking for odds
+    // Check if user is asking for odds or game analysis
     const lastMessage = messages[messages.length - 1];
-    const isAskingForOdds = lastMessage?.content?.toLowerCase().includes('odds') || 
-                            lastMessage?.content?.toLowerCase().includes('line') ||
-                            lastMessage?.content?.toLowerCase().includes('spread') ||
-                            lastMessage?.content?.toLowerCase().includes('betting');
+    const messageContent = lastMessage?.content?.toLowerCase() || '';
+    const isAskingForData = messageContent.includes('odds') || 
+                            messageContent.includes('line') ||
+                            messageContent.includes('spread') ||
+                            messageContent.includes('betting') ||
+                            messageContent.includes('game') ||
+                            messageContent.includes('matchup') ||
+                            messageContent.includes(' vs ') ||
+                            messageContent.includes(' v ') ||
+                            messageContent.includes('tonight') ||
+                            messageContent.includes('today');
 
-    // If asking for odds, search first then provide context
-    let oddsContext = "";
-    if (isAskingForOdds) {
+    // If asking for data or game analysis, search first then provide context
+    let dataContext = "";
+    if (isAskingForData) {
       try {
-        console.log("User is asking for odds, searching...");
-        oddsContext = await searchSportsbookOdds(lastMessage.content);
-        console.log("Odds search result:", oddsContext);
+        console.log("User is asking for game data, searching...");
+        dataContext = await searchSportsbookOdds(lastMessage.content);
+        console.log("Data search result:", dataContext);
       } catch (error) {
-        console.error("Failed to search odds:", error);
-        oddsContext = "I couldn't fetch the latest odds at the moment, but I can still help based on general betting principles.";
+        console.error("Failed to search betting data:", error);
+        dataContext = "I couldn't fetch live data at the moment. Let me help with general analysis principles.";
       }
     }
 
@@ -118,6 +157,19 @@ Decision logic:
 - Prefer high confidence intervals and low correlation risk
 - Focus on long-term ROI, not short-term variance
 
+CRITICAL: WHEN USER ASKS ABOUT A SPECIFIC GAME OR MATCHUP:
+DO NOT explain your framework or what you would analyze.
+INSTEAD, perform these steps automatically:
+  1. Fetch live odds and line movement (opening vs current)
+  2. Fetch public vs sharp money percentages (bet % vs handle %)
+  3. Fetch injuries and situational context (rest, travel, motivation)
+  4. Fetch advanced analytics (EPA, DVOA, pace, efficiency)
+  5. Compute expected value (+EV %), fair probability, and CLV
+  6. Output analysis with NUMBERS FIRST, then commentary
+  7. Include: +EV %, fair line estimate, sharp/public ratio, key edges
+
+If specific data is unavailable, explicitly state what's missing and provide analysis based on available information.
+
 RULES:
 - Never recommend a bet without quantifiable edge or statistical support
 - Never chase losses or promote emotional decision-making
@@ -125,6 +177,7 @@ RULES:
 - Prioritize process quality over outcome variance
 - Operate as a coach and educator — explain reasoning transparently
 - Default to long-term EV, not short-term variance outcomes
+- ALWAYS lead with quantified insights before qualitative commentary
 
 COMMUNICATION:
 - Keep answers conversational but sophisticated
@@ -187,15 +240,22 @@ Today's date: ${currentDate}`;
 
     const basePrompt = mode === "manager" ? managerPrompt : coachPrompt;
 
-    const systemPrompt = oddsContext 
+    const systemPrompt = dataContext 
       ? `${basePrompt}
 
-Current odds information: ${oddsContext}
+LIVE BETTING DATA RETRIEVED:
+${dataContext}
 
-Use this odds information to provide accurate, up-to-date betting advice. Focus on line value, market inefficiencies, and strategic angles. Be aware of current games and upcoming matchups.`
+INSTRUCTIONS:
+- Use this data to perform ACTUAL analysis, not theoretical discussion
+- Lead with quantified insights: +EV %, fair line, CLV shift, sharp/public splits
+- Identify specific edges based on line movement, public fade opportunities, injury impacts
+- Calculate fair probability and compare to implied odds
+- Recommend bet sizing based on edge magnitude and confidence
+- Be direct and actionable with your recommendations`
       : `${basePrompt}
 
-Be aware of current sports events and upcoming games. If asked about specific games or odds, search for the most current information available.`;
+If the user asks about a specific game, matchup, or betting opportunity, you will automatically receive live data from web searches. Use that data to provide concrete, quantified analysis.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
