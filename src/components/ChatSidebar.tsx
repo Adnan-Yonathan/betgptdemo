@@ -129,12 +129,12 @@ export const ChatSidebar = ({ currentConversationId, onConversationSelect, onNew
             <button
               key={conv.id}
               onClick={() => onConversationSelect(conv.id)}
-              className={`w-full text-left p-3 rounded-lg hover:bg-sidebar-accent transition-colors group ${
+              className={`group w-full text-left p-3 rounded-lg hover:bg-sidebar-accent transition-colors ${
                 currentConversationId === conv.id ? "bg-sidebar-accent" : ""
               }`}
             >
-              <div className="flex items-start gap-3">
-                <MessageSquare className="w-4 h-4 text-sidebar-foreground/50 mt-0.5 flex-shrink-0" />
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-sidebar-foreground/50 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-sidebar-foreground truncate">{conv.title}</p>
                   <p className="text-xs text-sidebar-foreground/50 mt-0.5">
@@ -143,10 +143,10 @@ export const ChatSidebar = ({ currentConversationId, onConversationSelect, onNew
                 </div>
                 <button
                   onClick={(e) => handleDelete(conv.id, e)}
-                  className="p-1 hover:bg-destructive/10 rounded transition-colors flex-shrink-0"
+                  className="p-1 hover:bg-destructive/20 rounded transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100"
                   aria-label="Delete conversation"
                 >
-                  <X className="w-4 h-4 text-muted-foreground hover:text-destructive" />
+                  <X className="w-3.5 h-3.5 text-sidebar-foreground/70 hover:text-destructive" />
                 </button>
               </div>
             </button>
