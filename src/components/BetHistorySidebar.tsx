@@ -85,7 +85,7 @@ export const BetHistorySidebar = ({
       <div className="p-4 border-b border-sidebar-border">
         <Button onClick={onNewBet} className="w-full justify-start gap-2 bg-sidebar-accent hover:bg-sidebar-accent/80 text-sidebar-foreground">
           <Plus className="w-4 h-4" />
-          New conversation
+          New chat
         </Button>
       </div>
 
