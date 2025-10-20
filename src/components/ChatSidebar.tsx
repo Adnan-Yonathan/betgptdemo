@@ -74,10 +74,6 @@ export const ChatSidebar = ({
   return <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col h-screen">
       {/* Header */}
       <div className="p-4 border-b border-sidebar-border">
-        <div className="flex items-center gap-2 mb-4">
-          
-          
-        </div>
         <Button onClick={onNewChat} className="w-full justify-start gap-2 bg-sidebar-accent hover:bg-sidebar-accent/80 text-sidebar-foreground">
           <Plus className="w-4 h-4" />
           New chat
