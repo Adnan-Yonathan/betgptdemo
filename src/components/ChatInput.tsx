@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Camera, Mic, Plus, Send } from "lucide-react";
+import { useState, useRef } from "react";
+import { Camera, Mic, Plus, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,8 @@ export const ChatInput = ({
   disabled
 }: ChatInputProps) => {
   const [message, setMessage] = useState("");
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (message.trim() && !disabled) {
@@ -25,11 +27,62 @@ export const ChatInput = ({
       handleSubmit(e);
     }
   };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setAttachedFiles(prev => [...prev, ...files]);
+  };
+
+  const handleRemoveFile = (index: number) => {
+    setAttachedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handlePlusClick = () => {
+    fileInputRef.current?.click();
+  };
   return <div className="border-t border-border bg-background p-4">
       <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
+        {/* Attached Files Display */}
+        {attachedFiles.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {attachedFiles.map((file, index) => (
+              <div
+                key={index}
+                className="flex items-center gap-2 bg-muted px-3 py-2 rounded-md text-sm"
+              >
+                <span className="truncate max-w-[200px]">{file.name}</span>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-5 w-5"
+                  onClick={() => handleRemoveFile(index)}
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="relative flex items-end gap-2">
           {/* Additional Actions */}
-          <Button type="button" size="icon" variant="ghost" className="flex-shrink-0 mb-1" disabled={disabled}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={handleFileSelect}
+            disabled={disabled}
+          />
+          <Button 
+            type="button" 
+            size="icon" 
+            variant="ghost" 
+            className="flex-shrink-0 mb-1" 
+            onClick={handlePlusClick}
+            disabled={disabled}
+          >
             <Plus className="w-5 h-5" />
           </Button>
 
