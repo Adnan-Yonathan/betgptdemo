@@ -122,6 +122,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           bankroll: number | null
           created_at: string
           default_bet_size: number | null
@@ -131,6 +132,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          avatar_url?: string | null
           bankroll?: number | null
           created_at?: string
           default_bet_size?: number | null
@@ -140,6 +142,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          avatar_url?: string | null
           bankroll?: number | null
           created_at?: string
           default_bet_size?: number | null
@@ -147,6 +150,51 @@ export type Database = {
           id?: string
           risk_tolerance?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      sports_scores: {
+        Row: {
+          away_score: number | null
+          away_team: string
+          created_at: string
+          event_id: string
+          game_date: string
+          game_status: string
+          home_score: number | null
+          home_team: string
+          id: string
+          last_updated: string
+          league: string
+          sport: string
+        }
+        Insert: {
+          away_score?: number | null
+          away_team: string
+          created_at?: string
+          event_id: string
+          game_date: string
+          game_status: string
+          home_score?: number | null
+          home_team: string
+          id?: string
+          last_updated?: string
+          league: string
+          sport: string
+        }
+        Update: {
+          away_score?: number | null
+          away_team?: string
+          created_at?: string
+          event_id?: string
+          game_date?: string
+          game_status?: string
+          home_score?: number | null
+          home_team?: string
+          id?: string
+          last_updated?: string
+          league?: string
+          sport?: string
         }
         Relationships: []
       }
