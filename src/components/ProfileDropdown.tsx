@@ -10,10 +10,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useEffect } from "react";
 
 interface ProfileDropdownProps {
   onOpenProfile: () => void;
@@ -23,27 +22,6 @@ export const ProfileDropdown = ({ onOpenProfile }: ProfileDropdownProps) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (user) {
-      loadAvatar();
-    }
-  }, [user]);
-
-  const loadAvatar = async () => {
-    if (!user) return;
-
-    const { data } = await supabase
-      .from("profiles")
-      .select("avatar_url")
-      .eq("id", user.id)
-      .single();
-
-    if (data?.avatar_url) {
-      setAvatarUrl(data.avatar_url);
-    }
-  };
 
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut();
@@ -77,7 +55,6 @@ export const ProfileDropdown = ({ onOpenProfile }: ProfileDropdownProps) => {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-9 w-9 rounded-full">
           <Avatar className="h-9 w-9">
-            <AvatarImage src={avatarUrl || undefined} alt="Profile" />
             <AvatarFallback className="bg-primary text-primary-foreground">
               {initials}
             </AvatarFallback>
