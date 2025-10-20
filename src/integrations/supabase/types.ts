@@ -14,6 +14,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      bets: {
+        Row: {
+          actual_return: number | null
+          amount: number
+          conversation_id: string | null
+          created_at: string
+          description: string
+          id: string
+          odds: number
+          outcome: string
+          potential_return: number | null
+          settled_at: string | null
+          user_id: string
+        }
+        Insert: {
+          actual_return?: number | null
+          amount: number
+          conversation_id?: string | null
+          created_at?: string
+          description: string
+          id?: string
+          odds: number
+          outcome?: string
+          potential_return?: number | null
+          settled_at?: string | null
+          user_id: string
+        }
+        Update: {
+          actual_return?: number | null
+          amount?: number
+          conversation_id?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          odds?: number
+          outcome?: string
+          potential_return?: number | null
+          settled_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bets_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           created_at: string

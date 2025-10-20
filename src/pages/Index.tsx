@@ -5,6 +5,8 @@ import { ChatInput } from "@/components/ChatInput";
 import { ProfileDropdown } from "@/components/ProfileDropdown";
 import { ProfileSettings } from "@/components/ProfileSettings";
 import { ThinkingIndicator } from "@/components/ThinkingIndicator";
+import { BankrollStats } from "@/components/BankrollStats";
+import { BetHistorySidebar } from "@/components/BetHistorySidebar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -46,9 +48,28 @@ const Index = () => {
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [initialBankroll, setInitialBankroll] = useState(1000);
   const { toast } = useToast();
   const { user } = useAuth();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    
+    const fetchProfile = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("bankroll")
+        .eq("id", user.id)
+        .single();
+      
+      if (data?.bankroll) {
+        setInitialBankroll(Number(data.bankroll));
+      }
+    };
+    
+    fetchProfile();
+  }, [user]);
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -293,11 +314,15 @@ const Index = () => {
 
   return (
     <div className="flex h-screen bg-background">
-      <ChatSidebar 
-        currentConversationId={currentConversationId}
-        onConversationSelect={loadConversation}
-        onNewChat={handleNewChat}
-      />
+      {mode === "coach" ? (
+        <ChatSidebar 
+          currentConversationId={currentConversationId}
+          onConversationSelect={loadConversation}
+          onNewChat={handleNewChat}
+        />
+      ) : (
+        <BetHistorySidebar onNewBet={handleNewChat} />
+      )}
       
       <main className="flex-1 flex flex-col">
         {/* Chat Header */}
@@ -321,6 +346,9 @@ const Index = () => {
           </div>
           <ProfileDropdown onOpenProfile={() => setProfileOpen(true)} />
         </header>
+
+        {/* Bankroll Stats - Only show in manager mode */}
+        {mode === "manager" && <BankrollStats initialBankroll={initialBankroll} />}
 
         {/* Messages */}
         <ScrollArea className="flex-1 px-6 py-8">
