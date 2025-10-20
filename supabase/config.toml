@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.speech-to-text]
 verify_jwt = false
+
+[functions.fetch-betting-odds]
+verify_jwt = false

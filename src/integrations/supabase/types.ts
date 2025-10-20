@@ -64,6 +64,57 @@ export type Database = {
           },
         ]
       }
+      betting_odds: {
+        Row: {
+          away_team: string
+          bookmaker: string
+          commence_time: string
+          created_at: string
+          event_id: string
+          home_team: string
+          id: string
+          last_updated: string
+          market_key: string
+          outcome_name: string
+          outcome_point: number | null
+          outcome_price: number
+          sport_key: string
+          sport_title: string
+        }
+        Insert: {
+          away_team: string
+          bookmaker: string
+          commence_time: string
+          created_at?: string
+          event_id: string
+          home_team: string
+          id?: string
+          last_updated?: string
+          market_key: string
+          outcome_name: string
+          outcome_point?: number | null
+          outcome_price: number
+          sport_key: string
+          sport_title: string
+        }
+        Update: {
+          away_team?: string
+          bookmaker?: string
+          commence_time?: string
+          created_at?: string
+          event_id?: string
+          home_team?: string
+          id?: string
+          last_updated?: string
+          market_key?: string
+          outcome_name?: string
+          outcome_point?: number | null
+          outcome_price?: number
+          sport_key?: string
+          sport_title?: string
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           created_at: string
