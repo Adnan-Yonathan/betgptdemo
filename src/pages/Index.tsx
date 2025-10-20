@@ -2,8 +2,10 @@ import { useState, useRef, useEffect } from "react";
 import { ChatSidebar } from "@/components/ChatSidebar";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
+import { ProfileDropdown } from "@/components/ProfileDropdown";
+import { ProfileSettings } from "@/components/ProfileSettings";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 interface Message {
   id: string;
@@ -27,6 +29,7 @@ const initialMessages: Message[] = [
 const Index = () => {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [isTyping, setIsTyping] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -159,9 +162,12 @@ const Index = () => {
       
       <main className="flex-1 flex flex-col">
         {/* Chat Header */}
-        <header className="border-b border-border px-6 py-4">
-          <h2 className="text-lg font-semibold text-foreground">BetGPT Chat</h2>
-          <p className="text-sm text-muted-foreground">Your AI betting coach</p>
+        <header className="border-b border-border px-6 py-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">BetGPT Chat</h2>
+            <p className="text-sm text-muted-foreground">Your AI betting coach</p>
+          </div>
+          <ProfileDropdown onOpenProfile={() => setProfileOpen(true)} />
         </header>
 
         {/* Messages */}
@@ -205,6 +211,8 @@ const Index = () => {
         {/* Input */}
         <ChatInput onSendMessage={handleSendMessage} disabled={isTyping} />
       </main>
+
+      <ProfileSettings open={profileOpen} onOpenChange={setProfileOpen} />
     </div>
   );
 };
