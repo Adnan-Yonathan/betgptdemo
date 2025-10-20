@@ -19,7 +19,7 @@ interface Message {
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
-const initialMessages: Message[] = [
+const coachInitialMessages: Message[] = [
   {
     id: "1",
     role: "assistant",
@@ -28,13 +28,22 @@ const initialMessages: Message[] = [
   },
 ];
 
+const managerInitialMessages: Message[] = [
+  {
+    id: "1",
+    role: "assistant",
+    content: "Hey! I'm BetGPT 👋\n\nI'm your AI bankroll manager. I help you track your bets, manage your bankroll, and recommend optimal bet sizes based on proven strategies.\n\nYou can log bets by telling me:\n• The amount you wagered\n• The odds\n• The outcome (win/loss)\n• Any other details\n\nI'll track your performance and give you personalized bankroll management advice.\n\nWhat bet would you like to log?",
+    timestamp: "Just now",
+  },
+];
+
 
 const Index = () => {
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [mode, setMode] = useState<"coach" | "manager">("coach");
+  const [messages, setMessages] = useState<Message[]>(mode === "coach" ? coachInitialMessages : managerInitialMessages);
   const [isTyping, setIsTyping] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
-  const [mode, setMode] = useState<"coach" | "manager">("coach");
   const { toast } = useToast();
   const { user } = useAuth();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -112,8 +121,9 @@ const Index = () => {
       return;
     }
 
+    const initialMsgs = mode === "coach" ? coachInitialMessages : managerInitialMessages;
     const loadedMessages: Message[] = [
-      ...initialMessages, // Include welcome message
+      ...initialMsgs, // Include welcome message
       ...data.map((msg) => ({
         id: msg.id,
         role: msg.role as "user" | "assistant",
@@ -127,7 +137,15 @@ const Index = () => {
   };
 
   const handleNewChat = () => {
-    setMessages(initialMessages);
+    const initialMsgs = mode === "coach" ? coachInitialMessages : managerInitialMessages;
+    setMessages(initialMsgs);
+    setCurrentConversationId(null);
+  };
+
+  const handleModeChange = (newMode: "coach" | "manager") => {
+    setMode(newMode);
+    const initialMsgs = newMode === "coach" ? coachInitialMessages : managerInitialMessages;
+    setMessages(initialMsgs);
     setCurrentConversationId(null);
   };
 
@@ -278,9 +296,11 @@ const Index = () => {
           <div className="flex items-center gap-4">
             <div>
               <h2 className="text-lg font-semibold text-foreground">BetGPT Chat</h2>
-              <p className="text-sm text-muted-foreground">Your AI betting coach</p>
+              <p className="text-sm text-muted-foreground">
+                {mode === "coach" ? "Your AI betting coach" : "Your AI bankroll manager"}
+              </p>
             </div>
-            <Select value={mode} onValueChange={(value: "coach" | "manager") => setMode(value)}>
+            <Select value={mode} onValueChange={handleModeChange}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue />
               </SelectTrigger>
