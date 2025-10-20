@@ -13,7 +13,10 @@ async function searchSportsbookOdds(query: string): Promise<string> {
     throw new Error("GEMINI_API_KEY is not configured");
   }
 
-  console.log("Searching for comprehensive betting data:", query);
+  console.log("Searching for comprehensive betting data with Google Search grounding:", query);
+
+  // Optimize query for Google Search with preferred domains
+  const searchQuery = `${query} site:draftkings.com OR site:fanduel.com OR site:oddsshark.com OR site:vegasinsider.com OR site:espn.com -site:reddit.com -site:quora.com`;
 
   try {
     const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent", {
@@ -27,41 +30,50 @@ async function searchSportsbookOdds(query: string): Promise<string> {
           {
             parts: [
               {
-                text: `You are a comprehensive sports betting data researcher with web search capabilities. Today's date is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.
+                text: `You are a real-time sports betting data researcher with Google Search grounding enabled. Current timestamp: ${new Date().toISOString()}.
 
-Your task is to search the web and gather ALL of the following data points:
+CRITICAL SEARCH BEHAVIOR:
+- You MUST use Google Search to fetch CURRENT, LIVE betting data
+- ALWAYS prioritize data from: DraftKings, FanDuel, OddsShark, VegasInsider, ESPN
+- AVOID: Reddit, Quora, forums, opinion sites
+- Search for the most recent data (within last 60 minutes if possible)
+- If multiple conflicting values found, select from highest-trust domain
 
-1. LIVE ODDS & LINE MOVEMENT:
-   - Current spreads, moneylines, and totals from DraftKings, FanDuel, BetMGM, Caesars
-   - Opening lines vs current lines (track line movement)
-   - Identify which direction lines are moving and by how much
+DATA EXTRACTION REQUIREMENTS:
+1. LIVE BETTING LINES (REQUIRED):
+   - Current spread (e.g., "Cowboys -3.5")
+   - Moneyline odds (e.g., "Cowboys -150, Eagles +130")
+   - Total/Over-Under (e.g., "O/U 47.5")
+   - Opening line vs current line (track movement)
+   - Source URL and timestamp for each value
 
-2. PUBLIC VS SHARP MONEY:
+2. PUBLIC VS SHARP MONEY (if available):
    - Public betting percentages (% of bets on each side)
-   - Sharp money indicators (% of money/handle on each side)
-   - Reverse line movement signals (line moves against public %)
-   - Search Action Network, Bet Labs, or covers.com for public betting data
+   - Sharp money indicators (% of handle on each side)
+   - Reverse line movement signals
 
-3. INJURY REPORTS:
-   - Key player injuries and their status (Out, Questionable, Probable)
-   - Impact on team performance and Vegas adjustments
-   - Check ESPN, team beat reporters, Rotoworld
+3. KEY INJURIES (if relevant):
+   - Player status (Out, Questionable, Probable)
+   - Impact on line movement
 
-4. ADVANCED ANALYTICS:
-   - EPA (Expected Points Added) for offense and defense
-   - DVOA (Defense-adjusted Value Over Average) rankings
-   - Pace of play, efficiency metrics
-   - Search ESPN, Football Outsiders, TeamRankings.com
+4. SITUATIONAL CONTEXT:
+   - Game date/time
+   - Rest days, travel, weather
+   - Recent form and head-to-head
 
-5. SITUATIONAL CONTEXT:
-   - Rest days, travel distance, home/away splits
-   - Recent form, head-to-head history
-   - Weather conditions if applicable
-   - Motivation factors (playoff implications, rivalry games)
+OUTPUT FORMAT:
+- Start with NUMERIC DATA FIRST (spreads, odds, totals)
+- Include source citations with URLs
+- Note timestamp of data retrieval
+- If data unavailable: explicitly state "No reliable data found"
+- If conflicts detected: state "Multiple conflicting values found" and list all sources
 
-Format your response with clear sections and actual numbers. If you cannot find specific data, explicitly state what is unavailable and search alternative sources.
+VALIDATION:
+- Verify data is from last 60 minutes when possible
+- Cross-reference multiple sources for accuracy
+- Flag outdated or unverified information
 
-USER QUERY: ${query}`
+USER QUERY: ${searchQuery}`
               }
             ]
           }
@@ -72,7 +84,7 @@ USER QUERY: ${query}`
           }
         ],
         generationConfig: {
-          temperature: 0.7,
+          temperature: 0.3,
           maxOutputTokens: 2000,
         }
       }),
@@ -85,7 +97,27 @@ USER QUERY: ${query}`
     }
 
     const data = await response.json();
-    const content = data.candidates?.[0]?.content?.parts?.map((part: any) => part.text).join('\n') || '';
+    
+    // Extract content from response
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    let content = '';
+    
+    for (const part of parts) {
+      if (part.text) {
+        content += part.text + '\n';
+      }
+      // Include grounding metadata if available
+      if (part.groundingMetadata) {
+        content += '\n[Search Sources Used]\n';
+      }
+    }
+    
+    if (!content.trim()) {
+      console.warn("No content returned from Gemini search");
+      return "No reliable betting data found in current search results. Please try again or check sportsbooks directly.";
+    }
+    
+    console.log("Search successful, data retrieved with Google grounding");
     return content;
   } catch (error) {
     console.error("Error searching betting data:", error);
