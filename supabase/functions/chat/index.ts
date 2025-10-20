@@ -7,27 +7,27 @@ const corsHeaders = {
 };
 
 async function searchSportsbookOdds(query: string): Promise<string> {
-  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
   
-  if (!OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY is not configured");
+  if (!GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY is not configured");
   }
 
   console.log("Searching for comprehensive betting data:", query);
 
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
+        "x-goog-api-key": GEMINI_API_KEY,
       },
       body: JSON.stringify({
-        model: "gpt-5-2025-08-07",
-        messages: [
+        contents: [
           {
-            role: "system",
-            content: `You are a comprehensive sports betting data researcher with web search capabilities. Today's date is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.
+            parts: [
+              {
+                text: `You are a comprehensive sports betting data researcher with web search capabilities. Today's date is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.
 
 Your task is to search the web and gather ALL of the following data points:
 
@@ -59,25 +59,34 @@ Your task is to search the web and gather ALL of the following data points:
    - Weather conditions if applicable
    - Motivation factors (playoff implications, rivalry games)
 
-Format your response with clear sections and actual numbers. If you cannot find specific data, explicitly state what is unavailable and search alternative sources.`
-          },
-          {
-            role: "user",
-            content: `Search the web for complete betting data and analysis: ${query}`
+Format your response with clear sections and actual numbers. If you cannot find specific data, explicitly state what is unavailable and search alternative sources.
+
+USER QUERY: ${query}`
+              }
+            ]
           }
         ],
-        max_completion_tokens: 2000,
+        tools: [
+          {
+            googleSearch: {}
+          }
+        ],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 2000,
+        }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("OpenAI API error:", response.status, errorText);
-      throw new Error(`OpenAI API error: ${response.status}`);
+      console.error("Gemini API error:", response.status, errorText);
+      throw new Error(`Gemini API error: ${response.status}`);
     }
 
     const data = await response.json();
-    return data.choices[0].message.content;
+    const content = data.candidates?.[0]?.content?.parts?.map((part: any) => part.text).join('\n') || '';
+    return content;
   } catch (error) {
     console.error("Error searching betting data:", error);
     throw error;
