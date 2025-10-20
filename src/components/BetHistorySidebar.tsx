@@ -84,21 +84,32 @@ export const BetHistorySidebar = ({ onNewBet }: BetHistorySidebarProps) => {
   };
 
   return (
-    <aside className="w-64 border-r border-border bg-background flex flex-col">
-      <div className="p-4 border-b border-border">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-foreground">Bet History</h2>
-          <Button size="sm" onClick={onNewBet} className="h-8 w-8 p-0">
-            <Plus className="h-4 w-4" />
-          </Button>
+    <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col h-screen">
+      <div className="p-4 border-b border-sidebar-border">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center">
+            <span className="text-white font-bold text-sm">B</span>
+          </div>
+          <h1 className="text-sidebar-foreground font-semibold text-lg">BetGPT</h1>
         </div>
+        <Button 
+          onClick={onNewBet}
+          className="w-full justify-start gap-2 bg-sidebar-accent hover:bg-sidebar-accent/80 text-sidebar-foreground"
+        >
+          <Plus className="w-4 h-4" />
+          New conversation
+        </Button>
+      </div>
+
+      <div className="p-4 border-b border-sidebar-border">
+        <h2 className="text-lg font-semibold text-sidebar-foreground">Bet History</h2>
       </div>
 
       <ScrollArea className="flex-1">
         <div className="p-2 space-y-2">
           {bets.length === 0 ? (
             <div className="text-center py-8 px-4">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-sidebar-foreground/50">
                 No bets logged yet. Start tracking your bets in the chat!
               </p>
             </div>
@@ -106,7 +117,7 @@ export const BetHistorySidebar = ({ onNewBet }: BetHistorySidebarProps) => {
             bets.map((bet) => (
               <div
                 key={bet.id}
-                className="p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors cursor-pointer"
+                className="p-3 rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors cursor-pointer"
               >
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-2">
@@ -115,16 +126,16 @@ export const BetHistorySidebar = ({ onNewBet }: BetHistorySidebarProps) => {
                       {bet.outcome}
                     </span>
                   </div>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-sidebar-foreground/50">
                     {format(new Date(bet.created_at), "MMM d")}
                   </span>
                 </div>
 
-                <p className="text-sm font-medium text-foreground mb-1 line-clamp-2">
+                <p className="text-sm font-medium text-sidebar-foreground mb-1 line-clamp-2">
                   {bet.description}
                 </p>
 
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <div className="flex items-center justify-between text-xs text-sidebar-foreground/70">
                   <span>${bet.amount.toFixed(2)} @ {bet.odds > 0 ? '+' : ''}{bet.odds}</span>
                   {bet.outcome === 'win' && bet.actual_return && (
                     <span className="text-green-500 font-semibold">

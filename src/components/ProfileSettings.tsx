@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useTheme } from "next-themes";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Moon, Sun } from "lucide-react";
 
 interface ProfileSettingsProps {
   open: boolean;
@@ -28,6 +30,7 @@ interface ProfileSettingsProps {
 export const ProfileSettings = ({ open, onOpenChange }: ProfileSettingsProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
   const [loading, setLoading] = useState(false);
   const [bankroll, setBankroll] = useState("1000");
   const [betSize, setBetSize] = useState("100");
@@ -95,12 +98,35 @@ export const ProfileSettings = ({ open, onOpenChange }: ProfileSettingsProps) =>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Betting Profile</DialogTitle>
+          <DialogTitle>Settings</DialogTitle>
           <DialogDescription>
-            Configure your betting preferences to help BetGPT give you personalized advice.
+            Configure your betting preferences and appearance settings.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label>Theme</Label>
+            <div className="flex gap-2">
+              <Button
+                variant={theme === "light" ? "default" : "outline"}
+                size="sm"
+                className="flex-1"
+                onClick={() => setTheme("light")}
+              >
+                <Sun className="h-4 w-4 mr-2" />
+                Light
+              </Button>
+              <Button
+                variant={theme === "dark" ? "default" : "outline"}
+                size="sm"
+                className="flex-1"
+                onClick={() => setTheme("dark")}
+              >
+                <Moon className="h-4 w-4 mr-2" />
+                Dark
+              </Button>
+            </div>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="bankroll">Bankroll ($)</Label>
             <Input
