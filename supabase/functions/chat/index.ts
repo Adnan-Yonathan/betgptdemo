@@ -14,15 +14,37 @@ async function fetchLiveOdds(query: string): Promise<string> {
 
   console.log("Fetching live odds data for query:", query);
 
-  // Determine sport from query
+  // Determine sport from query with comprehensive detection
   let sport = 'americanfootball_nfl'; // default
   const queryLower = query.toLowerCase();
   
-  if (queryLower.includes('nba') || queryLower.includes('basketball')) {
+  // MLB team names
+  const mlbTeams = ['yankees', 'red sox', 'blue jays', 'orioles', 'rays', 'dodgers', 'giants', 'padres', 
+    'athletics', 'angels', 'astros', 'rangers', 'mariners', 'white sox', 'indians', 'guardians', 
+    'tigers', 'royals', 'twins', 'brewers', 'cardinals', 'cubs', 'reds', 'pirates', 'braves', 
+    'marlins', 'mets', 'phillies', 'nationals', 'rockies', 'diamondbacks'];
+  
+  // NBA team names
+  const nbaTeams = ['lakers', 'celtics', 'warriors', 'nets', 'knicks', 'bulls', 'heat', 'mavericks',
+    'suns', 'bucks', 'clippers', 'nuggets', 'rockets', 'sixers', '76ers', 'raptors', 'grizzlies',
+    'hawks', 'hornets', 'jazz', 'kings', 'spurs', 'thunder', 'trail blazers', 'blazers', 'wizards',
+    'pistons', 'magic', 'cavaliers', 'cavs', 'pelicans', 'timberwolves', 'wolves', 'pacers'];
+  
+  // NHL team names
+  const nhlTeams = ['bruins', 'maple leafs', 'canadiens', 'senators', 'sabres', 'rangers', 'islanders',
+    'devils', 'penguins', 'flyers', 'capitals', 'hurricanes', 'blue jackets', 'panthers', 'lightning',
+    'predators', 'stars', 'blues', 'blackhawks', 'avalanche', 'wild', 'jets', 'flames', 'oilers',
+    'canucks', 'golden knights', 'kraken', 'ducks', 'kings', 'sharks', 'coyotes'];
+  
+  // Check for sport keywords first
+  if (queryLower.includes('nba') || queryLower.includes('basketball') || 
+      nbaTeams.some(team => queryLower.includes(team))) {
     sport = 'basketball_nba';
-  } else if (queryLower.includes('mlb') || queryLower.includes('baseball')) {
+  } else if (queryLower.includes('mlb') || queryLower.includes('baseball') || 
+             mlbTeams.some(team => queryLower.includes(team))) {
     sport = 'baseball_mlb';
-  } else if (queryLower.includes('nhl') || queryLower.includes('hockey')) {
+  } else if (queryLower.includes('nhl') || queryLower.includes('hockey') || 
+             nhlTeams.some(team => queryLower.includes(team))) {
     sport = 'icehockey_nhl';
   } else if (queryLower.includes('soccer') || queryLower.includes('mls')) {
     sport = 'soccer_usa_mls';
