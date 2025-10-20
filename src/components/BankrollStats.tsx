@@ -3,14 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { TrendingUp, TrendingDown, DollarSign, Percent } from "lucide-react";
 
-interface BankrollStatsProps {
-  initialBankroll: number;
-}
-
-export const BankrollStats = ({ initialBankroll }: BankrollStatsProps) => {
+export const BankrollStats = () => {
   const { user } = useAuth();
   const [stats, setStats] = useState({
-    totalBankroll: initialBankroll,
+    totalBankroll: 0,
     percentChange: 0,
     expectedEV: 0,
     totalBets: 0,
@@ -20,31 +16,56 @@ export const BankrollStats = ({ initialBankroll }: BankrollStatsProps) => {
     if (!user) return;
 
     const fetchStats = async () => {
+      // Fetch initial bankroll from profile
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("bankroll")
+        .eq("id", user.id)
+        .single();
+
+      const initialBankroll = Number(profile?.bankroll || 1000);
+
+      // Fetch all bets
       const { data: bets } = await supabase
         .from("bets")
         .select("*")
         .eq("user_id", user.id);
 
-      if (!bets) return;
+      if (!bets) {
+        setStats({
+          totalBankroll: initialBankroll,
+          percentChange: 0,
+          expectedEV: 0,
+          totalBets: 0,
+        });
+        return;
+      }
 
+      // Calculate profit/loss from settled bets
       const settled = bets.filter(b => b.outcome !== 'pending');
       const totalReturn = settled.reduce((sum, bet) => {
         if (bet.outcome === 'win') return sum + (bet.actual_return || 0);
         if (bet.outcome === 'loss') return sum - bet.amount;
-        return sum;
+        return sum; // push = no change
       }, 0);
 
-      const totalWagered = settled.reduce((sum, bet) => sum + bet.amount, 0);
       const currentBankroll = initialBankroll + totalReturn;
       const percentChange = initialBankroll > 0 
         ? ((currentBankroll - initialBankroll) / initialBankroll) * 100 
         : 0;
 
-      // Calculate expected EV from all bets
+      // Calculate expected EV based on odds (simplified Kelly-style calculation)
       const totalEV = bets.reduce((sum, bet) => {
-        const decimalOdds = bet.odds > 0 ? (bet.odds / 100) + 1 : (100 / Math.abs(bet.odds)) + 1;
+        // Convert American odds to decimal
+        const decimalOdds = bet.odds > 0 
+          ? (bet.odds / 100) + 1 
+          : (100 / Math.abs(bet.odds)) + 1;
+        
+        // EV = (Probability of Win × Potential Profit) - (Probability of Loss × Amount Wagered)
+        // Using implied probability from odds as estimate
         const impliedProb = 1 / decimalOdds;
-        const ev = (bet.amount * decimalOdds - bet.amount) * impliedProb;
+        const potentialProfit = bet.amount * (decimalOdds - 1);
+        const ev = (impliedProb * potentialProfit) - ((1 - impliedProb) * bet.amount);
         return sum + ev;
       }, 0);
 
@@ -76,7 +97,7 @@ export const BankrollStats = ({ initialBankroll }: BankrollStatsProps) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, initialBankroll]);
+  }, [user]);
 
   const isPositive = stats.percentChange >= 0;
 

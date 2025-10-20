@@ -342,7 +342,7 @@ const Index = () => {
         </header>
 
         {/* Bankroll Stats - Only show in manager mode */}
-        {mode === "manager" && <BankrollStats initialBankroll={initialBankroll} />}
+        {mode === "manager" && <BankrollStats />}
 
         {/* Messages */}
         <ScrollArea className="flex-1 px-6 py-8">
