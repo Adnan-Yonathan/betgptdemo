@@ -1,38 +1,32 @@
 import { cn } from "@/lib/utils";
-
 interface ChatMessageProps {
   role: "user" | "assistant";
   content: string;
   timestamp?: string;
   isStreaming?: boolean;
 }
-
-export const ChatMessage = ({ role, content, timestamp, isStreaming = false }: ChatMessageProps) => {
+export const ChatMessage = ({
+  role,
+  content,
+  timestamp,
+  isStreaming = false
+}: ChatMessageProps) => {
   const isUser = role === "user";
-
-  return (
-    <div className="mb-8 animate-fade-in group">
+  return <div className="mb-8 animate-fade-in group">
       {/* Role Label */}
       <div className="mb-2">
-        <span className="text-sm font-semibold text-foreground">
-          {isUser ? "You" : "BetGPT"}
-        </span>
+        
       </div>
 
       {/* Message Content */}
       <div className="text-foreground">
         <p className="text-[15px] leading-relaxed whitespace-pre-wrap">
           {content}
-          {isStreaming && (
-            <span className="inline-block w-[2px] h-5 bg-foreground ml-0.5 animate-pulse align-middle" />
-          )}
+          {isStreaming && <span className="inline-block w-[2px] h-5 bg-foreground ml-0.5 animate-pulse align-middle" />}
         </p>
-        {timestamp && (
-          <span className="text-xs text-muted-foreground mt-2 block transition-opacity duration-200 opacity-0 group-hover:opacity-100">
+        {timestamp && <span className="text-xs text-muted-foreground mt-2 block transition-opacity duration-200 opacity-0 group-hover:opacity-100">
             {timestamp}
-          </span>
-        )}
+          </span>}
       </div>
-    </div>
-  );
+    </div>;
 };
