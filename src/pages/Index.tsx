@@ -6,6 +6,8 @@ import { ProfileDropdown } from "@/components/ProfileDropdown";
 import { ProfileSettings } from "@/components/ProfileSettings";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Message {
   id: string;
@@ -30,7 +32,9 @@ const Index = () => {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [isTyping, setIsTyping] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -38,6 +42,80 @@ const Index = () => {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
     }
   }, [messages]);
+
+  const saveMessageToDb = async (conversationId: string, role: "user" | "assistant", content: string) => {
+    if (!user) return;
+
+    const { error } = await supabase.from("messages").insert({
+      conversation_id: conversationId,
+      role,
+      content,
+    });
+
+    if (error) {
+      console.error("Error saving message:", error);
+    }
+  };
+
+  const createOrGetConversation = async (firstMessage: string): Promise<string> => {
+    if (!user) throw new Error("User not authenticated");
+
+    if (currentConversationId) {
+      return currentConversationId;
+    }
+
+    // Create new conversation with title from first message
+    const title = firstMessage.slice(0, 50) + (firstMessage.length > 50 ? "..." : "");
+    const { data, error } = await supabase
+      .from("conversations")
+      .insert({
+        user_id: user.id,
+        title,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error creating conversation:", error);
+      throw error;
+    }
+
+    setCurrentConversationId(data.id);
+    return data.id;
+  };
+
+  const loadConversation = async (conversationId: string) => {
+    const { data, error } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("Error loading conversation:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load conversation",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const loadedMessages: Message[] = data.map((msg) => ({
+      id: msg.id,
+      role: msg.role as "user" | "assistant",
+      content: msg.content,
+      timestamp: "Just now",
+    }));
+
+    setMessages(loadedMessages);
+    setCurrentConversationId(conversationId);
+  };
+
+  const handleNewChat = () => {
+    setMessages(initialMessages);
+    setCurrentConversationId(null);
+  };
 
   const handleSendMessage = async (content: string) => {
     const userMessage: Message = {
@@ -49,6 +127,16 @@ const Index = () => {
 
     setMessages((prev) => [...prev, userMessage]);
     setIsTyping(true);
+
+    // Save to database if user is logged in
+    if (user) {
+      try {
+        const conversationId = await createOrGetConversation(content);
+        await saveMessageToDb(conversationId, "user", content);
+      } catch (error) {
+        console.error("Error saving user message:", error);
+      }
+    }
 
     let assistantContent = "";
     const assistantId = (Date.now() + 1).toString();
@@ -145,6 +233,11 @@ const Index = () => {
       }
 
       setIsTyping(false);
+
+      // Save assistant message to database if user is logged in
+      if (user && currentConversationId && assistantContent) {
+        await saveMessageToDb(currentConversationId, "assistant", assistantContent);
+      }
     } catch (error) {
       console.error("Error sending message:", error);
       setIsTyping(false);
@@ -158,7 +251,11 @@ const Index = () => {
 
   return (
     <div className="flex h-screen bg-background">
-      <ChatSidebar />
+      <ChatSidebar 
+        currentConversationId={currentConversationId}
+        onConversationSelect={loadConversation}
+        onNewChat={handleNewChat}
+      />
       
       <main className="flex-1 flex flex-col">
         {/* Chat Header */}

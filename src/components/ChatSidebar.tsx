@@ -1,23 +1,85 @@
-import { MessageSquare, Plus, Search } from "lucide-react";
+import { MessageSquare, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { formatDistanceToNow } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 
-interface ChatHistory {
+interface Conversation {
   id: string;
   title: string;
-  timestamp: string;
+  created_at: string;
+  updated_at: string;
 }
 
-const mockChatHistory: ChatHistory[] = [
-  { id: "1", title: "Lakers -5.5 Analysis", timestamp: "2 hours ago" },
-  { id: "2", title: "October Performance Review", timestamp: "Yesterday" },
-  { id: "3", title: "NFL Totals Strategy", timestamp: "2 days ago" },
-  { id: "4", title: "Parlay Discussion", timestamp: "3 days ago" },
-  { id: "5", title: "Chiefs Win Review", timestamp: "4 days ago" },
-];
+interface ChatSidebarProps {
+  currentConversationId: string | null;
+  onConversationSelect: (id: string) => void;
+  onNewChat: () => void;
+}
 
-export const ChatSidebar = () => {
+export const ChatSidebar = ({ currentConversationId, onConversationSelect, onNewChat }: ChatSidebarProps) => {
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const fetchConversations = async () => {
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("conversations")
+      .select("*")
+      .order("updated_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching conversations:", error);
+      return;
+    }
+
+    setConversations(data || []);
+  };
+
+  useEffect(() => {
+    fetchConversations();
+  }, [user]);
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    const { error } = await supabase
+      .from("conversations")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete conversation",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Success",
+      description: "Conversation deleted",
+    });
+
+    fetchConversations();
+    
+    if (currentConversationId === id) {
+      onNewChat();
+    }
+  };
+
+  const filteredConversations = conversations.filter((conv) =>
+    conv.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col h-screen">
       {/* Header */}
@@ -28,7 +90,10 @@ export const ChatSidebar = () => {
           </div>
           <h1 className="text-sidebar-foreground font-semibold text-lg">BetGPT</h1>
         </div>
-        <Button className="w-full justify-start gap-2 bg-sidebar-accent hover:bg-sidebar-accent/80 text-sidebar-foreground">
+        <Button 
+          onClick={onNewChat}
+          className="w-full justify-start gap-2 bg-sidebar-accent hover:bg-sidebar-accent/80 text-sidebar-foreground"
+        >
           <Plus className="w-4 h-4" />
           New chat
         </Button>
@@ -40,6 +105,8 @@ export const ChatSidebar = () => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sidebar-foreground/50" />
           <Input
             placeholder="Search chats"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9 bg-sidebar-accent border-sidebar-border text-sidebar-foreground placeholder:text-sidebar-foreground/50"
           />
         </div>
@@ -48,17 +115,38 @@ export const ChatSidebar = () => {
       {/* Chat History */}
       <ScrollArea className="flex-1">
         <div className="p-2 space-y-1">
-          {mockChatHistory.map((chat) => (
+          {filteredConversations.length === 0 && user && (
+            <p className="text-sm text-sidebar-foreground/50 text-center p-4">
+              No conversations yet
+            </p>
+          )}
+          {!user && (
+            <p className="text-sm text-sidebar-foreground/50 text-center p-4">
+              Sign in to view chat history
+            </p>
+          )}
+          {filteredConversations.map((conv) => (
             <button
-              key={chat.id}
-              className="w-full text-left p-3 rounded-lg hover:bg-sidebar-accent transition-colors group"
+              key={conv.id}
+              onClick={() => onConversationSelect(conv.id)}
+              className={`w-full text-left p-3 rounded-lg hover:bg-sidebar-accent transition-colors group ${
+                currentConversationId === conv.id ? "bg-sidebar-accent" : ""
+              }`}
             >
               <div className="flex items-start gap-3">
                 <MessageSquare className="w-4 h-4 text-sidebar-foreground/50 mt-0.5 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-sidebar-foreground truncate">{chat.title}</p>
-                  <p className="text-xs text-sidebar-foreground/50 mt-0.5">{chat.timestamp}</p>
+                  <p className="text-sm text-sidebar-foreground truncate">{conv.title}</p>
+                  <p className="text-xs text-sidebar-foreground/50 mt-0.5">
+                    {formatDistanceToNow(new Date(conv.updated_at), { addSuffix: true })}
+                  </p>
                 </div>
+                <button
+                  onClick={(e) => handleDelete(conv.id, e)}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-destructive/10 rounded"
+                >
+                  <Trash2 className="w-3 h-3 text-destructive" />
+                </button>
               </div>
             </button>
           ))}
