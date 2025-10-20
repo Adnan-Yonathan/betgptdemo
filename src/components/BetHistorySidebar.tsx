@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Plus, TrendingUp, TrendingDown, Minus, Clock } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Plus, TrendingUp, TrendingDown, Minus, Clock, Search } from "lucide-react";
 import { format } from "date-fns";
 interface Bet {
   id: string;
@@ -26,6 +27,7 @@ export const BetHistorySidebar = ({
     user
   } = useAuth();
   const [bets, setBets] = useState<Bet[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   useEffect(() => {
     if (!user) return;
     const fetchBets = async () => {
@@ -73,26 +75,46 @@ export const BetHistorySidebar = ({
         return 'text-yellow-500';
     }
   };
+
+  const filteredBets = bets.filter(bet => 
+    bet.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    bet.outcome.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col h-screen">
       <div className="p-4 border-b border-sidebar-border">
-        
         <Button onClick={onNewBet} className="w-full justify-start gap-2 bg-sidebar-accent hover:bg-sidebar-accent/80 text-sidebar-foreground">
           <Plus className="w-4 h-4" />
           New conversation
         </Button>
       </div>
 
+      {/* Search */}
       <div className="p-4 border-b border-sidebar-border">
-        <h2 className="text-lg font-semibold text-sidebar-foreground">Bet History</h2>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sidebar-foreground/50" />
+          <Input 
+            placeholder="Search bets" 
+            value={searchQuery} 
+            onChange={e => setSearchQuery(e.target.value)} 
+            className="pl-9 bg-sidebar-accent border-sidebar-border text-sidebar-foreground placeholder:text-sidebar-foreground/50" 
+          />
+        </div>
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-2 space-y-2">
-          {bets.length === 0 ? <div className="text-center py-8 px-4">
+        <div className="p-2 space-y-1">
+          {filteredBets.length === 0 && user && <div className="text-center py-8 px-4">
               <p className="text-sm text-sidebar-foreground/50">
-                No bets logged yet. Start tracking your bets in the chat!
+                {bets.length === 0 
+                  ? "No bets logged yet. Start tracking your bets in the chat!"
+                  : "No bets match your search"}
               </p>
-            </div> : bets.map(bet => <div key={bet.id} className="p-3 rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors cursor-pointer">
+            </div>}
+          {!user && <p className="text-sm text-sidebar-foreground/50 text-center p-4">
+              Sign in to view bet history
+            </p>}
+          {filteredBets.map(bet => <div key={bet.id} className="p-3 rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors cursor-pointer">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-2">
                     {getOutcomeIcon(bet.outcome)}
