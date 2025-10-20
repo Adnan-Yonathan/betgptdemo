@@ -101,12 +101,24 @@ const Index = () => {
       return;
     }
 
-    const loadedMessages: Message[] = data.map((msg) => ({
-      id: msg.id,
-      role: msg.role as "user" | "assistant",
-      content: msg.content,
-      timestamp: "Just now",
-    }));
+    if (!data || data.length === 0) {
+      toast({
+        title: "No messages found",
+        description: "This conversation appears to be empty",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const loadedMessages: Message[] = [
+      ...initialMessages, // Include welcome message
+      ...data.map((msg) => ({
+        id: msg.id,
+        role: msg.role as "user" | "assistant",
+        content: msg.content,
+        timestamp: "Just now",
+      }))
+    ];
 
     setMessages(loadedMessages);
     setCurrentConversationId(conversationId);
