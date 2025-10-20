@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { ChatSidebar } from "@/components/ChatSidebar";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useToast } from "@/components/ui/use-toast";
 
 interface Message {
   id: string;
@@ -10,6 +11,8 @@ interface Message {
   content: string;
   timestamp: string;
 }
+
+const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
 const initialMessages: Message[] = [
   {
@@ -20,33 +23,20 @@ const initialMessages: Message[] = [
   },
 ];
 
-const getAIResponse = (userMessage: string): string => {
-  const lowerMessage = userMessage.toLowerCase();
-
-  if (lowerMessage.includes("lakers") || lowerMessage.includes("chiefs") || lowerMessage.includes("bet")) {
-    return "Interesting! Let me think about this...\n\nLooking at what I know about your betting:\n- This looks like a solid play\n- Your timing seems good\n\nWhat's making you like this bet? Is it a gut feeling or did you see something specific?";
-  }
-
-  if (lowerMessage.includes("won") || lowerMessage.includes("win")) {
-    return "Nice hit! 🎉\n\nQuick question - are you feeling pretty confident right now? Like maybe you want to bet another game tonight?\n\nJust checking in because I want to make sure we're making smart decisions, not emotional ones.";
-  }
-
-  if (lowerMessage.includes("lost") || lowerMessage.includes("loss")) {
-    return "Ugh, that sucks. I'm sorry.\n\nHow are you feeling right now? Frustrated? Angry? Want to win it back?\n\nRemember - one loss doesn't define you. Let's talk through this before making any moves.";
-  }
-
-  if (lowerMessage.includes("how am i") || lowerMessage.includes("performance") || lowerMessage.includes("stats")) {
-    return "Let me check...\n\n📊 Your Performance:\n- 18-12 record (60% win rate)\n- Up $840 this month\n- +9.8% ROI\n\nYou're having a really solid month! Your best stretch of the year actually.\n\nWant to know what you're doing right? Or should I tell you where you're still leaking money?";
-  }
-
-  return "I hear you! Let me help you think through this.\n\nBased on what you've told me, I want to make sure we're making smart decisions here. What's your reasoning behind this bet?";
-};
 
 const Index = () => {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [isTyping, setIsTyping] = useState(false);
+  const { toast } = useToast();
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-  const handleSendMessage = (content: string) => {
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const handleSendMessage = async (content: string) => {
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
@@ -57,17 +47,110 @@ const Index = () => {
     setMessages((prev) => [...prev, userMessage]);
     setIsTyping(true);
 
-    // Simulate AI response delay
-    setTimeout(() => {
-      const aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: getAIResponse(content),
-        timestamp: "Just now",
-      };
-      setMessages((prev) => [...prev, aiResponse]);
+    let assistantContent = "";
+    const assistantId = (Date.now() + 1).toString();
+
+    try {
+      const resp = await fetch(CHAT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ 
+          messages: messages.map(m => ({ 
+            role: m.role, 
+            content: m.content 
+          })).concat([{ role: "user", content }])
+        }),
+      });
+
+      if (!resp.ok) {
+        if (resp.status === 429) {
+          toast({
+            title: "Rate limit exceeded",
+            description: "Please try again in a moment.",
+            variant: "destructive",
+          });
+        } else if (resp.status === 402) {
+          toast({
+            title: "Payment required",
+            description: "Please add credits to your workspace.",
+            variant: "destructive",
+          });
+        }
+        throw new Error("Failed to get response");
+      }
+
+      if (!resp.body) {
+        throw new Error("No response body");
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let textBuffer = "";
+      let streamDone = false;
+
+      while (!streamDone) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        textBuffer += decoder.decode(value, { stream: true });
+
+        let newlineIndex: number;
+        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+          let line = textBuffer.slice(0, newlineIndex);
+          textBuffer = textBuffer.slice(newlineIndex + 1);
+
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (line.startsWith(":") || line.trim() === "") continue;
+          if (!line.startsWith("data: ")) continue;
+
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === "[DONE]") {
+            streamDone = true;
+            break;
+          }
+
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const deltaContent = parsed.choices?.[0]?.delta?.content as string | undefined;
+            if (deltaContent) {
+              assistantContent += deltaContent;
+              setMessages((prev) => {
+                const last = prev[prev.length - 1];
+                if (last?.id === assistantId) {
+                  return prev.map((m) =>
+                    m.id === assistantId ? { ...m, content: assistantContent } : m
+                  );
+                }
+                return [
+                  ...prev,
+                  {
+                    id: assistantId,
+                    role: "assistant",
+                    content: assistantContent,
+                    timestamp: "Just now",
+                  },
+                ];
+              });
+            }
+          } catch {
+            textBuffer = line + "\n" + textBuffer;
+            break;
+          }
+        }
+      }
+
       setIsTyping(false);
-    }, 1500);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      setIsTyping(false);
+      toast({
+        title: "Error",
+        description: "Failed to get response. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
