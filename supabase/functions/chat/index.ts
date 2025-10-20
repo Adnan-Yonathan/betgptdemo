@@ -23,7 +23,7 @@ async function searchSportsbookOdds(query: string): Promise<string> {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "gpt-5-2025-08-07",
         messages: [
           {
             role: "system",
@@ -34,6 +34,7 @@ async function searchSportsbookOdds(query: string): Promise<string> {
             content: `Search for current sportsbook odds: ${query}`
           }
         ],
+        max_completion_tokens: 1000,
       }),
     });
 
