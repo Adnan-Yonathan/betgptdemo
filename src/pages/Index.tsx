@@ -22,7 +22,7 @@ const initialMessages: Message[] = [
   {
     id: "1",
     role: "assistant",
-    content: "Hey! I'm BetGPT 👋\n\nI'm an AI that helps you become a better bettor by learning from your bets and patterns.\n\nThink of me like ChatGPT, but I remember all your bets and give you personalized advice.\n\nTo get started, just tell me about a bet you placed recently. You can type it, say it out loud, or show me a screenshot.\n\nTry something like: \"I bet the Lakers -5 yesterday for $100\"",
+    content: "Hey! I'm BetGPT 👋\n\nI'm an AI that helps you become a better bettor by learning from your bets and patterns.\n\nThink of me like ChatGPT, but I remember all your bets and give you personalized advice.\n\nTo get started, just tell me about a bet you're considering or one you recently placed.",
     timestamp: "Just now",
   },
 ];

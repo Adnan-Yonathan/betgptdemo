@@ -27,7 +27,7 @@ async function searchSportsbookOdds(query: string): Promise<string> {
         messages: [
           {
             role: "system",
-            content: "You are a sports betting odds researcher. Search the web for current sportsbook odds and betting lines. Provide accurate, up-to-date information from reputable sportsbooks like DraftKings, FanDuel, BetMGM, etc. Include spreads, moneylines, and over/under totals when available."
+            content: `You are a sports betting odds researcher. Today's date is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}. Search the web for current sportsbook odds and betting lines. Provide accurate, up-to-date information from reputable sportsbooks like DraftKings, FanDuel, BetMGM, etc. Include spreads, moneylines, and over/under totals when available. Be aware of today's games and upcoming matchups.`
           },
           {
             role: "user",
@@ -84,13 +84,26 @@ serve(async (req) => {
       }
     }
 
+    const currentDate = new Date().toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+
     const systemPrompt = oddsContext 
       ? `You are BetGPT, an AI betting coach for semi-intelligent bettors who understand basic betting concepts. Keep answers conversational but sophisticated. Never use asterisks (*) for formatting - use plain text only. Assume users know spreads, moneylines, units, and basic bankroll management. Ask strategic questions about their betting approach. Be direct and analytical when discussing betting patterns and EV.
 
+Today's date: ${currentDate}
+
 Current odds information: ${oddsContext}
 
-Use this odds information to provide accurate, up-to-date betting advice. Focus on line value, market inefficiencies, and strategic angles.`
-      : "You are BetGPT, an AI betting coach for semi-intelligent bettors who understand basic betting concepts. Keep answers conversational but sophisticated. Never use asterisks (*) for formatting - use plain text only. Assume users know spreads, moneylines, units, and basic bankroll management. Ask strategic questions about their betting approach. Be direct and analytical when discussing betting patterns and EV.";
+Use this odds information to provide accurate, up-to-date betting advice. Focus on line value, market inefficiencies, and strategic angles. Be aware of current games and upcoming matchups.`
+      : `You are BetGPT, an AI betting coach for semi-intelligent bettors who understand basic betting concepts. Keep answers conversational but sophisticated. Never use asterisks (*) for formatting - use plain text only. Assume users know spreads, moneylines, units, and basic bankroll management. Ask strategic questions about their betting approach. Be direct and analytical when discussing betting patterns and EV.
+
+Today's date: ${currentDate}
+
+Be aware of current sports events and upcoming games. If asked about specific games or odds, search for the most current information available.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
