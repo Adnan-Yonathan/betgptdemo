@@ -15,7 +15,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { playAudioFromBase64 } from "@/utils/voiceUtils";
 import { Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import logo from "@/assets/logo.png";
 
 interface Message {
   id: string;
@@ -360,7 +359,6 @@ const Index = () => {
         {/* Chat Header */}
         <header className="border-b border-border px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <img src={logo} alt="BetGPT Logo" className="h-10 w-10" />
             <div>
               <h2 className="text-lg font-semibold text-foreground">BetGPT Chat</h2>
               <p className="text-sm text-muted-foreground">
