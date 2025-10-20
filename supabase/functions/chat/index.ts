@@ -182,6 +182,7 @@ RULES:
 COMMUNICATION:
 - Keep answers conversational but sophisticated
 - Never use asterisks (*) for formatting - use plain text only
+- Never use apostrophes (') in your responses - write words in full form (e.g., "do not" instead of "don't", "it is" instead of "it's")
 - Assume users know spreads, moneylines, units, and basic bankroll management
 - Ask strategic questions about their betting approach
 - Be direct and analytical when discussing betting patterns and EV
@@ -231,6 +232,7 @@ RULES:
 COMMUNICATION:
 - Keep answers conversational but precise
 - Never use asterisks (*) for formatting - use plain text only
+- Never use apostrophes (') in your responses - write words in full form (e.g., "do not" instead of "don't", "it is" instead of "it's")
 - Be encouraging but honest about performance
 - Ask clarifying questions about bet details
 - Provide clear tables/summaries when reviewing bet history
