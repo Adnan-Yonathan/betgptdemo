@@ -12,6 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { playAudioFromBase64 } from "@/utils/voiceUtils";
+import { Volume2, VolumeX } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface Message {
   id: string;
@@ -49,6 +52,8 @@ const Index = () => {
   const [profileOpen, setProfileOpen] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [initialBankroll, setInitialBankroll] = useState(1000);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -91,6 +96,27 @@ const Index = () => {
 
     if (error) {
       console.error("Error saving message:", error);
+    }
+  };
+
+  const playResponseAudio = async (text: string) => {
+    if (!voiceEnabled || isPlayingAudio) return;
+
+    try {
+      setIsPlayingAudio(true);
+      const { data, error } = await supabase.functions.invoke('text-to-speech', {
+        body: { text }
+      });
+
+      if (error) throw error;
+
+      if (data?.audioContent) {
+        await playAudioFromBase64(data.audioContent);
+      }
+    } catch (error) {
+      console.error('Error playing audio:', error);
+    } finally {
+      setIsPlayingAudio(false);
     }
   };
 
@@ -300,6 +326,11 @@ const Index = () => {
       if (user && currentConversationId && assistantContent) {
         await saveMessageToDb(currentConversationId, "assistant", assistantContent);
       }
+
+      // Play audio response if voice is enabled
+      if (assistantContent) {
+        await playResponseAudio(assistantContent);
+      }
     } catch (error) {
       console.error("Error sending message:", error);
       setIsTyping(false);
@@ -344,7 +375,17 @@ const Index = () => {
               </SelectContent>
             </Select>
           </div>
-          <ProfileDropdown onOpenProfile={() => setProfileOpen(true)} />
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setVoiceEnabled(!voiceEnabled)}
+              className={voiceEnabled ? "text-primary" : "text-muted-foreground"}
+            >
+              {voiceEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+            </Button>
+            <ProfileDropdown onOpenProfile={() => setProfileOpen(true)} />
+          </div>
         </header>
 
         {/* Bankroll Stats - Only show in manager mode */}

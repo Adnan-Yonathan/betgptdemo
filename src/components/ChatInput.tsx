@@ -1,8 +1,12 @@
 import { useState, useRef } from "react";
-import { Camera, Mic, Plus, Send, X } from "lucide-react";
+import { Camera, Mic, Plus, Send, X, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { VoiceRecorder } from "@/utils/voiceUtils";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+
 interface ChatInputProps {
   onSendMessage: (message: string) => void;
   disabled?: boolean;
@@ -13,7 +17,11 @@ export const ChatInput = ({
 }: ChatInputProps) => {
   const [message, setMessage] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const voiceRecorderRef = useRef<VoiceRecorder | null>(null);
+  const { toast } = useToast();
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (message.trim() && !disabled) {
@@ -39,6 +47,61 @@ export const ChatInput = ({
 
   const handlePlusClick = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleMicClick = async () => {
+    if (isRecording) {
+      // Stop recording
+      try {
+        setIsTranscribing(true);
+        const base64Audio = await voiceRecorderRef.current?.stopRecording();
+        
+        if (base64Audio) {
+          const { data, error } = await supabase.functions.invoke('speech-to-text', {
+            body: { audio: base64Audio }
+          });
+
+          if (error) throw error;
+          
+          if (data?.text) {
+            setMessage(data.text);
+            toast({
+              title: "Transcription complete",
+              description: "Your voice has been converted to text",
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error transcribing audio:', error);
+        toast({
+          title: "Transcription failed",
+          description: "Failed to convert speech to text",
+          variant: "destructive",
+        });
+      } finally {
+        setIsRecording(false);
+        setIsTranscribing(false);
+        voiceRecorderRef.current = null;
+      }
+    } else {
+      // Start recording
+      try {
+        voiceRecorderRef.current = new VoiceRecorder();
+        await voiceRecorderRef.current.startRecording();
+        setIsRecording(true);
+        toast({
+          title: "Recording started",
+          description: "Speak now...",
+        });
+      } catch (error) {
+        console.error('Error starting recording:', error);
+        toast({
+          title: "Recording failed",
+          description: "Failed to access microphone",
+          variant: "destructive",
+        });
+      }
+    }
   };
   return <div className="border-t border-border bg-background p-4">
       <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
@@ -92,10 +155,16 @@ export const ChatInput = ({
             
             {/* Input Actions */}
             <div className="absolute right-2 bottom-2 flex items-center gap-1">
-              <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={disabled}>
-                <Mic className="w-4 h-4" />
+              <Button 
+                type="button" 
+                size="icon" 
+                variant="ghost" 
+                className={cn("h-8 w-8", isRecording && "text-destructive animate-pulse")} 
+                onClick={handleMicClick}
+                disabled={disabled || isTranscribing}
+              >
+                {isRecording ? <Square className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
               </Button>
-              
             </div>
           </div>
 
