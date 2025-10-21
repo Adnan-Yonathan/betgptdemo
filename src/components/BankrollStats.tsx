@@ -95,6 +95,8 @@ export const BankrollStats = () => {
   };
 
   useEffect(() => {
+    if (!user) return;
+    
     fetchStats();
 
     // Subscribe to bet changes
