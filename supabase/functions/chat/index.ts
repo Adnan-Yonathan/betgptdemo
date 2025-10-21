@@ -293,6 +293,11 @@ async function logBetViaFunction(
   userId: string
 ): Promise<void> {
   try {
+    console.log('=== LOGGING BET VIA FUNCTION ===');
+    console.log('Bet Details:', betDetails);
+    console.log('Conversation ID:', conversationId);
+    console.log('User ID:', userId);
+    
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -305,12 +310,12 @@ async function logBetViaFunction(
     });
 
     if (error) {
-      console.error('Error calling log-bet function:', error);
+      console.error('❌ Error calling log-bet function:', error);
     } else {
-      console.log('Bet logged successfully:', data);
+      console.log('✅ Bet logged successfully:', data);
     }
   } catch (error) {
-    console.error('Error in logBetViaFunction:', error);
+    console.error('❌ Exception in logBetViaFunction:', error);
   }
 }
 
@@ -593,19 +598,39 @@ If the user asks about a specific game, matchup, or betting opportunity, you wil
             }
             
             // After streaming completes, check for bet confirmation pattern
-            console.log('Checking for bet confirmation in manager mode...');
+            console.log('=== CHECKING FOR BET CONFIRMATION ===');
+            console.log('Full Response:', fullResponse);
             
-            // Look for bet confirmation pattern: "logged your bet on X for $Y at Z"
-            const betPattern = /logged.*?bet.*?on\s+(.+?)\s+for\s+\$?([\d.]+)\s+at\s+([-+]?\d+)/i;
-            const match = fullResponse.match(betPattern);
+            const betPatterns = [
+              /(?:logged|tracking|recorded|placed).*?bet.*?(?:on|for)\s+(.+?)\s+(?:for|amount:?|\$)\s*\$?([\d.]+).*?(?:at|odds:?|@)\s*([-+]?\d+)/i,
+              /bet.*?on\s+(.+?)\s+for\s+\$?([\d.]+)\s+at\s+([-+]?\d+)/i,
+              /betting\s+\$?([\d.]+)\s+on\s+(.+?)\s+at\s+([-+]?\d+)/i,
+            ];
+            
+            let match = null;
+            let patternIndex = -1;
+            for (let i = 0; i < betPatterns.length; i++) {
+              match = fullResponse.match(betPatterns[i]);
+              if (match) {
+                patternIndex = i;
+                console.log(`✅ Matched pattern ${i}:`, match);
+                break;
+              }
+            }
             
             if (match) {
-              const [, description, amount, odds] = match;
-              console.log('Found bet details:', { description, amount, odds });
+              let description, amount, odds;
               
-              // Extract team name if possible (look for common team patterns)
-              const teamMatch = description.match(/(\w+(?:\s+\w+)?)\s+(?:ML|moneyline|spread|\+|-\d)/i);
-              const team = teamMatch ? teamMatch[1] : undefined;
+              if (patternIndex === 2) {
+                [, amount, description, odds] = match;
+              } else {
+                [, description, amount, odds] = match;
+              }
+              
+              console.log('Extracted bet details:', { description, amount, odds });
+              
+              const teamMatch = description.match(/(?:Lakers|Celtics|Warriors|Heat|Nets|Knicks|Bulls|Cavaliers|Mavericks|Rockets|Spurs|Clippers|76ers|Bucks|Raptors|Suns|Nuggets|Jazz|Trail Blazers|Kings|Grizzlies|Pelicans|Thunder|Timberwolves|Hawks|Hornets|Pistons|Pacers|Magic|Wizards)/i);
+              const team = teamMatch ? teamMatch[0] : undefined;
               
               await logBetViaFunction(
                 {
@@ -617,6 +642,8 @@ If the user asks about a specific game, matchup, or betting opportunity, you wil
                 conversationId,
                 userId
               );
+            } else {
+              console.log('❌ No bet pattern matched in response');
             }
             
             controller.close();

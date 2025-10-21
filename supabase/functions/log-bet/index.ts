@@ -32,8 +32,13 @@ serve(async (req) => {
 
     const { amount, odds, description, team, conversationId, eventId } = await req.json();
 
+    console.log('=== LOG-BET FUNCTION CALLED ===');
+    console.log('Request body:', { amount, odds, description, team, conversationId, eventId });
+    console.log('User ID:', user.id);
+
     // Validate required fields
     if (!amount || !odds || !description) {
+      console.error('❌ Missing required fields');
       return new Response(JSON.stringify({ 
         error: 'Missing required fields: amount, odds, description' 
       }), {
@@ -42,7 +47,7 @@ serve(async (req) => {
       });
     }
 
-    console.log('Logging bet:', { amount, odds, description, team, eventId });
+    console.log('✅ Validation passed. Logging bet:', { amount, odds, description, team, eventId });
 
     // Try to match game if team is provided
     let matchedEventId = eventId;
@@ -105,14 +110,21 @@ serve(async (req) => {
       .single();
 
     if (betError) {
-      console.error('Error inserting bet:', betError);
-      return new Response(JSON.stringify({ error: 'Failed to log bet' }), {
+      console.error('❌ Error inserting bet:', betError);
+      return new Response(JSON.stringify({ 
+        error: 'Failed to log bet',
+        details: betError.message 
+      }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log('Bet logged successfully:', bet.id);
+    console.log('✅ Bet logged successfully!');
+    console.log('Bet ID:', bet.id);
+    console.log('Description:', bet.description);
+    console.log('Amount:', bet.amount);
+    console.log('Potential Return:', bet.potential_return);
 
     return new Response(JSON.stringify({ 
       success: true, 
