@@ -67,10 +67,15 @@ export const ProfileSettings = ({ open, onOpenChange }: ProfileSettingsProps) =>
 
     setLoading(true);
     try {
+      const bankrollValue = parseFloat(bankroll);
+
+      // When user manually updates their bankroll, update both current and initial
+      // This represents resetting/starting fresh with a new bankroll amount
       const { error } = await supabase
         .from("profiles")
         .update({
-          bankroll: parseFloat(bankroll),
+          bankroll: bankrollValue,
+          initial_bankroll: bankrollValue,
           default_bet_size: parseFloat(betSize),
           risk_tolerance: riskTolerance,
         })

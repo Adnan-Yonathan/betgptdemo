@@ -18,16 +18,17 @@ export const BankrollStats = () => {
 
   const fetchStats = async () => {
     if (!user) return;
-    
+
     try {
-      // Fetch initial bankroll from profile
+      // Fetch current bankroll from profile (now updated in real-time)
       const { data: profile } = await supabase
         .from("profiles")
-        .select("bankroll")
+        .select("bankroll, initial_bankroll")
         .eq("id", user.id)
         .single();
 
-      const initialBankroll = Number(profile?.bankroll || 1000);
+      const currentBankroll = Number(profile?.bankroll || 1000);
+      const initialBankroll = Number(profile?.initial_bankroll || profile?.bankroll || 1000);
 
       // Fetch all bets
       const { data: bets } = await supabase
@@ -37,7 +38,7 @@ export const BankrollStats = () => {
 
       if (!bets) {
         setStats({
-          totalBankroll: initialBankroll,
+          totalBankroll: currentBankroll,
           percentChange: 0,
           expectedEV: 0,
           totalBets: 0,
@@ -45,17 +46,9 @@ export const BankrollStats = () => {
         return;
       }
 
-      // Calculate profit/loss from settled bets
-      const settled = bets.filter(b => b.outcome !== 'pending');
-      const totalReturn = settled.reduce((sum, bet) => {
-        if (bet.outcome === 'win') return sum + (bet.actual_return || 0);
-        if (bet.outcome === 'loss') return sum - bet.amount;
-        return sum; // push = no change
-      }, 0);
-
-      const currentBankroll = initialBankroll + totalReturn;
-      const percentChange = initialBankroll > 0 
-        ? ((currentBankroll - initialBankroll) / initialBankroll) * 100 
+      // Calculate percent change from initial to current bankroll
+      const percentChange = initialBankroll > 0
+        ? ((currentBankroll - initialBankroll) / initialBankroll) * 100
         : 0;
 
       // Calculate expected EV based on odds (simplified Kelly-style calculation)
