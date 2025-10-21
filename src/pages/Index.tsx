@@ -212,7 +212,9 @@ const Index = () => {
             role: "user",
             content
           }]),
-          mode
+          mode,
+          conversationId: currentConversationId,
+          userId: user?.id
         })
       });
       if (!resp.ok) {

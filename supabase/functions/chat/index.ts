@@ -286,13 +286,95 @@ function formatOddsData(odds: any[], query: string): string {
   return result;
 }
 
+async function extractAndLogBet(
+  aiResponse: string, 
+  conversationId: string, 
+  userId: string
+): Promise<void> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  // Extract bet information from AI response using regex patterns
+  const amountMatch = aiResponse.match(/\$(\d+(?:\.\d{2})?)/);
+  const oddsMatch = aiResponse.match(/(?:odds?|@)\s*([-+]\d+)/i);
+  const outcomeMatch = aiResponse.match(/\b(win|loss|won|lost|pending)\b/i);
+  
+  // Look for bet descriptions (team names, bet types)
+  const descPatterns = [
+    /logged?.*?bet.*?on\s+([^.!?]+)/i,
+    /betting?\s+([^.!?]+?)(?:\s+at|\s+@)/i,
+    /placed?\s+([^.!?]+?)(?:\s+for|\s+at)/i
+  ];
+  
+  let description = '';
+  for (const pattern of descPatterns) {
+    const match = aiResponse.match(pattern);
+    if (match && match[1]) {
+      description = match[1].trim();
+      break;
+    }
+  }
+
+  // If we found enough info to log a bet
+  if (amountMatch && oddsMatch) {
+    const amount = parseFloat(amountMatch[1]);
+    const odds = parseInt(oddsMatch[1]);
+    const outcome = outcomeMatch ? outcomeMatch[1].toLowerCase() : 'pending';
+    
+    // Normalize outcome
+    let normalizedOutcome = 'pending';
+    if (outcome === 'win' || outcome === 'won') normalizedOutcome = 'win';
+    else if (outcome === 'loss' || outcome === 'lost') normalizedOutcome = 'loss';
+    
+    // Calculate potential return
+    let potentialReturn = 0;
+    if (odds > 0) {
+      potentialReturn = amount * (odds / 100);
+    } else {
+      potentialReturn = amount * (100 / Math.abs(odds));
+    }
+    
+    // Calculate actual return if settled
+    let actualReturn = null;
+    if (normalizedOutcome === 'win') {
+      actualReturn = potentialReturn;
+    } else if (normalizedOutcome === 'loss') {
+      actualReturn = -amount;
+    }
+
+    const betDescription = description || 'Logged bet';
+    
+    console.log('Logging bet:', { amount, odds, outcome: normalizedOutcome, description: betDescription });
+    
+    // Insert bet into database
+    const { error } = await supabase.from('bets').insert({
+      user_id: userId,
+      conversation_id: conversationId,
+      amount,
+      odds,
+      outcome: normalizedOutcome,
+      description: betDescription,
+      potential_return: potentialReturn,
+      actual_return: actualReturn,
+      settled_at: normalizedOutcome !== 'pending' ? new Date().toISOString() : null
+    });
+
+    if (error) {
+      console.error('Error logging bet:', error);
+    } else {
+      console.log('Bet logged successfully');
+    }
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { messages, mode = "coach" } = await req.json();
+    const { messages, mode = "coach", conversationId, userId } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
@@ -455,13 +537,22 @@ CORE CAPABILITIES:
 - Suggest optimal unit sizing based on current bankroll and risk profile
 - Generate performance reports and identify profitable betting patterns
 
-LOGGING FORMAT (when user provides bet info):
-- Sport & Event
-- Bet Type (Moneyline, Spread, Total, Parlay, etc.)
-- Amount Wagered
-- Odds
-- Date
-- Outcome (if settled)
+CRITICAL BET LOGGING FORMAT:
+When a user provides bet information, you MUST confirm the bet details in your response using this EXACT format:
+"Logged your bet on [description] for $[amount] at [odds]"
+
+Examples:
+- "Logged your bet on Lakers ML for $100 at -150"
+- "Logged your bet on Cowboys -3.5 for $50 at -110"  
+- "Logged your bet on Over 45.5 for $75 at +105"
+
+This structured format allows the system to automatically track the bet in your history.
+
+Always include:
+- Amount: $XX.XX format
+- Odds: +XXX or -XXX format
+- Description: Clear bet details (team, bet type)
+- Outcome: "pending" (default) or "won/lost" if settled
 
 MANAGEMENT GUIDELINES:
 - Recommend 1-5% of bankroll per bet based on risk tolerance:
@@ -555,6 +646,39 @@ If the user asks about a specific game, matchup, or betting opportunity, you wil
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
+    }
+
+    // If in manager mode, collect the AI response to extract bet data
+    if (mode === "manager" && conversationId && userId) {
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let fullResponse = '';
+      
+      const stream = new ReadableStream({
+        async start(controller) {
+          try {
+            while (true) {
+              const { done, value } = await reader!.read();
+              if (done) break;
+              
+              const chunk = decoder.decode(value, { stream: true });
+              fullResponse += chunk;
+              controller.enqueue(value);
+            }
+            
+            // Extract and log bet after streaming is complete
+            await extractAndLogBet(fullResponse, conversationId, userId);
+            controller.close();
+          } catch (error) {
+            console.error('Stream error:', error);
+            controller.error(error);
+          }
+        }
+      });
+
+      return new Response(stream, {
+        headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+      });
     }
 
     return new Response(response.body, {
