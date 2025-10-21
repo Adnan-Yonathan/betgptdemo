@@ -6,6 +6,48 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper function to update user's bankroll for a specific bet settlement
+async function updateUserBankroll(supabaseClient: any, userId: string, outcome: string, amount: number, actualReturn: number) {
+  try {
+    // Get user's current bankroll from profile
+    const { data: profile } = await supabaseClient
+      .from('profiles')
+      .select('bankroll')
+      .eq('id', userId)
+      .single();
+
+    if (!profile) {
+      console.error(`Profile not found for user ${userId}`);
+      return;
+    }
+
+    const currentBankroll = Number(profile.bankroll || 1000);
+    let newBankroll = currentBankroll;
+
+    // Update bankroll based on bet outcome
+    if (outcome === 'win') {
+      newBankroll = currentBankroll + actualReturn;
+    } else if (outcome === 'loss') {
+      newBankroll = currentBankroll - amount;
+    }
+    // For 'push', bankroll stays the same
+
+    // Update profile with new bankroll
+    const { error: updateError } = await supabaseClient
+      .from('profiles')
+      .update({ bankroll: newBankroll })
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error(`Error updating bankroll for user ${userId}:`, updateError);
+    } else {
+      console.log(`Updated bankroll for user ${userId}: $${currentBankroll.toFixed(2)} -> $${newBankroll.toFixed(2)} (${outcome})`);
+    }
+  } catch (error) {
+    console.error(`Error in updateUserBankroll for user ${userId}:`, error);
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -107,6 +149,9 @@ serve(async (req) => {
         console.error(`Error updating bet ${bet.id}:`, updateError);
       } else {
         settledBets.push({ betId: bet.id, outcome, actualReturn });
+
+        // Update user's bankroll in profile
+        await updateUserBankroll(supabaseClient, bet.user_id, outcome, bet.amount, actualReturn);
       }
     }
 

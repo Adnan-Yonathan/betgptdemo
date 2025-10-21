@@ -388,7 +388,7 @@ async function updateBetOutcome(
     }
 
     console.log('Updated bet:', updatedBet);
-    
+
     // Fetch current profile to get bankroll
     const { data: profile } = await supabaseClient
       .from('profiles')
@@ -396,27 +396,33 @@ async function updateBetOutcome(
       .eq('id', userId)
       .single();
 
-    const initialBankroll = Number(profile?.bankroll || 1000);
-    
-    // Calculate all settled bets to get new balance
-    const { data: allBets } = await supabaseClient
-      .from('bets')
-      .select('*')
-      .eq('user_id', userId);
+    const currentBankroll = Number(profile?.bankroll || 1000);
+    let newBankroll = currentBankroll;
 
-    const totalReturn = (allBets || []).reduce((sum, b) => {
-      if (b.outcome === 'win') return sum + (b.actual_return || 0);
-      if (b.outcome === 'loss') return sum - b.amount;
-      return sum;
-    }, 0);
+    // Update bankroll incrementally based on this bet's outcome
+    if (outcome === 'win') {
+      newBankroll = currentBankroll + actualReturn;
+    } else if (outcome === 'loss') {
+      newBankroll = currentBankroll - bet.amount;
+    }
 
-    const newBankroll = initialBankroll + totalReturn;
+    // Update the user's profile bankroll
+    const { error: profileUpdateError } = await supabaseClient
+      .from('profiles')
+      .update({ bankroll: newBankroll })
+      .eq('id', userId);
+
+    if (profileUpdateError) {
+      console.error('Error updating profile bankroll:', profileUpdateError);
+    } else {
+      console.log(`Updated profile bankroll for user ${userId}: $${currentBankroll.toFixed(2)} -> $${newBankroll.toFixed(2)}`);
+    }
 
     return {
       bet: updatedBet,
       profit: actualReturn,
       newBankroll,
-      initialBankroll,
+      initialBankroll: currentBankroll,
     };
   } catch (error) {
     console.error('Error in updateBetOutcome:', error);
