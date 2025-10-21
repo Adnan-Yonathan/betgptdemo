@@ -197,19 +197,29 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Check if user is asking for odds or game analysis
+    // Check if user is asking for odds or game analysis with comprehensive detection
     const lastMessage = messages[messages.length - 1];
     const messageContent = lastMessage?.content?.toLowerCase() || '';
-    const isAskingForData = messageContent.includes('odds') || 
-                            messageContent.includes('line') ||
-                            messageContent.includes('spread') ||
-                            messageContent.includes('betting') ||
-                            messageContent.includes('game') ||
-                            messageContent.includes('matchup') ||
-                            messageContent.includes(' vs ') ||
-                            messageContent.includes(' v ') ||
-                            messageContent.includes('tonight') ||
-                            messageContent.includes('today');
+    
+    // Comprehensive patterns for betting questions
+    const bettingKeywords = [
+      'odds', 'line', 'spread', 'betting', 'bet on', 'best bet', 'should i bet',
+      'moneyline', 'ml', 'over', 'under', 'total', 'parlay',
+      'game', 'matchup', 'tonight', 'today', 'this week',
+      'pick', 'prediction', 'recommend', 'who wins', 'who should i',
+      'what do you think', 'analysis', 'vs', ' v ', 'against',
+      'worth betting', 'good bet', 'value', '+ev', 'edge',
+      'sharp money', 'public', 'line movement', 'juice'
+    ];
+    
+    // Sport-specific terms that indicate game queries
+    const sportTerms = [
+      'nfl', 'nba', 'mlb', 'nhl', 'mls', 'ncaaf', 'ncaab',
+      'football', 'basketball', 'baseball', 'hockey', 'soccer'
+    ];
+    
+    const isAskingForData = bettingKeywords.some(keyword => messageContent.includes(keyword)) ||
+                            sportTerms.some(term => messageContent.includes(term));
 
     // If asking for data or game analysis, fetch live odds
     let dataContext = "";
