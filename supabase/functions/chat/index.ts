@@ -7,6 +7,108 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+async function fetchLiveScores(query: string): Promise<string> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  console.log("Fetching live scores for query:", query);
+
+  // Determine league from query
+  let league = 'NFL'; // default
+  const queryLower = query.toLowerCase();
+  
+  if (queryLower.includes('nba') || queryLower.includes('basketball')) {
+    league = 'NBA';
+  } else if (queryLower.includes('mlb') || queryLower.includes('baseball')) {
+    league = 'MLB';
+  } else if (queryLower.includes('nhl') || queryLower.includes('hockey')) {
+    league = 'NHL';
+  } else if (queryLower.includes('nfl') || queryLower.includes('football')) {
+    league = 'NFL';
+  }
+
+  try {
+    // Try to get recent scores from database (last 24 hours)
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: recentScores, error: dbError } = await supabase
+      .from('sports_scores')
+      .select('*')
+      .eq('league', league)
+      .gte('last_updated', oneDayAgo)
+      .order('game_date', { ascending: false });
+
+    if (dbError) {
+      console.error('Database query error:', dbError);
+    }
+
+    // If we have recent data, use it
+    if (recentScores && recentScores.length > 0) {
+      console.log(`Found ${recentScores.length} recent scores in database`);
+      return formatScoresData(recentScores, query);
+    }
+
+    // Otherwise, fetch fresh data
+    console.log('No recent scores found, fetching fresh data from ESPN...');
+    const response = await fetch(`${supabaseUrl}/functions/v1/fetch-sports-scores`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseServiceKey}`,
+      },
+      body: JSON.stringify({ league: league.toLowerCase() }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch scores: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log(`Fetched ${result.count} fresh scores`);
+
+    // Query database again for fresh data
+    const { data: freshScores, error: freshError } = await supabase
+      .from('sports_scores')
+      .select('*')
+      .eq('league', league)
+      .order('game_date', { ascending: false })
+      .limit(50);
+
+    if (freshError) {
+      throw freshError;
+    }
+
+    return formatScoresData(freshScores || [], query);
+  } catch (error) {
+    console.error("Error fetching scores:", error);
+    return "Unable to fetch live scores at the moment. Please try again shortly.";
+  }
+}
+
+function formatScoresData(scores: any[], query: string): string {
+  if (!scores || scores.length === 0) {
+    return "No scores found for this query. The games may not have started yet or the league may be in the off-season.";
+  }
+
+  let result = `LIVE SCORES (Last Updated: ${new Date().toLocaleString()}):\n\n`;
+
+  for (const score of scores) {
+    const gameTime = new Date(score.game_date).toLocaleString();
+    const status = score.game_status;
+    
+    result += `${score.away_team} @ ${score.home_team}\n`;
+    result += `Score: ${score.away_team} ${score.away_score} - ${score.home_team} ${score.home_score}\n`;
+    result += `Status: ${status}\n`;
+    result += `League: ${score.league}\n`;
+    result += `Game Time: ${gameTime}\n`;
+    result += '\n---\n\n';
+  }
+
+  result += `Total Games: ${scores.length}\n`;
+  
+  return result;
+}
+
 async function fetchLiveOdds(query: string): Promise<string> {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -197,9 +299,15 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Check if user is asking for odds or game analysis with comprehensive detection
+    // Check if user is asking for scores or betting odds
     const lastMessage = messages[messages.length - 1];
     const messageContent = lastMessage?.content?.toLowerCase() || '';
+    
+    // Patterns for score requests
+    const scoreKeywords = [
+      'score', 'final score', 'current score', 'what is the score', 'whats the score',
+      'who is winning', 'whos winning', 'who won', 'final', 'result', 'results'
+    ];
     
     // Comprehensive patterns for betting questions
     const bettingKeywords = [
@@ -218,19 +326,29 @@ serve(async (req) => {
       'football', 'basketball', 'baseball', 'hockey', 'soccer'
     ];
     
-    const isAskingForData = bettingKeywords.some(keyword => messageContent.includes(keyword)) ||
-                            sportTerms.some(term => messageContent.includes(term));
+    const isAskingForScore = scoreKeywords.some(keyword => messageContent.includes(keyword));
+    const isAskingForBettingData = bettingKeywords.some(keyword => messageContent.includes(keyword)) ||
+                                   sportTerms.some(term => messageContent.includes(term));
 
-    // If asking for data or game analysis, fetch live odds
+    // Fetch appropriate data based on query type
     let dataContext = "";
-    if (isAskingForData) {
+    if (isAskingForScore) {
+      try {
+        console.log("User is asking for scores, fetching live scores...");
+        dataContext = await fetchLiveScores(lastMessage.content);
+        console.log("Score data fetch result:", dataContext);
+      } catch (error) {
+        console.error("Failed to fetch score data:", error);
+        dataContext = "I could not fetch live scores at the moment. Please try again shortly.";
+      }
+    } else if (isAskingForBettingData) {
       try {
         console.log("User is asking for game data, fetching live odds...");
         dataContext = await fetchLiveOdds(lastMessage.content);
-        console.log("Data fetch result:", dataContext);
+        console.log("Odds data fetch result:", dataContext);
       } catch (error) {
         console.error("Failed to fetch betting data:", error);
-        dataContext = "I couldn't fetch live data at the moment. Let me help with general analysis principles.";
+        dataContext = "I could not fetch live data at the moment. Let me help with general analysis principles.";
       }
     }
 
@@ -242,9 +360,9 @@ serve(async (req) => {
     });
 
     // Define system prompts for each mode
-    const coachPrompt = `You are BetGPT - a knowledgeable sports betting coach covering ALL major sports (NFL, NBA, MLB, NHL, soccer/MLS, UFC, tennis, golf, college football, college basketball, and more).
+    const coachPrompt = `You are BetGPT - a knowledgeable sports betting coach AND sports reporter covering ALL major sports (NFL, NBA, MLB, NHL, soccer/MLS, UFC, tennis, golf, college football, college basketball, and more).
 
-MISSION: Provide intelligent, data-driven betting analysis across all sports to help users make educated decisions and maximize long-term ROI.
+MISSION: Provide intelligent, data-driven betting analysis across all sports AND report live scores when requested.
 
 SPORTS COVERAGE:
 You analyze ALL major sports with equal expertise:
@@ -258,6 +376,13 @@ You analyze ALL major sports with equal expertise:
 - Other: esports, cricket, rugby, and more
 
 CRITICAL: NEVER say you only cover one sport. You are a multi-sport expert.
+
+SCORE REPORTING:
+When users ask for scores ("What is the score?", "Who won?", "Current score?"), provide:
+- Clear, concise score updates
+- Game status (Final, In Progress, Scheduled)
+- Key game context if relevant (overtime, blowout, close game)
+- No betting analysis unless specifically requested
 
 RECOGNIZING BETTING QUESTIONS:
 When users ask about games or matchups, treat these as betting inquiries even without the word "bet":
@@ -291,6 +416,7 @@ When analyzing a specific game or match, provide:
 
 ANALYSIS APPROACH:
 - Use live odds data when available
+- Use live scores when reporting game results
 - Consider injuries, rest, travel, motivation
 - Analyze line movement and public/sharp money
 - Look for +EV opportunities and market inefficiencies
@@ -371,19 +497,16 @@ Today's date: ${currentDate}`;
     const systemPrompt = dataContext 
       ? `${basePrompt}
 
-LIVE BETTING DATA RETRIEVED:
+${isAskingForScore ? 'LIVE SCORE DATA RETRIEVED:' : 'LIVE BETTING DATA RETRIEVED:'}
 ${dataContext}
 
 INSTRUCTIONS:
-- Use this data to perform ACTUAL analysis, not theoretical discussion
-- Lead with quantified insights: +EV %, fair line, CLV shift, sharp/public splits
-- Identify specific edges based on line movement, public fade opportunities, injury impacts
-- Calculate fair probability and compare to implied odds
-- Recommend bet sizing based on edge magnitude and confidence
-- Be direct and actionable with your recommendations`
+${isAskingForScore 
+  ? '- Provide clear, concise score updates based on the data above\n- Include game status and any relevant context\n- Only provide betting analysis if specifically requested along with the score'
+  : '- Use this data to perform ACTUAL analysis, not theoretical discussion\n- Lead with quantified insights: +EV %, fair line, CLV shift, sharp/public splits\n- Identify specific edges based on line movement, public fade opportunities, injury impacts\n- Calculate fair probability and compare to implied odds\n- Recommend bet sizing based on edge magnitude and confidence\n- Be direct and actionable with your recommendations'}`
       : `${basePrompt}
 
-If the user asks about a specific game, matchup, or betting opportunity, you will automatically receive live data from web searches. Use that data to provide concrete, quantified analysis.`;
+If the user asks about a specific game, matchup, or betting opportunity, you will automatically receive live data. Use that data to provide concrete, quantified analysis.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
