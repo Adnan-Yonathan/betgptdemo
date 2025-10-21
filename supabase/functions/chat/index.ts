@@ -325,7 +325,7 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, mode = "coach", conversationId, userId } = await req.json();
+    const { messages, conversationId, userId } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
@@ -514,9 +514,10 @@ COMMUNICATION:
 
 Today's date: ${currentDate}`;
 
-    const basePrompt = mode === "manager" ? managerPrompt : coachPrompt;
+    // Use the manager prompt since it handles both coaching and bet logging
+    const basePrompt = managerPrompt;
 
-    const systemPrompt = dataContext 
+    const systemPrompt = dataContext
       ? `${basePrompt}
 
 ${isAskingForScore ? 'LIVE SCORE DATA RETRIEVED:' : 'LIVE BETTING DATA RETRIEVED:'}
@@ -579,8 +580,8 @@ If the user asks about a specific game, matchup, or betting opportunity, you wil
       );
     }
 
-    // If in manager mode, parse the streamed response to extract and log bets
-    if (mode === "manager" && conversationId && userId) {
+    // Parse the streamed response to extract and log bets
+    if (conversationId && userId) {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let fullResponse = '';
