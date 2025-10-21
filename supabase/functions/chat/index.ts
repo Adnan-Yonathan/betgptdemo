@@ -319,6 +319,111 @@ async function logBetViaFunction(
   }
 }
 
+// Function to update bet outcome when user reports win/loss
+async function updateBetOutcome(
+  conversationId: string,
+  userId: string,
+  outcome: 'win' | 'loss',
+  teamOrDescription: string
+) {
+  console.log('=== UPDATING BET OUTCOME ===');
+  console.log('Conversation ID:', conversationId, 'User ID:', userId, 'Outcome:', outcome, 'Team:', teamOrDescription);
+  
+  try {
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    );
+
+    // Find the most recent pending bet matching this team/description
+    const { data: bets, error: fetchError } = await supabaseClient
+      .from('bets')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('conversation_id', conversationId)
+      .eq('outcome', 'pending')
+      .ilike('description', `%${teamOrDescription}%`)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (fetchError) {
+      console.error('Error fetching bet:', fetchError);
+      return null;
+    }
+
+    if (!bets || bets.length === 0) {
+      console.log('No matching pending bet found');
+      return null;
+    }
+
+    const bet = bets[0];
+    console.log('Found bet:', bet);
+
+    // Calculate actual return
+    let actualReturn = 0;
+    if (outcome === 'win') {
+      // Calculate payout based on American odds
+      if (bet.odds > 0) {
+        actualReturn = bet.amount * (bet.odds / 100);
+      } else {
+        actualReturn = bet.amount * (100 / Math.abs(bet.odds));
+      }
+    }
+
+    // Update bet
+    const { data: updatedBet, error: updateError } = await supabaseClient
+      .from('bets')
+      .update({
+        outcome,
+        actual_return: actualReturn,
+        settled_at: new Date().toISOString(),
+      })
+      .eq('id', bet.id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating bet:', updateError);
+      return null;
+    }
+
+    console.log('Updated bet:', updatedBet);
+    
+    // Fetch current profile to get bankroll
+    const { data: profile } = await supabaseClient
+      .from('profiles')
+      .select('bankroll')
+      .eq('id', userId)
+      .single();
+
+    const initialBankroll = Number(profile?.bankroll || 1000);
+    
+    // Calculate all settled bets to get new balance
+    const { data: allBets } = await supabaseClient
+      .from('bets')
+      .select('*')
+      .eq('user_id', userId);
+
+    const totalReturn = (allBets || []).reduce((sum, b) => {
+      if (b.outcome === 'win') return sum + (b.actual_return || 0);
+      if (b.outcome === 'loss') return sum - b.amount;
+      return sum;
+    }, 0);
+
+    const newBankroll = initialBankroll + totalReturn;
+
+    return {
+      bet: updatedBet,
+      profit: actualReturn,
+      newBankroll,
+      initialBankroll,
+    };
+  } catch (error) {
+    console.error('Error in updateBetOutcome:', error);
+    return null;
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -335,6 +440,42 @@ serve(async (req) => {
     // Check if user is asking for scores or betting odds
     const lastMessage = messages[messages.length - 1];
     const messageContent = lastMessage?.content?.toLowerCase() || '';
+    
+    // Check if user is reporting a bet outcome
+    const winPatterns = [
+      /(?:i\s+)?won\s+(?:the\s+)?(.+?)\s+bet/i,
+      /(?:my\s+)?(.+?)\s+bet\s+won/i,
+      /hit\s+(?:the\s+)?(.+?)\s+bet/i,
+    ];
+    const lossPatterns = [
+      /(?:i\s+)?lost\s+(?:the\s+)?(.+?)\s+bet/i,
+      /(?:my\s+)?(.+?)\s+bet\s+lost/i,
+      /(.+?)\s+bet\s+(?:did not hit|didn't hit|missed)/i,
+    ];
+
+    let betOutcomeResult = null;
+    
+    // Check for win
+    for (const pattern of winPatterns) {
+      const match = messageContent.match(pattern);
+      if (match && conversationId && userId) {
+        console.log('User reported BET WIN:', match[1]);
+        betOutcomeResult = await updateBetOutcome(conversationId, userId, 'win', match[1]);
+        break;
+      }
+    }
+    
+    // Check for loss if no win found
+    if (!betOutcomeResult) {
+      for (const pattern of lossPatterns) {
+        const match = messageContent.match(pattern);
+        if (match && conversationId && userId) {
+          console.log('User reported BET LOSS:', match[1]);
+          betOutcomeResult = await updateBetOutcome(conversationId, userId, 'loss', match[1]);
+          break;
+        }
+      }
+    }
     
     // Patterns for score requests
     const scoreKeywords = [
@@ -517,6 +658,31 @@ Today's date: ${currentDate}`;
     // Use the manager prompt since it handles both coaching and bet logging
     const basePrompt = managerPrompt;
 
+    // Add bet outcome context if user reported a win/loss
+    let betOutcomeContext = '';
+    if (betOutcomeResult) {
+      const { bet, profit, newBankroll, initialBankroll } = betOutcomeResult;
+      const profitLoss = newBankroll - initialBankroll;
+      betOutcomeContext = `
+BET OUTCOME PROCESSED:
+- Bet: ${bet.description}
+- Amount: $${bet.amount}
+- Odds: ${bet.odds}
+- Outcome: ${bet.outcome}
+- Profit from this bet: $${profit.toFixed(2)}
+- Previous bankroll: $${initialBankroll.toFixed(2)}
+- New bankroll: $${newBankroll.toFixed(2)}
+- Overall profit/loss: $${profitLoss.toFixed(2)} (${((profitLoss / initialBankroll) * 100).toFixed(2)}%)
+
+RESPONSE INSTRUCTIONS:
+Congratulate the user and clearly state:
+1. The profit from THIS specific bet ($${profit.toFixed(2)})
+2. Their NEW total bankroll ($${newBankroll.toFixed(2)})
+3. Brief acknowledgment of their overall performance
+
+Keep it concise and celebratory. Do NOT ask for their current bankroll - you already have all the information.`;
+    }
+
     const systemPrompt = dataContext
       ? `${basePrompt}
 
@@ -527,7 +693,11 @@ INSTRUCTIONS:
 ${isAskingForScore 
   ? '- Provide clear, concise score updates based on the data above\n- Include game status and any relevant context\n- Only provide betting analysis if specifically requested along with the score'
   : '- Use this data to perform ACTUAL analysis, not theoretical discussion\n- Lead with quantified insights: +EV %, fair line, CLV shift, sharp/public splits\n- Identify specific edges based on line movement, public fade opportunities, injury impacts\n- Calculate fair probability and compare to implied odds\n- Recommend bet sizing based on edge magnitude and confidence\n- Be direct and actionable with your recommendations'}`
-      : `${basePrompt}
+      : betOutcomeContext 
+        ? `${basePrompt}
+
+${betOutcomeContext}`
+        : `${basePrompt}
 
 If the user asks about a specific game, matchup, or betting opportunity, you will automatically receive live data. Use that data to provide concrete, quantified analysis.`;
 
