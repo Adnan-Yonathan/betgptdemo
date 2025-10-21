@@ -6,7 +6,9 @@ import { ProfileDropdown } from "@/components/ProfileDropdown";
 import { ProfileSettings } from "@/components/ProfileSettings";
 import { ThinkingIndicator } from "@/components/ThinkingIndicator";
 import { BankrollStats } from "@/components/BankrollStats";
+import { BetHistorySidebar } from "@/components/BetHistorySidebar";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -20,14 +22,21 @@ interface Message {
   timestamp: string;
 }
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
-const initialMessages: Message[] = [{
+const coachInitialMessages: Message[] = [{
   id: "1",
   role: "assistant",
-  content: "Hey! I'm BetGPT 👋\n\nI'm your AI betting coach and bankroll manager. I help you:\n\n• Make smarter betting decisions\n• Track your bets and performance\n• Manage your bankroll strategically\n• Analyze odds and find value\n\nJust tell me about a bet you're considering, one you've placed, or ask me anything about sports betting strategy!",
+  content: "Hey! I'm BetGPT 👋\n\nI'm an AI that helps you become a better bettor by learning from your bets and patterns.\n\nThink of me like ChatGPT, but I remember all your bets and give you personalized advice.\n\nTo get started, just tell me about a bet you're considering or one you recently placed.",
+  timestamp: "Just now"
+}];
+const managerInitialMessages: Message[] = [{
+  id: "1",
+  role: "assistant",
+  content: "Hey! I'm BetGPT 👋\n\nI'm your AI bankroll manager. I help you track your bets, manage your bankroll, and recommend optimal bet sizes based on proven strategies.\n\nYou can log bets by telling me:\n• The amount you wagered\n• The odds\n• The outcome (win/loss)\n• Any other details\n\nI'll track your performance and give you personalized bankroll management advice.\n\nWhat bet would you like to log?",
   timestamp: "Just now"
 }];
 const Index = () => {
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [mode, setMode] = useState<"coach" | "manager">("coach");
+  const [messages, setMessages] = useState<Message[]>(mode === "coach" ? coachInitialMessages : managerInitialMessages);
   const [isTyping, setIsTyping] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -143,7 +152,8 @@ const Index = () => {
       });
       return;
     }
-    const loadedMessages: Message[] = [...initialMessages,
+    const initialMsgs = mode === "coach" ? coachInitialMessages : managerInitialMessages;
+    const loadedMessages: Message[] = [...initialMsgs,
     // Include welcome message
     ...data.map(msg => ({
       id: msg.id,
@@ -155,7 +165,14 @@ const Index = () => {
     setCurrentConversationId(conversationId);
   };
   const handleNewChat = () => {
-    setMessages(initialMessages);
+    const initialMsgs = mode === "coach" ? coachInitialMessages : managerInitialMessages;
+    setMessages(initialMsgs);
+    setCurrentConversationId(null);
+  };
+  const handleModeChange = (newMode: "coach" | "manager") => {
+    setMode(newMode);
+    const initialMsgs = newMode === "coach" ? coachInitialMessages : managerInitialMessages;
+    setMessages(initialMsgs);
     setCurrentConversationId(null);
   };
   const handleSendMessage = async (content: string) => {
@@ -195,6 +212,7 @@ const Index = () => {
             role: "user",
             content
           }]),
+          mode,
           conversationId: currentConversationId,
           userId: user?.id
         })
@@ -295,14 +313,27 @@ const Index = () => {
     }
   };
   return <div className="flex h-screen bg-background">
-      <ChatSidebar currentConversationId={currentConversationId} onConversationSelect={loadConversation} onNewChat={handleNewChat} />
+      {mode === "coach" ? <ChatSidebar currentConversationId={currentConversationId} onConversationSelect={loadConversation} onNewChat={handleNewChat} /> : <BetHistorySidebar onNewBet={handleNewChat} />}
       
       <main className="flex-1 flex flex-col">
         {/* Chat Header */}
         <header className="border-b border-border px-6 py-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">BetGPT</h2>
-            <p className="text-sm text-muted-foreground">Your AI betting coach & bankroll manager</p>
+          <div className="flex items-center gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">BetGPT </h2>
+              <p className="text-sm text-muted-foreground">
+                {mode === "coach" ? "Your AI betting coach" : "Your AI bankroll manager"}
+              </p>
+            </div>
+            <Select value={mode} onValueChange={handleModeChange}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="coach">Betting Coach</SelectItem>
+                <SelectItem value="manager">Bankroll Manager</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" onClick={() => setVoiceEnabled(!voiceEnabled)} className={voiceEnabled ? "text-primary" : "text-muted-foreground"}>
@@ -312,8 +343,8 @@ const Index = () => {
           </div>
         </header>
 
-        {/* Bankroll Stats */}
-        <BankrollStats />
+        {/* Bankroll Stats - Only show in manager mode */}
+        {mode === "manager" && <BankrollStats />}
 
         {/* Messages */}
         <ScrollArea className="flex-1 px-6 py-8">
