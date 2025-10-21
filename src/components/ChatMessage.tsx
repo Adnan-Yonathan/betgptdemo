@@ -13,13 +13,13 @@ export const ChatMessage = ({
 }: ChatMessageProps) => {
   const isUser = role === "user";
   
-  // Convert asterisk emphasis to underlined text
+  // Convert asterisk emphasis to regular text
   const formatContent = (text: string) => {
     const parts = text.split(/(\*[^*]+\*)/g);
     return parts.map((part, index) => {
       if (part.startsWith('*') && part.endsWith('*')) {
         const innerText = part.slice(1, -1);
-        return <span key={index} className="underline">{innerText}</span>;
+        return <span key={index}>{innerText}</span>;
       }
       return part;
     });
