@@ -4,8 +4,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, TrendingUp, TrendingDown, Minus, Clock, Search } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown, Minus, Clock, Search, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 interface Bet {
   id: string;
   amount: number;
@@ -26,8 +27,10 @@ export const BetHistorySidebar = ({
   const {
     user
   } = useAuth();
+  const { toast } = useToast();
   const [bets, setBets] = useState<Bet[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSettling, setIsSettling] = useState(false);
   useEffect(() => {
     if (!user) return;
     const fetchBets = async () => {
@@ -81,11 +84,59 @@ export const BetHistorySidebar = ({
     bet.outcome.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const handleSettleBets = async () => {
+    if (!user) return;
+    
+    setIsSettling(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('settle-bets');
+      
+      if (error) {
+        toast({
+          title: "Error settling bets",
+          description: "Could not check game results. Please try again.",
+          variant: "destructive",
+        });
+      } else {
+        const settledCount = data?.settledCount || 0;
+        if (settledCount > 0) {
+          toast({
+            title: "Bets settled!",
+            description: `${settledCount} bet(s) have been updated with final results.`,
+          });
+        } else {
+          toast({
+            title: "No updates",
+            description: "No pending bets have finished yet.",
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error settling bets:', error);
+      toast({
+        title: "Error",
+        description: "Failed to check game results.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSettling(false);
+    }
+  };
+
   return <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col h-screen">
-      <div className="p-4 border-b border-sidebar-border">
+      <div className="p-4 border-b border-sidebar-border space-y-2">
         <Button onClick={onNewBet} className="w-full justify-start gap-2 bg-sidebar-accent hover:bg-sidebar-accent/80 text-sidebar-foreground">
           <Plus className="w-4 h-4" />
           New chat
+        </Button>
+        <Button 
+          onClick={handleSettleBets} 
+          disabled={isSettling || !user}
+          variant="outline"
+          className="w-full justify-start gap-2 text-xs"
+        >
+          <RefreshCw className={`w-3 h-3 ${isSettling ? 'animate-spin' : ''}`} />
+          {isSettling ? 'Checking...' : 'Check Results'}
         </Button>
       </div>
 

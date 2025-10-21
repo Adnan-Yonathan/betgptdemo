@@ -286,85 +286,31 @@ function formatOddsData(odds: any[], query: string): string {
   return result;
 }
 
-async function extractAndLogBet(
-  aiResponse: string, 
-  conversationId: string, 
+// Helper function to call log-bet edge function
+async function logBetViaFunction(
+  betDetails: { amount: number; odds: number; description: string; team?: string },
+  conversationId: string,
   userId: string
 ): Promise<void> {
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  // Extract bet information from AI response using regex patterns
-  const amountMatch = aiResponse.match(/\$(\d+(?:\.\d{2})?)/);
-  const oddsMatch = aiResponse.match(/(?:odds?|@)\s*([-+]\d+)/i);
-  const outcomeMatch = aiResponse.match(/\b(win|loss|won|lost|pending)\b/i);
-  
-  // Look for bet descriptions (team names, bet types)
-  const descPatterns = [
-    /logged?.*?bet.*?on\s+([^.!?]+)/i,
-    /betting?\s+([^.!?]+?)(?:\s+at|\s+@)/i,
-    /placed?\s+([^.!?]+?)(?:\s+for|\s+at)/i
-  ];
-  
-  let description = '';
-  for (const pattern of descPatterns) {
-    const match = aiResponse.match(pattern);
-    if (match && match[1]) {
-      description = match[1].trim();
-      break;
-    }
-  }
-
-  // If we found enough info to log a bet
-  if (amountMatch && oddsMatch) {
-    const amount = parseFloat(amountMatch[1]);
-    const odds = parseInt(oddsMatch[1]);
-    const outcome = outcomeMatch ? outcomeMatch[1].toLowerCase() : 'pending';
-    
-    // Normalize outcome
-    let normalizedOutcome = 'pending';
-    if (outcome === 'win' || outcome === 'won') normalizedOutcome = 'win';
-    else if (outcome === 'loss' || outcome === 'lost') normalizedOutcome = 'loss';
-    
-    // Calculate potential return
-    let potentialReturn = 0;
-    if (odds > 0) {
-      potentialReturn = amount * (odds / 100);
-    } else {
-      potentialReturn = amount * (100 / Math.abs(odds));
-    }
-    
-    // Calculate actual return if settled
-    let actualReturn = null;
-    if (normalizedOutcome === 'win') {
-      actualReturn = potentialReturn;
-    } else if (normalizedOutcome === 'loss') {
-      actualReturn = -amount;
-    }
-
-    const betDescription = description || 'Logged bet';
-    
-    console.log('Logging bet:', { amount, odds, outcome: normalizedOutcome, description: betDescription });
-    
-    // Insert bet into database
-    const { error } = await supabase.from('bets').insert({
-      user_id: userId,
-      conversation_id: conversationId,
-      amount,
-      odds,
-      outcome: normalizedOutcome,
-      description: betDescription,
-      potential_return: potentialReturn,
-      actual_return: actualReturn,
-      settled_at: normalizedOutcome !== 'pending' ? new Date().toISOString() : null
+    const { data, error } = await supabase.functions.invoke('log-bet', {
+      body: {
+        ...betDetails,
+        conversationId,
+      },
     });
 
     if (error) {
-      console.error('Error logging bet:', error);
+      console.error('Error calling log-bet function:', error);
     } else {
-      console.log('Bet logged successfully');
+      console.log('Bet logged successfully:', data);
     }
+  } catch (error) {
+    console.error('Error in logBetViaFunction:', error);
   }
 }
 
@@ -524,62 +470,42 @@ RULES:
 
 Today's date: ${currentDate}`;
 
-    const managerPrompt = `You are BetGPT Bankroll Manager - a specialized AI assistant for bet logging and bankroll management.
+    const managerPrompt = `You are a sports betting bankroll manager AI assistant with real-time sports data access.
 
-MISSION: Help users track their betting activity, manage their bankroll effectively, and make disciplined staking decisions.
+CORE RESPONSIBILITIES:
+1. **Bet Tracking**: Help users log and track their sports bets
+2. **Bankroll Management**: Provide advice on bet sizing and risk management
+3. **Live Data Analysis**: Access real-time odds and scores when users ask about games
 
-CORE CAPABILITIES:
-- Log bet details (sport, bet type, amount, odds, outcome)
-- Calculate recommended bet sizes using Kelly Criterion and user risk tolerance
-- Track bankroll balance, ROI, win rate, and betting trends
-- Provide bankroll growth/decline analysis
-- Alert users to poor bankroll management patterns (over-betting, chasing losses)
-- Suggest optimal unit sizing based on current bankroll and risk profile
-- Generate performance reports and identify profitable betting patterns
+PERSONALITY:
+- Professional and analytical
+- Help users make informed decisions
+- Focus on responsible bankroll management
+- Be concise and data-driven
 
-CRITICAL BET LOGGING FORMAT:
-When a user provides bet information, you MUST confirm the bet details in your response using this EXACT format:
-"Logged your bet on [description] for $[amount] at [odds]"
+BET LOGGING INSTRUCTIONS:
+When a user wants to log a bet, collect these details:
+1. What they're betting on (team, game, bet type)
+2. Amount ($)
+3. Odds (American format like -110, +150)
 
-Examples:
-- "Logged your bet on Lakers ML for $100 at -150"
-- "Logged your bet on Cowboys -3.5 for $50 at -110"  
-- "Logged your bet on Over 45.5 for $75 at +105"
+Then confirm in natural language: "I've logged your bet on [description] for $[amount] at [odds]. Good luck!"
 
-This structured format allows the system to automatically track the bet in your history.
-
-Always include:
-- Amount: $XX.XX format
-- Odds: +XXX or -XXX format
-- Description: Clear bet details (team, bet type)
-- Outcome: "pending" (default) or "won/lost" if settled
+The system will automatically track the game result and update your bankroll when the game finishes.
 
 MANAGEMENT GUIDELINES:
 - Recommend 1-5% of bankroll per bet based on risk tolerance:
   * Conservative: 1-2% per bet
   * Moderate: 2-3% per bet
   * Aggressive: 3-5% per bet
-- Use Kelly Criterion for optimal sizing when edge is quantified
 - Warn against betting >10% of bankroll on single plays
-- Track ROI and provide monthly/weekly performance summaries
 - Encourage disciplined unit sizing and emotional discipline
-
-RULES:
-- Always confirm bet details before logging
-- Provide clear bet size recommendations with reasoning
-- Celebrate wins but emphasize process over results
-- Warn against revenge betting or excessive risk after losses
-- Keep records accurate and organized
-- Focus on sustainable bankroll growth
 
 COMMUNICATION:
 - Keep answers conversational but precise
 - Never use asterisks (*) for formatting - use plain text only
-- Never use apostrophes (') in your responses - write words in full form (e.g., "do not" instead of "don't", "it is" instead of "it's")
+- Never use apostrophes (') in your responses - write words in full form
 - Be encouraging but honest about performance
-- Ask clarifying questions about bet details
-- Provide clear tables/summaries when reviewing bet history
-- Always tie advice back to long-term bankroll health
 
 Today's date: ${currentDate}`;
 
@@ -648,7 +574,7 @@ If the user asks about a specific game, matchup, or betting opportunity, you wil
       );
     }
 
-    // If in manager mode, collect the AI response to extract bet data
+    // If in manager mode, parse the streamed response to extract and log bets
     if (mode === "manager" && conversationId && userId) {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
@@ -666,8 +592,33 @@ If the user asks about a specific game, matchup, or betting opportunity, you wil
               controller.enqueue(value);
             }
             
-            // Extract and log bet after streaming is complete
-            await extractAndLogBet(fullResponse, conversationId, userId);
+            // After streaming completes, check for bet confirmation pattern
+            console.log('Checking for bet confirmation in manager mode...');
+            
+            // Look for bet confirmation pattern: "logged your bet on X for $Y at Z"
+            const betPattern = /logged.*?bet.*?on\s+(.+?)\s+for\s+\$?([\d.]+)\s+at\s+([-+]?\d+)/i;
+            const match = fullResponse.match(betPattern);
+            
+            if (match) {
+              const [, description, amount, odds] = match;
+              console.log('Found bet details:', { description, amount, odds });
+              
+              // Extract team name if possible (look for common team patterns)
+              const teamMatch = description.match(/(\w+(?:\s+\w+)?)\s+(?:ML|moneyline|spread|\+|-\d)/i);
+              const team = teamMatch ? teamMatch[1] : undefined;
+              
+              await logBetViaFunction(
+                {
+                  amount: Number(amount),
+                  odds: Number(odds),
+                  description: description.trim(),
+                  team,
+                },
+                conversationId,
+                userId
+              );
+            }
+            
             controller.close();
           } catch (error) {
             console.error('Stream error:', error);

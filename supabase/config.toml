@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.fetch-betting-odds]
 verify_jwt = false
+
+[functions.log-bet]
+verify_jwt = true
+
+[functions.settle-bets]
+verify_jwt = false

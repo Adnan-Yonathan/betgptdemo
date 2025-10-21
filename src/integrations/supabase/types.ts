@@ -18,40 +18,49 @@ export type Database = {
         Row: {
           actual_return: number | null
           amount: number
+          bet_type: string | null
           conversation_id: string | null
           created_at: string
           description: string
+          event_id: string | null
           id: string
           odds: number
           outcome: string
           potential_return: number | null
           settled_at: string | null
+          team_bet_on: string | null
           user_id: string
         }
         Insert: {
           actual_return?: number | null
           amount: number
+          bet_type?: string | null
           conversation_id?: string | null
           created_at?: string
           description: string
+          event_id?: string | null
           id?: string
           odds: number
           outcome?: string
           potential_return?: number | null
           settled_at?: string | null
+          team_bet_on?: string | null
           user_id: string
         }
         Update: {
           actual_return?: number | null
           amount?: number
+          bet_type?: string | null
           conversation_id?: string | null
           created_at?: string
           description?: string
+          event_id?: string | null
           id?: string
           odds?: number
           outcome?: string
           potential_return?: number | null
           settled_at?: string | null
+          team_bet_on?: string | null
           user_id?: string
         }
         Relationships: [
