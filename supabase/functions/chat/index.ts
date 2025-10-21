@@ -91,7 +91,14 @@ function formatScoresData(scores: any[], query: string): string {
     return "No scores found for this query. The games may not have started yet or the league may be in the off-season.";
   }
 
-  let result = `LIVE SCORES & STATISTICS (Last Updated: ${new Date().toLocaleString()}):\n\n`;
+  const now = new Date();
+  const lastUpdated = scores[0]?.last_updated ? new Date(scores[0].last_updated) : now;
+  const dataAgeMinutes = Math.floor((now.getTime() - lastUpdated.getTime()) / 60000);
+
+  let result = `LIVE SCORES DATA:\n`;
+  result += `Data Retrieved: ${now.toLocaleString()}\n`;
+  result += `Last Updated: ${lastUpdated.toLocaleString()} (${dataAgeMinutes} minutes ago)\n`;
+  result += `Data Freshness: ${dataAgeMinutes < 5 ? 'FRESH' : dataAgeMinutes < 30 ? 'RECENT' : 'STALE - may not reflect current game state'}\n\n`;
 
   for (const score of scores) {
     const gameTime = new Date(score.game_date).toLocaleString();
@@ -126,7 +133,6 @@ function formatScoresData(scores: any[], query: string): string {
   }
 
   result += `Total Games: ${scores.length}\n`;
-  result += `Data Source: OpenAI + The Odds API (for betting lines)\n`;
 
   return result;
 }
@@ -236,6 +242,10 @@ function formatOddsData(odds: any[], query: string): string {
     return "No betting odds found for this query. The game may not have lines available yet.";
   }
 
+  const now = new Date();
+  const lastUpdated = odds[0]?.last_updated ? new Date(odds[0].last_updated) : now;
+  const dataAgeMinutes = Math.floor((now.getTime() - lastUpdated.getTime()) / 60000);
+
   // Group odds by event
   const eventMap = new Map<string, any[]>();
   for (const odd of odds) {
@@ -246,7 +256,10 @@ function formatOddsData(odds: any[], query: string): string {
     eventMap.get(eventKey)!.push(odd);
   }
 
-  let result = `LIVE BETTING ODDS (Last Updated: ${new Date().toLocaleString()}):\n\n`;
+  let result = `LIVE BETTING ODDS DATA:\n`;
+  result += `Data Retrieved: ${now.toLocaleString()}\n`;
+  result += `Last Updated: ${lastUpdated.toLocaleString()} (${dataAgeMinutes} minutes ago)\n`;
+  result += `Data Freshness: ${dataAgeMinutes < 5 ? 'FRESH' : dataAgeMinutes < 15 ? 'RECENT' : dataAgeMinutes < 30 ? 'ACCEPTABLE' : 'STALE - lines may have moved'}\n\n`;
 
   for (const [event, eventOdds] of eventMap.entries()) {
     const firstOdd = eventOdds[0];
@@ -550,7 +563,7 @@ serve(async (req) => {
         console.log("Odds data fetch result:", dataContext);
       } catch (error) {
         console.error("Failed to fetch betting data:", error);
-        dataContext = "I could not fetch live data at the moment. Let me help with general analysis principles.";
+        dataContext = "ERROR: Unable to fetch live betting data at the moment. Please inform the user that you cannot provide specific betting recommendations without current odds data. You can only discuss general betting concepts.";
       }
     }
 
@@ -562,9 +575,9 @@ serve(async (req) => {
     });
 
     // Define system prompts for each mode
-    const coachPrompt = `You are BetGPT - a knowledgeable sports betting coach AND sports reporter covering ALL major sports (NFL, NBA, MLB, NHL, soccer/MLS, UFC, tennis, golf, college football, college basketball, and more).
+    const coachPrompt = `You are BetGPT - a knowledgeable sports betting coach AND sports reporter.
 
-MISSION: Provide intelligent, data-driven betting analysis across all sports AND report live scores when requested.
+MISSION: Provide intelligent, data-driven betting analysis AND report live scores when requested.
 
 DATA SOURCES:
 You have access to real-time, accurate data from premium APIs:
@@ -581,12 +594,9 @@ You analyze ALL major sports with equal expertise:
 - Basketball: NBA, NCAAB, WNBA, international leagues
 - Baseball: MLB, international leagues
 - Hockey: NHL
-- Soccer: MLS, EPL, La Liga, Champions League, World Cup, etc.
-- Combat Sports: UFC, boxing
-- Individual Sports: tennis, golf, racing
-- Other: esports, cricket, rugby, and more
+- Soccer: MLS
 
-CRITICAL: NEVER say you only cover one sport. You are a multi-sport expert.
+IMPORTANT: For sports outside this list, you can provide general betting principles but cannot access live odds or scores. Be transparent about this limitation.
 
 SCORE REPORTING:
 When users ask for scores ("What is the score?", "Who won?", "Current score?"), provide:
@@ -641,7 +651,7 @@ COMMUNICATION STYLE:
 - Confident and conversational, not robotic
 - Focus on value and educated picks, never guarantees
 - Never use asterisks (*) for formatting - use plain text only
-- Never use apostrophes (') - write words in full (e.g., "do not" vs "don't")
+- Write naturally and conversationally
 - Assume users understand basic betting terms (spread, juice, units)
 - Be direct and actionable - users want picks, not just theory
 - Show your expertise but stay humble about outcomes
@@ -653,6 +663,9 @@ RULES:
 - Prioritize long-term value over short-term results
 - Encourage disciplined bankroll management
 - Remind users that past performance does not guarantee future results
+- Only provide specific betting recommendations when you have live odds data
+- If you lack current data, be transparent and explain you cannot provide accurate picks
+- Never make up odds, spreads, or statistics - only use provided data
 
 Today's date: ${currentDate}`;
 
@@ -690,8 +703,9 @@ MANAGEMENT GUIDELINES:
 COMMUNICATION:
 - Keep answers conversational but precise
 - Never use asterisks (*) for formatting - use plain text only
-- Never use apostrophes (') in your responses - write words in full form
+- Write naturally and conversationally
 - Be encouraging but honest about performance
+- Only provide specific recommendations when you have current data
 
 Today's date: ${currentDate}`;
 
@@ -730,9 +744,9 @@ ${isAskingForScore ? 'LIVE SCORE DATA RETRIEVED:' : 'LIVE BETTING DATA RETRIEVED
 ${dataContext}
 
 INSTRUCTIONS:
-${isAskingForScore 
+${isAskingForScore
   ? '- Provide clear, concise score updates based on the data above\n- Include game status and any relevant context\n- Only provide betting analysis if specifically requested along with the score'
-  : '- Use this data to perform ACTUAL analysis, not theoretical discussion\n- Lead with quantified insights: +EV %, fair line, CLV shift, sharp/public splits\n- Identify specific edges based on line movement, public fade opportunities, injury impacts\n- Calculate fair probability and compare to implied odds\n- Recommend bet sizing based on edge magnitude and confidence\n- Be direct and actionable with your recommendations'}`
+  : '- Use this live data to provide specific, concrete analysis\n- Reference actual odds, spreads, and totals from the data provided\n- Identify specific edges based on matchup analysis, injury impacts, and situational factors\n- Compare odds across different bookmakers when available\n- Provide reasoning based on the actual data, not generic principles\n- Recommend bet sizing based on your confidence level\n- Be direct and actionable with your recommendations'}`
       : betOutcomeContext 
         ? `${basePrompt}
 
@@ -839,8 +853,33 @@ If the user asks about a specific game, matchup, or betting opportunity, you wil
               }
               
               console.log('Extracted bet details:', { description, amount, odds });
-              
-              const teamMatch = description.match(/(?:Lakers|Celtics|Warriors|Heat|Nets|Knicks|Bulls|Cavaliers|Mavericks|Rockets|Spurs|Clippers|76ers|Bucks|Raptors|Suns|Nuggets|Jazz|Trail Blazers|Kings|Grizzlies|Pelicans|Thunder|Timberwolves|Hawks|Hornets|Pistons|Pacers|Magic|Wizards)/i);
+
+              // Comprehensive team name matching across all major sports
+              const allTeams = [
+                // NBA Teams
+                'Lakers', 'Celtics', 'Warriors', 'Heat', 'Nets', 'Knicks', 'Bulls', 'Cavaliers', 'Mavericks',
+                'Rockets', 'Spurs', 'Clippers', '76ers', 'Sixers', 'Bucks', 'Raptors', 'Suns', 'Nuggets',
+                'Jazz', 'Trail Blazers', 'Blazers', 'Kings', 'Grizzlies', 'Pelicans', 'Thunder', 'Timberwolves',
+                'Wolves', 'Hawks', 'Hornets', 'Pistons', 'Pacers', 'Magic', 'Wizards', 'Cavs',
+                // NFL Teams
+                'Patriots', 'Bills', 'Dolphins', 'Jets', 'Ravens', 'Bengals', 'Browns', 'Steelers',
+                'Texans', 'Colts', 'Jaguars', 'Titans', 'Broncos', 'Chiefs', 'Raiders', 'Chargers',
+                'Cowboys', 'Giants', 'Eagles', 'Commanders', 'Bears', 'Lions', 'Packers', 'Vikings',
+                'Falcons', 'Panthers', 'Saints', 'Buccaneers', 'Cardinals', 'Rams', '49ers', 'Seahawks',
+                // MLB Teams
+                'Yankees', 'Red Sox', 'Blue Jays', 'Orioles', 'Rays', 'Dodgers', 'Giants', 'Padres',
+                'Athletics', 'Angels', 'Astros', 'Rangers', 'Mariners', 'White Sox', 'Indians', 'Guardians',
+                'Tigers', 'Royals', 'Twins', 'Brewers', 'Cardinals', 'Cubs', 'Reds', 'Pirates', 'Braves',
+                'Marlins', 'Mets', 'Phillies', 'Nationals', 'Rockies', 'Diamondbacks',
+                // NHL Teams
+                'Bruins', 'Maple Leafs', 'Canadiens', 'Senators', 'Sabres', 'Rangers', 'Islanders',
+                'Devils', 'Penguins', 'Flyers', 'Capitals', 'Hurricanes', 'Blue Jackets', 'Panthers',
+                'Lightning', 'Predators', 'Stars', 'Blues', 'Blackhawks', 'Avalanche', 'Wild', 'Jets',
+                'Flames', 'Oilers', 'Canucks', 'Golden Knights', 'Kraken', 'Ducks', 'Kings', 'Sharks', 'Coyotes'
+              ];
+
+              const teamPattern = new RegExp(`\\b(${allTeams.join('|')})\\b`, 'i');
+              const teamMatch = description.match(teamPattern);
               const team = teamMatch ? teamMatch[0] : undefined;
               
               await logBetViaFunction(
