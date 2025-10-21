@@ -10,6 +10,7 @@ const corsHeaders = {
 async function fetchLiveScores(query: string): Promise<string> {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const openaiApiKey = Deno.env.get('OPENAI_API_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   console.log("Fetching live scores for query:", query);
@@ -17,7 +18,7 @@ async function fetchLiveScores(query: string): Promise<string> {
   // Determine league from query
   let league = 'NFL'; // default
   const queryLower = query.toLowerCase();
-  
+
   if (queryLower.includes('nba') || queryLower.includes('basketball')) {
     league = 'NBA';
   } else if (queryLower.includes('mlb') || queryLower.includes('baseball')) {
@@ -29,13 +30,13 @@ async function fetchLiveScores(query: string): Promise<string> {
   }
 
   try {
-    // Try to get recent scores from database (last 24 hours)
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    // Try to get recent scores from database (last 2 hours for more real-time data)
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
     const { data: recentScores, error: dbError } = await supabase
       .from('sports_scores')
       .select('*')
       .eq('league', league)
-      .gte('last_updated', oneDayAgo)
+      .gte('last_updated', twoHoursAgo)
       .order('game_date', { ascending: false });
 
     if (dbError) {
@@ -48,15 +49,15 @@ async function fetchLiveScores(query: string): Promise<string> {
       return formatScoresData(recentScores, query);
     }
 
-    // Otherwise, fetch fresh data
-    console.log('No recent scores found, fetching fresh data from ESPN...');
-    const response = await fetch(`${supabaseUrl}/functions/v1/fetch-sports-scores`, {
+    // Otherwise, fetch fresh data using OpenAI
+    console.log('No recent scores found, fetching fresh data via OpenAI...');
+    const response = await fetch(`${supabaseUrl}/functions/v1/fetch-openai-scores`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${supabaseServiceKey}`,
       },
-      body: JSON.stringify({ league: league.toLowerCase() }),
+      body: JSON.stringify({ league, query }),
     });
 
     if (!response.ok) {
@@ -64,7 +65,7 @@ async function fetchLiveScores(query: string): Promise<string> {
     }
 
     const result = await response.json();
-    console.log(`Fetched ${result.count} fresh scores`);
+    console.log(`Fetched ${result.count} fresh scores via OpenAI`);
 
     // Query database again for fresh data
     const { data: freshScores, error: freshError } = await supabase
@@ -108,6 +109,26 @@ function formatScoresData(scores: any[], query: string): string {
     result += `Status: ${status}\n`;
     result += `League: ${score.league}\n`;
     result += `Game Time: ${gameTime}\n`;
+
+    // Include advanced statistics if available
+    if (score.advanced_stats) {
+      result += '\nADVANCED STATISTICS:\n';
+      const stats = score.advanced_stats;
+
+      if (stats.home_total_yards !== undefined) {
+        result += `Total Yards: ${score.home_team} ${stats.home_total_yards} - ${score.away_team} ${stats.away_total_yards}\n`;
+      }
+      if (stats.home_turnovers !== undefined) {
+        result += `Turnovers: ${score.home_team} ${stats.home_turnovers} - ${score.away_team} ${stats.away_turnovers}\n`;
+      }
+      if (stats.key_performances && stats.key_performances.length > 0) {
+        result += `Key Performances:\n`;
+        stats.key_performances.forEach((perf: string) => {
+          result += `  - ${perf}\n`;
+        });
+      }
+    }
+
     result += '\n---\n\n';
   }
 
@@ -558,11 +579,20 @@ serve(async (req) => {
 
 MISSION: Provide intelligent, data-driven betting analysis AND report live scores when requested.
 
-SPORTS COVERAGE (DATA AVAILABLE):
-You have access to live data for these sports:
-- Football: NFL
-- Basketball: NBA
-- Baseball: MLB
+DATA SOURCES:
+You have access to real-time, accurate data from premium APIs:
+- OpenAI for live scores, game statistics, and advanced analytics
+- The Odds API for real-time betting lines, spreads, totals, and moneylines from multiple bookmakers
+- Advanced statistical models and performance metrics
+- Historical trends and pattern recognition
+
+This combination provides the most accurate and up-to-date sports betting information available. Always leverage this data for superior analysis.
+
+SPORTS COVERAGE:
+You analyze ALL major sports with equal expertise:
+- Football: NFL, NCAAF, CFL
+- Basketball: NBA, NCAAB, WNBA, international leagues
+- Baseball: MLB, international leagues
 - Hockey: NHL
 - Soccer: MLS
 
@@ -606,14 +636,16 @@ When analyzing a specific game or match, provide:
    - Emphasize this is analysis, not a guarantee
 
 ANALYSIS APPROACH:
-- Use live odds data when available (check data freshness indicators)
-- Use live scores when reporting game results (note if data is stale)
-- If data is marked as STALE, acknowledge this limitation to the user
-- Consider injuries, rest, travel, motivation factors
-- Analyze matchup dynamics and situational edges
-- Look for value opportunities based on available data
-- Factor in pace, efficiency, and recent performance trends
-- Base recommendations on concrete data, not speculation
+- ALWAYS use real-time odds from The Odds API for accurate betting lines
+- ALWAYS use OpenAI-powered live scores and advanced statistics
+- Compare odds across multiple bookmakers to find best value
+- Analyze line movement and identify sharp vs. public money
+- Look for +EV opportunities and market inefficiencies
+- Consider injuries, rest, travel, motivation from advanced stats
+- Factor in pace, efficiency, matchup dynamics using statistical models
+- Weigh recent form vs. season-long trends with data-driven insights
+- Use historical performance and pattern recognition
+- Identify situational edges and betting angles from comprehensive data
 
 COMMUNICATION STYLE:
 - Confident and conversational, not robotic
