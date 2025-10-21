@@ -655,8 +655,8 @@ COMMUNICATION:
 
 Today's date: ${currentDate}`;
 
-    // Use the manager prompt since it handles both coaching and bet logging
-    const basePrompt = managerPrompt;
+    // Use the coach prompt for intelligent game analysis and betting advice
+    const basePrompt = coachPrompt;
 
     // Add bet outcome context if user reported a win/loss
     let betOutcomeContext = '';
