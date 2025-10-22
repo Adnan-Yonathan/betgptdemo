@@ -21,51 +21,48 @@ export const BankrollStats = memo(() => {
     if (!user) return;
 
     try {
-      // Get profile bankroll and baseline
+      // PERFORMANCE FIX: Fetch profile with pre-calculated stats instead of querying all bets
+      // This reduces query from O(n) bets to O(1) profile lookup
       const { data: profile } = await supabase
         .from("profiles")
-        .select("bankroll, baseline_bankroll")
+        .select("bankroll, baseline_bankroll, total_bets_placed, needs_profile_sync")
         .eq("id", user.id)
         .single();
 
       const currentBankroll = Number(profile?.bankroll || 1000);
       const initialBankroll = Number(profile?.baseline_bankroll || 1000);
+      const totalBets = Number(profile?.total_bets_placed || 0);
 
-      // Fetch all bets for calculations (include expected_value field)
-      const { data: bets } = await supabase
-        .from("bets")
-        .select("amount, odds, outcome, expected_value")
-        .eq("user_id", user.id);
-
-      if (!bets) {
-        setStats({
-          totalBankroll: currentBankroll,
-          percentChange: 0,
-          expectedEV: 0,
-          totalBets: 0,
-        });
-        return;
+      // If profile needs sync, trigger it in background (non-blocking)
+      if (profile?.needs_profile_sync) {
+        // Fire and forget - don't wait for sync to complete
+        supabase.rpc('sync_profile_if_needed', { target_user_id: user.id })
+          .then(() => console.log('Profile sync triggered'))
+          .catch(err => console.warn('Profile sync failed:', err));
       }
 
       const percentChange = initialBankroll > 0
         ? ((currentBankroll - initialBankroll) / initialBankroll) * 100
         : 0;
 
+      // PERFORMANCE FIX: Only fetch pending bets for EV calculation (small subset)
+      // Instead of fetching ALL bets, we only get pending ones
+      const { data: pendingBets } = await supabase
+        .from("bets")
+        .select("expected_value")
+        .eq("user_id", user.id)
+        .eq("outcome", "pending");
+
       // Calculate total EV from pending bets using stored expected_value
-      // (which is calculated using model probability, not market implied probability)
-      const totalEV = bets
-        .filter(bet => bet.outcome === 'pending')
-        .reduce((sum, bet) => {
-          // Use the pre-calculated expected_value if available (calculated with model probability)
-          // Otherwise, default to 0 since we can't calculate EV without win probability
-          return sum + (bet.expected_value || 0);
-        }, 0);
+      const totalEV = (pendingBets || []).reduce((sum, bet) => {
+        return sum + (bet.expected_value || 0);
+      }, 0);
 
       setStats({
         totalBankroll: currentBankroll,
         percentChange,
         expectedEV: totalEV,
-        totalBets: bets.length,
+        totalBets,
       });
     } catch (error) {
       console.error("Error fetching stats:", error);

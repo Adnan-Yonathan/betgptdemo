@@ -20,6 +20,29 @@ function getSupabaseClient() {
 }
 
 /**
+ * EMERGENCY FIX: Timeout wrapper to prevent first message from hanging
+ * Wraps a promise with a timeout to ensure responses even if external APIs are slow
+ * @param promise - The promise to wrap
+ * @param timeoutMs - Timeout in milliseconds (default 3000ms = 3s)
+ * @param fallbackValue - Value to return on timeout
+ */
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number = 3000,
+  fallbackValue: T
+): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => {
+      setTimeout(() => {
+        console.warn(`[TIMEOUT] Operation timed out after ${timeoutMs}ms, using fallback`);
+        resolve(fallbackValue);
+      }, timeoutMs);
+    })
+  ]);
+}
+
+/**
  * Intelligently determines if the user's query requires advanced or basic analysis
  * Advanced mode: For users asking for statistical analysis, EV calculations, Kelly Criterion, etc.
  * Basic mode: For casual bettors asking for simple picks and straightforward advice
@@ -164,46 +187,88 @@ async function fetchLineupData(query: string): Promise<string> {
   }
 
   try {
-    // Try to get recent lineups from database (last 24 hours)
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { data: recentLineups, error: dbError } = await supabase
+    // EMERGENCY FIX: Stale-While-Revalidate caching strategy
+    // Check for any cached lineups
+    const { data: cachedLineups, error: cacheError } = await supabase
       .from('starting_lineups')
       .select('*')
       .eq('league', league)
-      .gte('last_updated', oneDayAgo)
-      .order('game_date', { ascending: false });
+      .order('last_updated', { ascending: false });
 
-    if (dbError) {
-      console.error('Database query error:', dbError);
+    if (cacheError) {
+      console.error('Database query error:', cacheError);
     }
 
-    // If we have recent data, use it
-    if (recentLineups && recentLineups.length > 0) {
-      console.log(`Found ${recentLineups.length} recent lineups in database`);
-      return formatLineupsData(recentLineups, query);
+    // Calculate cache age
+    const cacheAge = cachedLineups && cachedLineups.length > 0
+      ? Date.now() - new Date(cachedLineups[0].last_updated).getTime()
+      : Infinity;
+    const cacheAgeMinutes = cacheAge / (60 * 1000);
+
+    console.log(`[CACHE] Lineup cache age: ${cacheAgeMinutes.toFixed(1)} minutes`);
+
+    // If cache is fresh (< 5 minutes), use it immediately
+    if (cacheAge < 5 * 60 * 1000 && cachedLineups && cachedLineups.length > 0) {
+      console.log(`[CACHE HIT] Using fresh cached lineups`);
+      return formatLineupsData(cachedLineups, query);
     }
 
-    // Otherwise, fetch fresh data
-    console.log('No recent lineups found, fetching fresh data...');
-    const response = await fetch(`${supabaseUrl}/functions/v1/scrape-lineups`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseServiceKey}`,
-      },
-      body: JSON.stringify({ league, query }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch lineups: ${response.status}`);
+    // If cache is acceptable (5-60 minutes), use it
+    if (cacheAge < 60 * 60 * 1000 && cachedLineups && cachedLineups.length > 0) {
+      console.log(`[CACHE STALE] Using slightly stale cached lineups (${cacheAgeMinutes.toFixed(1)} min old)`);
+      return formatLineupsData(cachedLineups, query);
     }
 
-    const result = await response.json();
-    console.log(`Fetched ${result.count} fresh lineups`);
+    // Cache is old or missing, try to fetch fresh data WITH TIMEOUT
+    console.log('[FETCH] Cache too old or missing, attempting fresh lineup fetch with timeout...');
 
-    return formatLineupsData(result.lineups || [], query);
+    const fetchFreshLineups = async () => {
+      const response = await fetch(`${supabaseUrl}/functions/v1/scrape-lineups`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({ league, query }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch lineups: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log(`[FETCH] Fetched ${result.count} fresh lineups`);
+      return result.lineups || [];
+    };
+
+    // Try to fetch with 3-second timeout
+    const freshLineups = await withTimeout(
+      fetchFreshLineups(),
+      3000,
+      cachedLineups || [] // Fall back to stale cache if timeout
+    );
+
+    if (freshLineups.length > 0) {
+      return formatLineupsData(freshLineups, query);
+    }
+
+    // No data available
+    return "No lineup information found. Lineups may not be confirmed yet or data is temporarily unavailable.";
+
   } catch (error) {
-    console.error("Error fetching lineups:", error);
+    console.error("[ERROR] Error fetching lineups:", error);
+    // Fallback: try to use any cached data
+    const { data: fallbackLineups } = await supabase
+      .from('starting_lineups')
+      .select('*')
+      .eq('league', league)
+      .order('last_updated', { ascending: false });
+
+    if (fallbackLineups && fallbackLineups.length > 0) {
+      console.log('[FALLBACK] Using cached lineups after error');
+      return formatLineupsData(fallbackLineups, query);
+    }
+
     return "Unable to fetch lineup information at the moment. Please try again shortly.";
   } finally {
     console.log(`[PERF] fetchLineupData took ${Date.now() - startTime}ms`);
@@ -285,46 +350,88 @@ async function fetchMatchupData(query: string): Promise<string> {
   }
 
   try {
-    // Try to get recent matchup analysis from database (last 12 hours)
-    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
-    const { data: recentMatchups, error: dbError } = await supabase
+    // EMERGENCY FIX: Stale-While-Revalidate caching strategy
+    // Check for any cached matchup data
+    const { data: cachedMatchups, error: cacheError } = await supabase
       .from('matchup_analysis')
       .select('*')
       .eq('league', league)
-      .gte('last_updated', twelveHoursAgo)
-      .order('game_date', { ascending: false });
+      .order('last_updated', { ascending: false });
 
-    if (dbError) {
-      console.error('Database query error:', dbError);
+    if (cacheError) {
+      console.error('Database query error:', cacheError);
     }
 
-    // If we have recent data, use it
-    if (recentMatchups && recentMatchups.length > 0) {
-      console.log(`Found ${recentMatchups.length} recent matchup analyses in database`);
-      return formatMatchupData(recentMatchups, query);
+    // Calculate cache age
+    const cacheAge = cachedMatchups && cachedMatchups.length > 0
+      ? Date.now() - new Date(cachedMatchups[0].last_updated).getTime()
+      : Infinity;
+    const cacheAgeMinutes = cacheAge / (60 * 1000);
+
+    console.log(`[CACHE] Matchup cache age: ${cacheAgeMinutes.toFixed(1)} minutes`);
+
+    // If cache is fresh (< 5 minutes), use it immediately
+    if (cacheAge < 5 * 60 * 1000 && cachedMatchups && cachedMatchups.length > 0) {
+      console.log(`[CACHE HIT] Using fresh cached matchups`);
+      return formatMatchupData(cachedMatchups, query);
     }
 
-    // Otherwise, fetch fresh data
-    console.log('No recent matchup data found, fetching fresh analysis...');
-    const response = await fetch(`${supabaseUrl}/functions/v1/scrape-matchups`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseServiceKey}`,
-      },
-      body: JSON.stringify({ league, query }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch matchup analysis: ${response.status}`);
+    // If cache is acceptable (5-60 minutes), use it
+    if (cacheAge < 60 * 60 * 1000 && cachedMatchups && cachedMatchups.length > 0) {
+      console.log(`[CACHE STALE] Using slightly stale cached matchups (${cacheAgeMinutes.toFixed(1)} min old)`);
+      return formatMatchupData(cachedMatchups, query);
     }
 
-    const result = await response.json();
-    console.log(`Fetched ${result.count} fresh matchup analyses`);
+    // Cache is old or missing, try to fetch fresh data WITH TIMEOUT
+    console.log('[FETCH] Cache too old or missing, attempting fresh matchup fetch with timeout...');
 
-    return formatMatchupData(result.matchups || [], query);
+    const fetchFreshMatchups = async () => {
+      const response = await fetch(`${supabaseUrl}/functions/v1/scrape-matchups`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({ league, query }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch matchup analysis: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log(`[FETCH] Fetched ${result.count} fresh matchup analyses`);
+      return result.matchups || [];
+    };
+
+    // Try to fetch with 3-second timeout
+    const freshMatchups = await withTimeout(
+      fetchFreshMatchups(),
+      3000,
+      cachedMatchups || [] // Fall back to stale cache if timeout
+    );
+
+    if (freshMatchups.length > 0) {
+      return formatMatchupData(freshMatchups, query);
+    }
+
+    // No data available
+    return "No matchup analysis found for this query or data is temporarily unavailable.";
+
   } catch (error) {
-    console.error("Error fetching matchup data:", error);
+    console.error("[ERROR] Error fetching matchup data:", error);
+    // Fallback: try to use any cached data
+    const { data: fallbackMatchups } = await supabase
+      .from('matchup_analysis')
+      .select('*')
+      .eq('league', league)
+      .order('last_updated', { ascending: false });
+
+    if (fallbackMatchups && fallbackMatchups.length > 0) {
+      console.log('[FALLBACK] Using cached matchups after error');
+      return formatMatchupData(fallbackMatchups, query);
+    }
+
     return "Unable to fetch matchup analysis at the moment. Please try again shortly.";
   } finally {
     console.log(`[PERF] fetchMatchupData took ${Date.now() - startTime}ms`);
@@ -447,58 +554,100 @@ async function fetchLiveScores(query: string): Promise<string> {
   }
 
   try {
-    // Try to get recent scores from database (last 2 hours for more real-time data)
-    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    const { data: recentScores, error: dbError } = await supabase
+    // EMERGENCY FIX: Stale-While-Revalidate caching strategy
+    // Check for any cached scores
+    const { data: cachedScores, error: cacheError } = await supabase
       .from('sports_scores')
       .select('*')
       .eq('league', league)
-      .gte('last_updated', twoHoursAgo)
-      .order('game_date', { ascending: false });
+      .order('last_updated', { ascending: false })
+      .limit(50);
 
-    if (dbError) {
-      console.error('Database query error:', dbError);
+    if (cacheError) {
+      console.error('Database query error:', cacheError);
     }
 
-    // If we have recent data, use it
-    if (recentScores && recentScores.length > 0) {
-      console.log(`Found ${recentScores.length} recent scores in database`);
-      return formatScoresData(recentScores, query);
+    // Calculate cache age
+    const cacheAge = cachedScores && cachedScores.length > 0
+      ? Date.now() - new Date(cachedScores[0].last_updated).getTime()
+      : Infinity;
+    const cacheAgeMinutes = cacheAge / (60 * 1000);
+
+    console.log(`[CACHE] Scores cache age: ${cacheAgeMinutes.toFixed(1)} minutes`);
+
+    // If cache is fresh (< 5 minutes), use it immediately
+    if (cacheAge < 5 * 60 * 1000 && cachedScores && cachedScores.length > 0) {
+      console.log(`[CACHE HIT] Using fresh cached scores`);
+      return formatScoresData(cachedScores, query);
     }
 
-    // Otherwise, fetch fresh data using OpenAI
-    console.log('No recent scores found, fetching fresh data via OpenAI...');
-    const response = await fetch(`${supabaseUrl}/functions/v1/fetch-openai-scores`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseServiceKey}`,
-      },
-      body: JSON.stringify({ league, query }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch scores: ${response.status}`);
+    // If cache is acceptable (5-30 minutes for scores), use it
+    if (cacheAge < 30 * 60 * 1000 && cachedScores && cachedScores.length > 0) {
+      console.log(`[CACHE STALE] Using slightly stale cached scores (${cacheAgeMinutes.toFixed(1)} min old)`);
+      return formatScoresData(cachedScores, query);
     }
 
-    const result = await response.json();
-    console.log(`Fetched ${result.count} fresh scores via OpenAI`);
+    // Cache is old or missing, try to fetch fresh data WITH TIMEOUT
+    console.log('[FETCH] Cache too old or missing, attempting fresh scores fetch with timeout...');
 
-    // Query database again for fresh data
-    const { data: freshScores, error: freshError } = await supabase
+    const fetchFreshScores = async () => {
+      const response = await fetch(`${supabaseUrl}/functions/v1/fetch-openai-scores`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({ league, query }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch scores: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log(`[FETCH] Fetched ${result.count} fresh scores via OpenAI`);
+
+      // Query database again for fresh data
+      const { data: freshScores, error: freshError } = await supabase
+        .from('sports_scores')
+        .select('*')
+        .eq('league', league)
+        .order('game_date', { ascending: false })
+        .limit(50);
+
+      if (freshError) throw freshError;
+      return freshScores || [];
+    };
+
+    // Try to fetch with 3-second timeout
+    const freshScores = await withTimeout(
+      fetchFreshScores(),
+      3000,
+      cachedScores || [] // Fall back to stale cache if timeout
+    );
+
+    if (freshScores.length > 0) {
+      return formatScoresData(freshScores, query);
+    }
+
+    // No data available
+    return "No scores found for this query. The games may not have started yet or the league may be in the off-season.";
+
+  } catch (error) {
+    console.error("[ERROR] Error fetching scores:", error);
+    // Fallback: try to use any cached data
+    const { data: fallbackScores } = await supabase
       .from('sports_scores')
       .select('*')
       .eq('league', league)
       .order('game_date', { ascending: false })
       .limit(50);
 
-    if (freshError) {
-      throw freshError;
+    if (fallbackScores && fallbackScores.length > 0) {
+      console.log('[FALLBACK] Using cached scores after error');
+      return formatScoresData(fallbackScores, query);
     }
 
-    return formatScoresData(freshScores || [], query);
-  } catch (error) {
-    console.error("Error fetching scores:", error);
     return "Unable to fetch live scores at the moment. Please try again shortly.";
   } finally {
     console.log(`[PERF] fetchLiveScores took ${Date.now() - startTime}ms`);
@@ -601,58 +750,100 @@ async function fetchLiveOdds(query: string): Promise<string> {
   }
 
   try {
-    // First, try to get recent odds from database (last 30 minutes)
-    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-    const { data: recentOdds, error: dbError } = await supabase
-      .from('betting_odds')
-      .select('*')
-      .eq('sport_key', sport)
-      .gte('last_updated', thirtyMinutesAgo)
-      .order('last_updated', { ascending: false });
-
-    if (dbError) {
-      console.error('Database query error:', dbError);
-    }
-
-    // If we have recent data, use it
-    if (recentOdds && recentOdds.length > 0) {
-      console.log(`Found ${recentOdds.length} recent odds entries in database`);
-      return formatOddsData(recentOdds, query);
-    }
-
-    // Otherwise, fetch fresh data from The Odds API
-    console.log('No recent data found, fetching fresh odds from API...');
-    const response = await fetch(`${supabaseUrl}/functions/v1/fetch-betting-odds`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseServiceKey}`,
-      },
-      body: JSON.stringify({ sport }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch odds: ${response.status}`);
-    }
-
-    const result = await response.json();
-    console.log(`Fetched ${result.count} fresh odds entries`);
-
-    // Now query the database again for the fresh data
-    const { data: freshOdds, error: freshError } = await supabase
+    // EMERGENCY FIX: Stale-While-Revalidate caching strategy
+    // Check for any cached data first (even if older than 30 min)
+    const { data: cachedOdds, error: cacheError } = await supabase
       .from('betting_odds')
       .select('*')
       .eq('sport_key', sport)
       .order('last_updated', { ascending: false })
       .limit(200);
 
-    if (freshError) {
-      throw freshError;
+    if (cacheError) {
+      console.error('Database query error:', cacheError);
     }
 
-    return formatOddsData(freshOdds || [], query);
+    // Calculate cache age
+    const cacheAge = cachedOdds && cachedOdds.length > 0
+      ? Date.now() - new Date(cachedOdds[0].last_updated).getTime()
+      : Infinity;
+    const cacheAgeMinutes = cacheAge / (60 * 1000);
+
+    console.log(`[CACHE] Cache age: ${cacheAgeMinutes.toFixed(1)} minutes`);
+
+    // If cache is fresh (< 5 minutes), use it immediately
+    if (cacheAge < 5 * 60 * 1000 && cachedOdds && cachedOdds.length > 0) {
+      console.log(`[CACHE HIT] Using fresh cached odds (${cacheAgeMinutes.toFixed(1)} min old)`);
+      return formatOddsData(cachedOdds, query);
+    }
+
+    // If cache is acceptable (5-30 minutes), use it but note staleness
+    if (cacheAge < 30 * 60 * 1000 && cachedOdds && cachedOdds.length > 0) {
+      console.log(`[CACHE STALE] Using slightly stale cached odds (${cacheAgeMinutes.toFixed(1)} min old)`);
+      return formatOddsData(cachedOdds, query);
+    }
+
+    // Cache is old or missing, try to fetch fresh data WITH TIMEOUT
+    console.log('[FETCH] Cache too old or missing, attempting fresh fetch with timeout...');
+
+    const fetchFreshOdds = async () => {
+      const response = await fetch(`${supabaseUrl}/functions/v1/fetch-betting-odds`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({ sport }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch odds: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log(`[FETCH] Fetched ${result.count} fresh odds entries`);
+
+      // Query database again for fresh data
+      const { data: freshOdds, error: freshError } = await supabase
+        .from('betting_odds')
+        .select('*')
+        .eq('sport_key', sport)
+        .order('last_updated', { ascending: false })
+        .limit(200);
+
+      if (freshError) throw freshError;
+      return freshOdds || [];
+    };
+
+    // Try to fetch with 3-second timeout
+    const freshOdds = await withTimeout(
+      fetchFreshOdds(),
+      3000,
+      cachedOdds || [] // Fall back to stale cache if timeout
+    );
+
+    if (freshOdds.length > 0) {
+      return formatOddsData(freshOdds, query);
+    }
+
+    // If we get here, no data is available
+    return "No betting odds data available at the moment. The API may be unavailable or the sport may not be in season.";
+
   } catch (error) {
-    console.error("Error fetching odds:", error);
+    console.error("[ERROR] Error fetching odds:", error);
+    // Last resort: try to use any cached data we have
+    const { data: fallbackOdds } = await supabase
+      .from('betting_odds')
+      .select('*')
+      .eq('sport_key', sport)
+      .order('last_updated', { ascending: false })
+      .limit(200);
+
+    if (fallbackOdds && fallbackOdds.length > 0) {
+      console.log('[FALLBACK] Using cached data after error');
+      return formatOddsData(fallbackOdds, query);
+    }
+
     return "Unable to fetch live odds at the moment. Please try again shortly.";
   } finally {
     console.log(`[PERF] fetchLiveOdds took ${Date.now() - startTime}ms`);
