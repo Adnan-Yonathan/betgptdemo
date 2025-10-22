@@ -17,3 +17,6 @@ verify_jwt = true
 
 [functions.settle-bets]
 verify_jwt = false
+
+[functions.auto-monitor-bets]
+verify_jwt = false

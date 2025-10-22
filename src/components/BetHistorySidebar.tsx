@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, TrendingUp, TrendingDown, Minus, Clock, Search, RefreshCw } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown, Minus, Clock, Search, RefreshCw, Info } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 interface Bet {
@@ -129,8 +129,8 @@ export const BetHistorySidebar = ({
           <Plus className="w-4 h-4" />
           New chat
         </Button>
-        <Button 
-          onClick={handleSettleBets} 
+        <Button
+          onClick={handleSettleBets}
           disabled={isSettling || !user}
           variant="outline"
           className="w-full justify-start gap-2 text-xs"
@@ -138,6 +138,10 @@ export const BetHistorySidebar = ({
           <RefreshCw className={`w-3 h-3 ${isSettling ? 'animate-spin' : ''}`} />
           {isSettling ? 'Checking...' : 'Check Results'}
         </Button>
+        <div className="flex items-start gap-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded text-xs text-blue-600 dark:text-blue-400">
+          <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
+          <p>Bets auto-settle every 10 min when games finish</p>
+        </div>
       </div>
 
       {/* Search */}
