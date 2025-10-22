@@ -7,10 +7,23 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// PERFORMANCE FIX: Singleton Supabase client to avoid repeated initialization overhead
+let _supabaseClient: any = null;
+function getSupabaseClient() {
+  if (!_supabaseClient) {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    _supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+    console.log("[PERF] Supabase client initialized");
+  }
+  return _supabaseClient;
+}
+
 async function fetchLineupData(query: string): Promise<string> {
+  const startTime = Date.now();
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const supabase = getSupabaseClient();
 
   console.log("Fetching lineup data for query:", query);
 
@@ -70,6 +83,8 @@ async function fetchLineupData(query: string): Promise<string> {
   } catch (error) {
     console.error("Error fetching lineups:", error);
     return "Unable to fetch lineup information at the moment. Please try again shortly.";
+  } finally {
+    console.log(`[PERF] fetchLineupData took ${Date.now() - startTime}ms`);
   }
 }
 
@@ -126,9 +141,10 @@ function formatLineupsData(lineups: any[], query: string): string {
 }
 
 async function fetchMatchupData(query: string): Promise<string> {
+  const startTime = Date.now();
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const supabase = getSupabaseClient();
 
   console.log("Fetching matchup analysis for query:", query);
 
@@ -188,6 +204,8 @@ async function fetchMatchupData(query: string): Promise<string> {
   } catch (error) {
     console.error("Error fetching matchup data:", error);
     return "Unable to fetch matchup analysis at the moment. Please try again shortly.";
+  } finally {
+    console.log(`[PERF] fetchMatchupData took ${Date.now() - startTime}ms`);
   }
 }
 
@@ -284,10 +302,11 @@ function formatMatchupData(matchups: any[], query: string): string {
 }
 
 async function fetchLiveScores(query: string): Promise<string> {
+  const startTime = Date.now();
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const openaiApiKey = Deno.env.get('OPENAI_API_KEY')!;
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const supabase = getSupabaseClient();
 
   console.log("Fetching live scores for query:", query);
 
@@ -359,6 +378,8 @@ async function fetchLiveScores(query: string): Promise<string> {
   } catch (error) {
     console.error("Error fetching scores:", error);
     return "Unable to fetch live scores at the moment. Please try again shortly.";
+  } finally {
+    console.log(`[PERF] fetchLiveScores took ${Date.now() - startTime}ms`);
   }
 }
 
@@ -414,9 +435,10 @@ function formatScoresData(scores: any[], query: string): string {
 }
 
 async function fetchLiveOdds(query: string): Promise<string> {
+  const startTime = Date.now();
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const supabase = getSupabaseClient();
 
   console.log("Fetching live odds data for query:", query);
 
@@ -510,6 +532,8 @@ async function fetchLiveOdds(query: string): Promise<string> {
   } catch (error) {
     console.error("Error fetching odds:", error);
     return "Unable to fetch live odds at the moment. Please try again shortly.";
+  } finally {
+    console.log(`[PERF] fetchLiveOdds took ${Date.now() - startTime}ms`);
   }
 }
 
@@ -610,8 +634,7 @@ async function logBetViaFunction(
     console.log('User ID:', userId);
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = getSupabaseClient();
 
     const { data, error } = await supabase.functions.invoke('log-bet', {
       body: {
@@ -641,10 +664,7 @@ async function updateBetOutcome(
   console.log('Conversation ID:', conversationId, 'User ID:', userId, 'Outcome:', outcome, 'Team:', teamOrDescription);
   
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-    );
+    const supabaseClient = getSupabaseClient();
 
     // Find the most recent pending bet matching this team/description
     const { data: bets, error: fetchError } = await supabaseClient
@@ -742,12 +762,16 @@ async function updateBetOutcome(
 }
 
 serve(async (req) => {
+  const requestStartTime = Date.now();
+  console.log("[PERF] ========== NEW REQUEST ==========");
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const { messages, conversationId, userId } = await req.json();
+    console.log(`[PERF] Request parsed in ${Date.now() - requestStartTime}ms`);
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
@@ -854,21 +878,27 @@ serve(async (req) => {
     } else if (isAskingForLineup) {
       try {
         console.log("User is asking for lineups, fetching lineup data...");
-        const lineupData = await fetchLineupData(lastMessage.content);
-        dataContext = lineupData;
-        contextType = "lineup";
-        console.log("Lineup data fetch result:", dataContext);
 
-        // Also fetch matchup data if it's a betting question with lineup inquiry
+        // PERFORMANCE FIX: Parallelize data fetching if betting data is also needed
         if (isAskingForBettingData) {
-          console.log("Also fetching matchup analysis for betting context...");
-          const matchupData = await fetchMatchupData(lastMessage.content);
-          dataContext += "\n\n" + matchupData;
+          console.log("[PERF] Parallelizing lineup, matchup, and odds fetches...");
+          const parallelStart = Date.now();
 
-          // And odds data
-          const oddsData = await fetchLiveOdds(lastMessage.content);
-          dataContext += "\n\n" + oddsData;
+          const [lineupData, matchupData, oddsData] = await Promise.all([
+            fetchLineupData(lastMessage.content),
+            fetchMatchupData(lastMessage.content),
+            fetchLiveOdds(lastMessage.content)
+          ]);
+
+          console.log(`[PERF] Parallel fetches completed in ${Date.now() - parallelStart}ms`);
+
+          dataContext = lineupData + "\n\n" + matchupData + "\n\n" + oddsData;
           contextType = "comprehensive";
+        } else {
+          const lineupData = await fetchLineupData(lastMessage.content);
+          dataContext = lineupData;
+          contextType = "lineup";
+          console.log("Lineup data fetch result:", dataContext);
         }
       } catch (error) {
         console.error("Failed to fetch lineup data:", error);
@@ -877,17 +907,26 @@ serve(async (req) => {
     } else if (isAskingForMatchup) {
       try {
         console.log("User is asking for matchup analysis, fetching matchup data...");
-        const matchupData = await fetchMatchupData(lastMessage.content);
-        dataContext = matchupData;
-        contextType = "matchup";
-        console.log("Matchup data fetch result:", dataContext);
 
-        // Also fetch odds for betting context
+        // PERFORMANCE FIX: Parallelize matchup and odds fetching
         if (isAskingForBettingData) {
-          console.log("Also fetching odds for betting context...");
-          const oddsData = await fetchLiveOdds(lastMessage.content);
-          dataContext += "\n\n" + oddsData;
+          console.log("[PERF] Parallelizing matchup and odds fetches...");
+          const parallelStart = Date.now();
+
+          const [matchupData, oddsData] = await Promise.all([
+            fetchMatchupData(lastMessage.content),
+            fetchLiveOdds(lastMessage.content)
+          ]);
+
+          console.log(`[PERF] Parallel fetches completed in ${Date.now() - parallelStart}ms`);
+
+          dataContext = matchupData + "\n\n" + oddsData;
           contextType = "comprehensive";
+        } else {
+          const matchupData = await fetchMatchupData(lastMessage.content);
+          dataContext = matchupData;
+          contextType = "matchup";
+          console.log("Matchup data fetch result:", dataContext);
         }
       } catch (error) {
         console.error("Failed to fetch matchup data:", error);
@@ -1200,6 +1239,11 @@ ${betOutcomeContext}`
 
 If the user asks about a specific game, matchup, or betting opportunity, you will automatically receive live data. Use that data to provide concrete, quantified analysis.`;
 
+    const dataFetchTime = Date.now() - requestStartTime;
+    console.log(`[PERF] Data fetching completed in ${dataFetchTime}ms`);
+    console.log(`[PERF] Sending request to AI...`);
+
+    const aiStartTime = Date.now();
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -1218,6 +1262,9 @@ If the user asks about a specific game, matchup, or betting opportunity, you wil
         stream: true,
       }),
     });
+
+    console.log(`[PERF] AI request initiated in ${Date.now() - aiStartTime}ms`);
+    console.log(`[PERF] Total time before streaming: ${Date.now() - requestStartTime}ms`);
 
     if (!response.ok) {
       if (response.status === 429) {
