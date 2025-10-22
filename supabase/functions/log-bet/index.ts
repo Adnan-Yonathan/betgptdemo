@@ -30,10 +30,27 @@ serve(async (req) => {
       });
     }
 
-    const { amount, odds, description, team, conversationId, eventId } = await req.json();
+    const {
+      amount,
+      odds,
+      description,
+      team,
+      conversationId,
+      eventId,
+      sport,
+      league,
+      marketKey,
+      bookmaker,
+      modelProbability,
+      confidenceScore,
+      betType = 'straight'
+    } = await req.json();
 
     console.log('=== LOG-BET FUNCTION CALLED ===');
-    console.log('Request body:', { amount, odds, description, team, conversationId, eventId });
+    console.log('Request body:', {
+      amount, odds, description, team, conversationId, eventId,
+      sport, league, marketKey, bookmaker, modelProbability, confidenceScore, betType
+    });
     console.log('User ID:', user.id);
 
     // Validate required fields
@@ -82,7 +99,7 @@ serve(async (req) => {
     // Calculate potential return based on American odds
     const oddsNum = Number(odds);
     let potentialReturn = 0;
-    
+
     if (oddsNum > 0) {
       // Positive odds: profit = (stake * odds) / 100
       potentialReturn = Number(amount) + (Number(amount) * oddsNum / 100);
@@ -91,7 +108,60 @@ serve(async (req) => {
       potentialReturn = Number(amount) + (Number(amount) * 100 / Math.abs(oddsNum));
     }
 
-    // Insert bet
+    // Get user's bankroll and Kelly settings for calculations
+    const { data: profile } = await supabaseClient
+      .from('profiles')
+      .select('bankroll, kelly_multiplier')
+      .eq('id', user.id)
+      .single();
+
+    // Calculate Expected Value if model probability is provided
+    let expectedValue = null;
+    let kellyFraction = null;
+
+    if (modelProbability) {
+      // Convert American odds to decimal
+      const decimalOdds = oddsNum > 0 ? (oddsNum / 100) + 1 : (100 / Math.abs(oddsNum)) + 1;
+      const profitIfWin = Number(amount) * (decimalOdds - 1);
+
+      // EV = (win_prob * profit) - (loss_prob * stake)
+      expectedValue = (modelProbability * profitIfWin) - ((1 - modelProbability) * Number(amount));
+
+      // Kelly Criterion: (bp - q) / b where b = decimal_odds - 1, p = win_prob, q = 1 - p
+      if (profile?.bankroll && profile?.kelly_multiplier) {
+        const b = decimalOdds - 1;
+        const p = modelProbability;
+        const q = 1 - p;
+        const kellyPct = ((b * p) - q) / b;
+
+        // Apply fractional Kelly for safety
+        kellyFraction = Math.max(0, kellyPct * profile.kelly_multiplier);
+      }
+    }
+
+    // Fetch current market odds to capture opening line
+    let openingLine = oddsNum; // Default to bet odds
+    let currentBookmaker = bookmaker || 'Unknown';
+
+    if (matchedEventId && matchedTeam && marketKey) {
+      const { data: currentOdds } = await supabaseClient
+        .from('betting_odds')
+        .select('outcome_price, bookmaker')
+        .eq('event_id', matchedEventId)
+        .eq('outcome_name', matchedTeam)
+        .eq('market_key', marketKey || 'h2h')
+        .order('last_updated', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (currentOdds) {
+        openingLine = currentOdds.outcome_price;
+        currentBookmaker = currentOdds.bookmaker;
+        console.log(`Opening line captured: ${openingLine} from ${currentBookmaker}`);
+      }
+    }
+
+    // Insert bet with advanced analytics
     const { data: bet, error: betError } = await supabaseClient
       .from('bets')
       .insert({
@@ -104,7 +174,16 @@ serve(async (req) => {
         outcome: 'pending',
         event_id: matchedEventId || null,
         team_bet_on: matchedTeam || null,
-        bet_type: 'moneyline',
+        bet_type: betType || 'straight',
+        sport: sport || null,
+        league: league || null,
+        market_key: marketKey || 'h2h',
+        bookmaker: currentBookmaker,
+        opening_line: openingLine,
+        model_probability: modelProbability || null,
+        confidence_score: confidenceScore || null,
+        expected_value: expectedValue,
+        kelly_fraction: kellyFraction,
       })
       .select()
       .single();

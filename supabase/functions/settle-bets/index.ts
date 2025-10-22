@@ -135,13 +135,48 @@ serve(async (req) => {
 
       console.log(`Settling bet ${bet.id}: ${outcome} (actual return: ${actualReturn})`);
 
-      // Update bet
+      // Calculate CLV (Closing Line Value) if we have opening_line
+      let closingLine = null;
+      let clv = null;
+
+      if (bet.opening_line && bet.team_bet_on && bet.market_key) {
+        // Get the most recent (closing) line before game started
+        const { data: closingOdds } = await supabaseClient
+          .from('betting_odds')
+          .select('outcome_price')
+          .eq('event_id', bet.event_id)
+          .eq('outcome_name', bet.team_bet_on)
+          .eq('market_key', bet.market_key)
+          .lte('last_updated', game.game_date) // Before game started
+          .order('last_updated', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (closingOdds) {
+          closingLine = closingOdds.outcome_price;
+
+          // Calculate CLV using the database function
+          const { data: clvResult } = await supabaseClient
+            .rpc('calculate_clv', {
+              bet_odds: bet.odds,
+              closing_odds: closingLine
+            });
+
+          clv = clvResult;
+
+          console.log(`CLV for bet ${bet.id}: ${clv}% (bet at ${bet.odds}, closed at ${closingLine})`);
+        }
+      }
+
+      // Update bet with outcome and CLV
       const { error: updateError } = await supabaseClient
         .from('bets')
         .update({
           outcome,
           actual_return: actualReturn,
           settled_at: new Date().toISOString(),
+          closing_line: closingLine,
+          clv: clv,
         })
         .eq('id', bet.id);
 

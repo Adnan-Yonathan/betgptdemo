@@ -63,12 +63,50 @@ Deno.serve(async (req) => {
     const events: OddsEvent[] = await response.json();
     console.log(`Found ${events.length} events with odds`);
 
-    // Process and store each event's odds
+    // Process and store each event's odds with line movement tracking
     const results = [];
+    let lineMovementsTracked = 0;
+
     for (const event of events) {
       for (const bookmaker of event.bookmakers) {
         for (const market of bookmaker.markets) {
           for (const outcome of market.outcomes) {
+            // Check for existing odds to track line movement
+            const { data: existingOdds } = await supabase
+              .from('betting_odds')
+              .select('outcome_price, outcome_point, last_updated')
+              .eq('event_id', event.id)
+              .eq('bookmaker', bookmaker.title)
+              .eq('market_key', market.key)
+              .eq('outcome_name', outcome.name)
+              .single();
+
+            // Track line movement if odds changed significantly (>= 5 points for American odds)
+            if (existingOdds &&
+                (Math.abs(existingOdds.outcome_price - outcome.price) >= 5 ||
+                 (outcome.point && existingOdds.outcome_point &&
+                  Math.abs(existingOdds.outcome_point - outcome.point) >= 0.5))) {
+
+              // Insert line movement record
+              const { error: movementError } = await supabase
+                .from('line_movements')
+                .insert({
+                  event_id: event.id,
+                  sport_key: event.sport_key,
+                  bookmaker: bookmaker.title,
+                  market_key: market.key,
+                  outcome_name: outcome.name,
+                  odds: existingOdds.outcome_price,
+                  point: existingOdds.outcome_point,
+                  timestamp: existingOdds.last_updated,
+                });
+
+              if (!movementError) {
+                lineMovementsTracked++;
+                console.log(`Line movement detected: ${event.home_team} vs ${event.away_team} - ${outcome.name} ${market.key} moved from ${existingOdds.outcome_price} to ${outcome.price}`);
+              }
+            }
+
             const oddsData = {
               event_id: event.id,
               sport_key: event.sport_key,
@@ -87,9 +125,9 @@ Deno.serve(async (req) => {
             // Upsert the odds (update if exists, insert if new)
             const { data: upsertData, error } = await supabase
               .from('betting_odds')
-              .upsert(oddsData, { 
+              .upsert(oddsData, {
                 onConflict: 'event_id,bookmaker,market_key,outcome_name',
-                ignoreDuplicates: false 
+                ignoreDuplicates: false
               })
               .select()
               .single();
@@ -104,6 +142,8 @@ Deno.serve(async (req) => {
       }
     }
 
+    console.log(`Tracked ${lineMovementsTracked} line movements`);
+
     console.log(`Successfully processed ${results.length} odds entries`);
 
     // Get remaining requests info from response headers
@@ -111,16 +151,17 @@ Deno.serve(async (req) => {
     const usedRequests = response.headers.get('x-requests-used');
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         count: results.length,
         events: events.length,
+        line_movements_tracked: lineMovementsTracked,
         api_requests_remaining: remainingRequests,
         api_requests_used: usedRequests
       }),
-      { 
+      {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200 
+        status: 200
       }
     );
   } catch (error) {
