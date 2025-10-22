@@ -27,18 +27,28 @@ export function BettingModeSelector({
     if (!user) return;
 
     try {
-      // Update mode in database and return the updated row to verify success
+      // Use upsert to create profile if it doesn't exist, or update if it does
+      // This handles cases where the profile wasn't created during signup
       const { data, error } = await supabase
         .from("profiles")
-        .update({ betting_mode: mode })
-        .eq("id", user.id)
+        .upsert(
+          {
+            id: user.id,
+            email: user.email,
+            betting_mode: mode
+          },
+          {
+            onConflict: 'id',
+            ignoreDuplicates: false // Always update even if row exists
+          }
+        )
         .select();
 
       if (error) throw error;
 
-      // Check if the update actually affected any rows
+      // Verify the upsert was successful
       if (!data || data.length === 0) {
-        throw new Error("Profile not found. Please refresh the page and try again.");
+        throw new Error("Failed to update profile. Please try again.");
       }
 
       // Update local state
