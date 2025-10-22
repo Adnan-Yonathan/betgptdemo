@@ -181,7 +181,7 @@ Provide accurate, up-to-date lineup information. If lineups aren't confirmed yet
       let qualityScore = 100;
 
       // Deduct for missing starters (sport-specific expected counts)
-      const expectedStarters = {
+      const expectedStarters: Record<string, number> = {
         'basketball': 5,
         'football': 11,
         'baseball': 9,

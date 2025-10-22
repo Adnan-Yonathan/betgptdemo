@@ -223,7 +223,7 @@ serve(async (req) => {
           : 'HEDGE NOT RECOMMENDED: Would result in guaranteed loss. Let original bet ride or consider partial hedge.',
     };
 
-    const response = {
+    const response: any = {
       success: true,
       hedge: hedge,
       arbitrage: arbitrage,
@@ -252,8 +252,8 @@ serve(async (req) => {
         .single();
 
       if (!hedgeError) {
-        response['hedgeBetId'] = hedgeBet.id;
-        response['message'] = 'Hedge bet created successfully';
+        response.hedgeBetId = hedgeBet.id;
+        response.message = 'Hedge bet created successfully';
       }
     }
 

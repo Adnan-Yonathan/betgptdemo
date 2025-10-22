@@ -324,9 +324,11 @@ serve(async (req) => {
     console.log('Performance analytics complete');
 
     // Refresh materialized view for faster future queries
-    await supabaseClient.rpc('refresh_bet_performance_analytics').catch(() => {
+    try {
+      await supabaseClient.rpc('refresh_bet_performance_analytics');
+    } catch (e) {
       console.log('Note: Materialized view refresh failed (may not exist yet)');
-    });
+    }
 
     return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
