@@ -21,15 +21,15 @@ export const BankrollStats = memo(() => {
     if (!user) return;
 
     try {
-      // Get profile bankroll
+      // Get profile bankroll and baseline
       const { data: profile } = await supabase
         .from("profiles")
-        .select("bankroll")
+        .select("bankroll, baseline_bankroll")
         .eq("id", user.id)
         .single();
 
       const currentBankroll = Number(profile?.bankroll || 1000);
-      const initialBankroll = 1000; // Default initial bankroll
+      const initialBankroll = Number(profile?.baseline_bankroll || 1000);
 
       // Fetch all bets for calculations
       const { data: bets } = await supabase

@@ -99,6 +99,50 @@ export const ProfileSettings = ({ open, onOpenChange }: ProfileSettingsProps) =>
     }
   };
 
+  const handleResetCRM = async () => {
+    if (!user || !profile) return;
+
+    const confirmed = window.confirm(
+      "Are you sure you want to reset your CRM statistics? This will:\n\n" +
+      "• Set your baseline bankroll to current bankroll (percent change → 0%)\n" +
+      "• Reset Expected EV calculation\n" +
+      "• Keep your bet history intact\n\n" +
+      "This action cannot be undone."
+    );
+
+    if (!confirmed) return;
+
+    setLoading(true);
+    try {
+      const currentBankroll = Number(profile.bankroll || 1000);
+      
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          baseline_bankroll: currentBankroll,
+        })
+        .eq("id", user.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "CRM Reset Complete",
+        description: "Your statistics baseline has been reset to your current bankroll.",
+      });
+
+      await loadProfile();
+    } catch (error: any) {
+      console.error("Error resetting CRM:", error);
+      toast({
+        title: "Reset Error",
+        description: error.message || "Failed to reset CRM",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!user) return;
 
@@ -149,16 +193,27 @@ export const ProfileSettings = ({ open, onOpenChange }: ProfileSettingsProps) =>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-base font-semibold">Live CRM Statistics</Label>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleSyncProfile}
-                disabled={syncing}
-                className="h-8 px-2"
-              >
-                <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />
-                Sync
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleResetCRM}
+                  disabled={loading}
+                  className="h-8 px-3 text-xs"
+                >
+                  Reset CRM
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSyncProfile}
+                  disabled={syncing}
+                  className="h-8 px-2"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />
+                  Sync
+                </Button>
+              </div>
             </div>
             {profile && (
               <div className="grid grid-cols-2 gap-3 p-4 bg-muted/30 rounded-lg">

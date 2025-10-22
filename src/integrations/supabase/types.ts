@@ -183,117 +183,81 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          average_bet_size: number | null
           bankroll: number | null
+          baseline_bankroll: number | null
           created_at: string
+          current_streak: number | null
           default_bet_size: number | null
           email: string | null
           id: string
-          risk_tolerance: string | null
-          updated_at: string
-          initial_bankroll: number | null
           kelly_multiplier: number | null
-          max_bet_size_percentage: number | null
-          min_edge_threshold: number | null
-          variance_tolerance: string | null
-          auto_kelly: boolean | null
-          total_bets_placed: number | null
-          total_bets_won: number | null
-          total_bets_lost: number | null
-          total_bets_pushed: number | null
-          total_amount_wagered: number | null
-          total_amount_won: number | null
-          total_amount_lost: number | null
-          win_rate: number | null
-          roi: number | null
-          average_bet_size: number | null
-          largest_win: number | null
           largest_loss: number | null
-          current_streak: number | null
-          longest_win_streak: number | null
-          longest_loss_streak: number | null
-          total_profit: number | null
-          pending_bet_count: number | null
-          pending_bet_amount: number | null
-          last_bet_at: string | null
-          last_win_at: string | null
-          last_loss_at: string | null
+          largest_win: number | null
           last_sync_at: string | null
+          pending_bet_amount: number | null
+          pending_bet_count: number | null
+          risk_tolerance: string | null
+          roi: number | null
+          total_bets_lost: number | null
+          total_bets_placed: number | null
+          total_bets_pushed: number | null
+          total_bets_won: number | null
+          total_profit: number | null
+          updated_at: string
+          win_rate: number | null
         }
         Insert: {
           avatar_url?: string | null
+          average_bet_size?: number | null
           bankroll?: number | null
+          baseline_bankroll?: number | null
           created_at?: string
+          current_streak?: number | null
           default_bet_size?: number | null
           email?: string | null
           id: string
-          risk_tolerance?: string | null
-          updated_at?: string
-          initial_bankroll?: number | null
           kelly_multiplier?: number | null
-          max_bet_size_percentage?: number | null
-          min_edge_threshold?: number | null
-          variance_tolerance?: string | null
-          auto_kelly?: boolean | null
-          total_bets_placed?: number | null
-          total_bets_won?: number | null
-          total_bets_lost?: number | null
-          total_bets_pushed?: number | null
-          total_amount_wagered?: number | null
-          total_amount_won?: number | null
-          total_amount_lost?: number | null
-          win_rate?: number | null
-          roi?: number | null
-          average_bet_size?: number | null
-          largest_win?: number | null
           largest_loss?: number | null
-          current_streak?: number | null
-          longest_win_streak?: number | null
-          longest_loss_streak?: number | null
-          total_profit?: number | null
-          pending_bet_count?: number | null
-          pending_bet_amount?: number | null
-          last_bet_at?: string | null
-          last_win_at?: string | null
-          last_loss_at?: string | null
+          largest_win?: number | null
           last_sync_at?: string | null
+          pending_bet_amount?: number | null
+          pending_bet_count?: number | null
+          risk_tolerance?: string | null
+          roi?: number | null
+          total_bets_lost?: number | null
+          total_bets_placed?: number | null
+          total_bets_pushed?: number | null
+          total_bets_won?: number | null
+          total_profit?: number | null
+          updated_at?: string
+          win_rate?: number | null
         }
         Update: {
           avatar_url?: string | null
+          average_bet_size?: number | null
           bankroll?: number | null
+          baseline_bankroll?: number | null
           created_at?: string
+          current_streak?: number | null
           default_bet_size?: number | null
           email?: string | null
           id?: string
-          risk_tolerance?: string | null
-          updated_at?: string
-          initial_bankroll?: number | null
           kelly_multiplier?: number | null
-          max_bet_size_percentage?: number | null
-          min_edge_threshold?: number | null
-          variance_tolerance?: string | null
-          auto_kelly?: boolean | null
-          total_bets_placed?: number | null
-          total_bets_won?: number | null
-          total_bets_lost?: number | null
-          total_bets_pushed?: number | null
-          total_amount_wagered?: number | null
-          total_amount_won?: number | null
-          total_amount_lost?: number | null
-          win_rate?: number | null
-          roi?: number | null
-          average_bet_size?: number | null
-          largest_win?: number | null
           largest_loss?: number | null
-          current_streak?: number | null
-          longest_win_streak?: number | null
-          longest_loss_streak?: number | null
-          total_profit?: number | null
-          pending_bet_count?: number | null
-          pending_bet_amount?: number | null
-          last_bet_at?: string | null
-          last_win_at?: string | null
-          last_loss_at?: string | null
+          largest_win?: number | null
           last_sync_at?: string | null
+          pending_bet_amount?: number | null
+          pending_bet_count?: number | null
+          risk_tolerance?: string | null
+          roi?: number | null
+          total_bets_lost?: number | null
+          total_bets_placed?: number | null
+          total_bets_pushed?: number | null
+          total_bets_won?: number | null
+          total_profit?: number | null
+          updated_at?: string
+          win_rate?: number | null
         }
         Relationships: []
       }
