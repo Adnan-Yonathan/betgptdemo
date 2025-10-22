@@ -31,10 +31,10 @@ export const BankrollStats = memo(() => {
       const currentBankroll = Number(profile?.bankroll || 1000);
       const initialBankroll = Number(profile?.baseline_bankroll || 1000);
 
-      // Fetch all bets for calculations
+      // Fetch all bets for calculations (include expected_value field)
       const { data: bets } = await supabase
         .from("bets")
-        .select("amount, odds, outcome")
+        .select("amount, odds, outcome, expected_value")
         .eq("user_id", user.id);
 
       if (!bets) {
@@ -51,16 +51,14 @@ export const BankrollStats = memo(() => {
         ? ((currentBankroll - initialBankroll) / initialBankroll) * 100
         : 0;
 
+      // Calculate total EV from pending bets using stored expected_value
+      // (which is calculated using model probability, not market implied probability)
       const totalEV = bets
         .filter(bet => bet.outcome === 'pending')
         .reduce((sum, bet) => {
-          const decimalOdds = bet.odds > 0
-            ? (bet.odds / 100) + 1
-            : (100 / Math.abs(bet.odds)) + 1;
-          const impliedProb = 1 / decimalOdds;
-          const potentialProfit = bet.amount * (decimalOdds - 1);
-          const ev = (impliedProb * potentialProfit) - ((1 - impliedProb) * bet.amount);
-          return sum + ev;
+          // Use the pre-calculated expected_value if available (calculated with model probability)
+          // Otherwise, default to 0 since we can't calculate EV without win probability
+          return sum + (bet.expected_value || 0);
         }, 0);
 
       setStats({
