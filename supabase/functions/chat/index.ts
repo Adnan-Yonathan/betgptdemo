@@ -19,6 +19,128 @@ function getSupabaseClient() {
   return _supabaseClient;
 }
 
+/**
+ * Intelligently determines if the user's query requires advanced or basic analysis
+ * Advanced mode: For users asking for statistical analysis, EV calculations, Kelly Criterion, etc.
+ * Basic mode: For casual bettors asking for simple picks and straightforward advice
+ */
+function detectBettingMode(messages: any[]): 'basic' | 'advanced' {
+  // Get the last few messages to understand context (up to last 3 messages)
+  const recentMessages = messages.slice(-3);
+  const combinedText = recentMessages
+    .map(msg => msg.content || '')
+    .join(' ')
+    .toLowerCase();
+
+  // Advanced mode indicators - technical and statistical terms
+  const advancedIndicators = [
+    // Expected Value related
+    'expected value', 'ev', '+ev', '-ev', 'positive ev', 'negative ev',
+
+    // Kelly Criterion and bet sizing
+    'kelly', 'kelly criterion', 'optimal bet size', 'fractional kelly',
+
+    // Statistical analysis
+    'confidence interval', 'probability distribution', 'variance', 'standard deviation',
+    'correlation', 'correlation matrix', 'statistical model', 'regression',
+
+    // Sharp betting terms
+    'sharp money', 'sharp action', 'clv', 'closing line value', 'line movement',
+    'reverse line movement', 'steam move', 'market efficiency',
+
+    // Advanced strategy
+    'hedge', 'hedging', 'arbitrage', 'middle', 'correlation penalty',
+    'parlay correlation', 'vig calculation', 'true odds', 'implied probability',
+
+    // Technical analysis requests
+    'show me the math', 'calculate the', 'what are the odds', 'win probability',
+    'edge calculation', 'what is my edge', 'quantify', 'statistical edge',
+
+    // Advanced mode explicit requests
+    'advanced analysis', 'detailed stats', 'statistical breakdown',
+    'give me the numbers', 'run the numbers', 'crunch the numbers',
+
+    // Professional terminology
+    'roi', 'return on investment', 'bankroll management formula',
+    'risk of ruin', 'drawdown', 'profit expectation'
+  ];
+
+  // Basic mode indicators - casual language
+  const basicIndicators = [
+    'simple', 'easy', 'casual', 'beginner', 'just starting',
+    'quick pick', 'straightforward', 'without the math',
+    'in simple terms', 'layman', 'explain like',
+    'easy to understand', 'basic analysis'
+  ];
+
+  // Check for advanced indicators
+  let advancedScore = 0;
+  for (const indicator of advancedIndicators) {
+    if (combinedText.includes(indicator)) {
+      advancedScore += 1;
+      // Some terms are stronger indicators
+      if (indicator === 'kelly' || indicator === 'expected value' || indicator === 'ev' ||
+          indicator === 'sharp money' || indicator === 'hedge') {
+        advancedScore += 2; // Extra weight for key terms
+      }
+    }
+  }
+
+  // Check for basic indicators
+  let basicScore = 0;
+  for (const indicator of basicIndicators) {
+    if (combinedText.includes(indicator)) {
+      basicScore += 2; // Weight basic requests heavily
+    }
+  }
+
+  // Question complexity analysis
+  const hasMultipleQuestions = (combinedText.match(/\?/g) || []).length > 2;
+  const isVeryLong = combinedText.length > 500; // Long, detailed questions suggest advanced
+  const hasMathSymbols = /[%$+\-*/=]/.test(combinedText);
+
+  if (isVeryLong && hasMathSymbols) {
+    advancedScore += 1;
+  }
+
+  // Specific question patterns that indicate advanced mode
+  const advancedQuestionPatterns = [
+    /what('s| is) the (expected value|ev|edge)/i,
+    /how much should i bet/i,  // Kelly criterion question
+    /calculate/i,
+    /probability of/i,
+    /what are my odds/i,
+    /statistical/i,
+    /quantitative/i
+  ];
+
+  for (const pattern of advancedQuestionPatterns) {
+    if (pattern.test(combinedText)) {
+      advancedScore += 1;
+    }
+  }
+
+  console.log(`[MODE DETECTION] Advanced score: ${advancedScore}, Basic score: ${basicScore}`);
+
+  // Decision logic:
+  // - If basic indicators are present, strongly prefer basic mode
+  // - If 2+ advanced indicators, use advanced mode
+  // - Otherwise default to basic mode for casual users
+
+  if (basicScore > 0) {
+    console.log(`[MODE DETECTION] Basic mode selected (explicit basic request)`);
+    return 'basic';
+  }
+
+  if (advancedScore >= 2) {
+    console.log(`[MODE DETECTION] Advanced mode selected (score: ${advancedScore})`);
+    return 'advanced';
+  }
+
+  console.log(`[MODE DETECTION] Basic mode selected (default for casual betting)`);
+  return 'basic';
+}
+
 async function fetchLineupData(query: string): Promise<string> {
   const startTime = Date.now();
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -770,9 +892,13 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, conversationId, userId, bettingMode = 'basic' } = await req.json();
+    const { messages, conversationId, userId } = await req.json();
     console.log(`[PERF] Request parsed in ${Date.now() - requestStartTime}ms`);
-    console.log(`[MODE] Betting mode: ${bettingMode}`);
+
+    // Intelligently detect betting mode based on user's question
+    const bettingMode = detectBettingMode(messages);
+    console.log(`[MODE] Betting mode auto-detected: ${bettingMode}`);
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {

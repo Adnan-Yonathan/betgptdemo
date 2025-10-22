@@ -6,7 +6,6 @@ import { ProfileDropdown } from "@/components/ProfileDropdown";
 import { ProfileSettings } from "@/components/ProfileSettings";
 import { ThinkingIndicator } from "@/components/ThinkingIndicator";
 import { BankrollStats } from "@/components/BankrollStats";
-import { BettingModeSelector } from "@/components/BettingModeSelector";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,7 +35,6 @@ const Index = () => {
   const [initialBankroll, setInitialBankroll] = useState(1000);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const [bettingMode, setBettingMode] = useState<"basic" | "advanced">("basic");
   const {
     toast
   } = useToast();
@@ -50,22 +48,15 @@ const Index = () => {
       const {
         data,
         error
-      } = await supabase.from("profiles").select("bankroll, betting_mode").eq("id", user.id).maybeSingle();
+      } = await supabase.from("profiles").select("bankroll").eq("id", user.id).maybeSingle();
 
-      // If no profile exists yet, it will be created when user switches modes
-      // For now, just use defaults
       if (error) {
         console.error("Error fetching profile:", error);
         return;
       }
 
-      if (data) {
-        if (data.bankroll) {
-          setInitialBankroll(Number(data.bankroll));
-        }
-        if (data.betting_mode) {
-          setBettingMode(data.betting_mode as "basic" | "advanced");
-        }
+      if (data?.bankroll) {
+        setInitialBankroll(Number(data.bankroll));
       }
     };
     fetchProfile();
@@ -212,8 +203,7 @@ const Index = () => {
             content
           }]),
           conversationId: currentConversationId,
-          userId: user?.id,
-          bettingMode: bettingMode
+          userId: user?.id
         })
       });
       if (!resp.ok) {
@@ -322,7 +312,6 @@ const Index = () => {
               <h2 className="text-lg font-semibold text-foreground">BetGPT</h2>
               <p className="text-sm text-muted-foreground">Your AI betting coach & bankroll manager</p>
             </div>
-            <BettingModeSelector currentMode={bettingMode} onModeChange={setBettingMode} />
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" onClick={() => setVoiceEnabled(!voiceEnabled)} className={voiceEnabled ? "text-primary" : "text-muted-foreground"}>
