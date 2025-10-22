@@ -967,110 +967,146 @@ async function logBetViaFunction(
 }
 
 // Function to update bet outcome when user reports win/loss
+// PHASE 1: Uses atomic settlement and handles multiple pending bets
 async function updateBetOutcome(
   conversationId: string,
   userId: string,
-  outcome: 'win' | 'loss',
+  outcome: 'win' | 'loss' | 'push',
   teamOrDescription: string
 ) {
-  console.log('=== UPDATING BET OUTCOME ===');
+  console.log('=== UPDATING BET OUTCOME (ATOMIC) ===');
   console.log('Conversation ID:', conversationId, 'User ID:', userId, 'Outcome:', outcome, 'Team:', teamOrDescription);
-  
+
   try {
     const supabaseClient = getSupabaseClient();
 
-    // Find the most recent pending bet matching this team/description
+    // Find ALL pending bets matching this team/description (not just one)
     const { data: bets, error: fetchError } = await supabaseClient
       .from('bets')
       .select('*')
       .eq('user_id', userId)
-      .eq('conversation_id', conversationId)
       .eq('outcome', 'pending')
       .ilike('description', `%${teamOrDescription}%`)
-      .order('created_at', { ascending: false })
-      .limit(1);
+      .order('created_at', { ascending: false });
 
     if (fetchError) {
       console.error('Error fetching bet:', fetchError);
-      return null;
+      return { error: 'Failed to fetch bets', code: 'FETCH_ERROR' };
     }
 
     if (!bets || bets.length === 0) {
       console.log('No matching pending bet found');
-      return null;
+      return { error: `No pending bet found for "${teamOrDescription}"`, code: 'NOT_FOUND' };
+    }
+
+    // PHASE 1.5: Handle multiple pending bets - ask for clarification
+    if (bets.length > 1) {
+      console.log(`Found ${bets.length} pending bets for "${teamOrDescription}"`);
+      return {
+        error: 'MULTIPLE_BETS',
+        code: 'MULTIPLE_BETS',
+        bets: bets.map(b => ({
+          id: b.id,
+          description: b.description,
+          amount: b.amount,
+          odds: b.odds,
+          created_at: b.created_at,
+        })),
+        message: `I found ${bets.length} pending bets matching "${teamOrDescription}". Please be more specific about which bet you're settling.`
+      };
     }
 
     const bet = bets[0];
     console.log('Found bet:', bet);
 
-    // Calculate actual return
+    // Calculate actual return based on outcome
     let actualReturn = 0;
     if (outcome === 'win') {
-      // Calculate payout based on American odds
+      // Calculate payout based on American odds (stake + profit)
       if (bet.odds > 0) {
-        actualReturn = bet.amount * (bet.odds / 100);
+        actualReturn = bet.amount + (bet.amount * (bet.odds / 100));
       } else {
-        actualReturn = bet.amount * (100 / Math.abs(bet.odds));
+        actualReturn = bet.amount + (bet.amount * (100 / Math.abs(bet.odds)));
       }
+    } else if (outcome === 'push') {
+      // Push returns original stake
+      actualReturn = bet.amount;
+    } else {
+      // Loss returns 0
+      actualReturn = 0;
     }
 
-    // Update bet
-    const { data: updatedBet, error: updateError } = await supabaseClient
-      .from('bets')
-      .update({
-        outcome,
-        actual_return: actualReturn,
-        settled_at: new Date().toISOString(),
-      })
-      .eq('id', bet.id)
-      .select()
-      .single();
+    console.log(`Calculated actual return: $${actualReturn} for outcome: ${outcome}`);
 
-    if (updateError) {
-      console.error('Error updating bet:', updateError);
-      return null;
+    // PHASE 1.1: Use atomic settlement function instead of direct updates
+    const { data: settlement, error: settlementError } = await supabaseClient
+      .rpc('settle_bet_atomic', {
+        p_bet_id: bet.id,
+        p_outcome: outcome,
+        p_actual_return: actualReturn,
+        p_closing_line: null,
+        p_clv: null
+      });
+
+    if (settlementError) {
+      console.error('Error in atomic settlement:', settlementError);
+      return { error: 'Failed to settle bet', code: 'SETTLEMENT_ERROR', details: settlementError };
     }
 
-    console.log('Updated bet:', updatedBet);
+    if (!settlement || settlement.length === 0 || !settlement[0].success) {
+      console.error('Settlement failed:', settlement);
+      return {
+        error: settlement?.[0]?.message || 'Settlement failed',
+        code: 'SETTLEMENT_FAILED'
+      };
+    }
 
-    // Fetch current profile to get bankroll
+    const result = settlement[0];
+    console.log('✅ Bet settled atomically:', result);
+
+    // Fetch updated profile stats for comprehensive response
     const { data: profile } = await supabaseClient
       .from('profiles')
-      .select('bankroll')
+      .select('bankroll, baseline_bankroll, total_bets_placed, total_bets_won, total_bets_lost, win_rate, roi, total_profit')
       .eq('id', userId)
       .single();
 
-    const currentBankroll = Number(profile?.bankroll || 1000);
-    let newBankroll = currentBankroll;
+    const percentChange = profile?.baseline_bankroll > 0
+      ? ((profile.bankroll - profile.baseline_bankroll) / profile.baseline_bankroll * 100)
+      : 0;
 
-    // Update bankroll incrementally based on this bet's outcome
-    if (outcome === 'win') {
-      newBankroll = currentBankroll + actualReturn;
-    } else if (outcome === 'loss') {
-      newBankroll = currentBankroll - bet.amount;
-    }
-
-    // Update the user's profile bankroll
-    const { error: profileUpdateError } = await supabaseClient
-      .from('profiles')
-      .update({ bankroll: newBankroll })
-      .eq('id', userId);
-
-    if (profileUpdateError) {
-      console.error('Error updating profile bankroll:', profileUpdateError);
-    } else {
-      console.log(`Updated profile bankroll for user ${userId}: $${currentBankroll.toFixed(2)} -> $${newBankroll.toFixed(2)}`);
-    }
-
+    // PHASE 1.3: Return formatted stats for AI response
     return {
-      bet: updatedBet,
-      profit: actualReturn,
-      newBankroll,
-      initialBankroll: currentBankroll,
+      success: true,
+      bet: {
+        id: bet.id,
+        description: bet.description,
+        amount: bet.amount,
+        odds: bet.odds,
+        outcome: outcome,
+      },
+      settlement: {
+        profit: result.bet_data.profit,
+        actual_return: actualReturn,
+      },
+      bankroll: {
+        previous: result.bankroll_data.previous_bankroll,
+        new: result.bankroll_data.new_bankroll,
+        change: result.bankroll_data.change,
+        percent_change: percentChange,
+      },
+      stats: {
+        total_bets: profile?.total_bets_placed || 0,
+        wins: profile?.total_bets_won || 0,
+        losses: profile?.total_bets_lost || 0,
+        win_rate: profile?.win_rate || 0,
+        roi: profile?.roi || 0,
+        total_profit: profile?.total_profit || 0,
+      }
     };
   } catch (error) {
     console.error('Error in updateBetOutcome:', error);
-    return null;
+    return { error: 'Unexpected error', code: 'UNKNOWN_ERROR', details: error };
   }
 }
 
@@ -1100,37 +1136,69 @@ serve(async (req) => {
     const lastMessage = messages[messages.length - 1];
     const messageContent = lastMessage?.content?.toLowerCase() || '';
     
-    // Check if user is reporting a bet outcome
+    // PHASE 1.2: Improved specific bet win/loss detection patterns
+    // Matches: "my bet on the raptors won", "my raptors bet won", "won my bet on lakers"
     const winPatterns = [
-      /(?:i\s+)?won\s+(?:the\s+)?(.+?)\s+bet/i,
-      /(?:my\s+)?(.+?)\s+bet\s+won/i,
-      /hit\s+(?:the\s+)?(.+?)\s+bet/i,
+      /(?:my\s+)?bet\s+on\s+(?:the\s+)?(.+?)\s+won/i,           // "bet on the raptors won"
+      /won\s+(?:my\s+)?bet\s+on\s+(?:the\s+)?(.+?)(?:\s|$)/i,  // "won my bet on raptors"
+      /(?:my\s+)?(.+?)\s+bet\s+won/i,                           // "my raptors bet won"
+      /won\s+(?:the\s+)?(.+?)\s+bet/i,                          // "won the raptors bet"
+      /(?:my\s+)?bet\s+on\s+(?:the\s+)?(.+?)\s+hit/i,           // "my bet on raptors hit"
+      /hit\s+(?:my\s+)?bet\s+on\s+(?:the\s+)?(.+?)(?:\s|$)/i,  // "hit my bet on raptors"
     ];
+
     const lossPatterns = [
-      /(?:i\s+)?lost\s+(?:the\s+)?(.+?)\s+bet/i,
-      /(?:my\s+)?(.+?)\s+bet\s+lost/i,
-      /(.+?)\s+bet\s+(?:did not hit|didn't hit|missed)/i,
+      /(?:my\s+)?bet\s+on\s+(?:the\s+)?(.+?)\s+lost/i,          // "bet on the raptors lost"
+      /lost\s+(?:my\s+)?bet\s+on\s+(?:the\s+)?(.+?)(?:\s|$)/i, // "lost my bet on raptors"
+      /(?:my\s+)?(.+?)\s+bet\s+lost/i,                          // "my raptors bet lost"
+      /lost\s+(?:the\s+)?(.+?)\s+bet/i,                         // "lost the raptors bet"
+      /(?:my\s+)?bet\s+on\s+(?:the\s+)?(.+?)\s+(?:missed|didn'?t\s+hit)/i,  // "my bet on raptors didn't hit"
+    ];
+
+    const pushPatterns = [
+      /(?:my\s+)?bet\s+on\s+(?:the\s+)?(.+?)\s+pushed/i,        // "bet on the raptors pushed"
+      /(?:my\s+)?(.+?)\s+bet\s+pushed/i,                        // "my raptors bet pushed"
+      /(?:my\s+)?bet\s+on\s+(?:the\s+)?(.+?)\s+(?:tied|was\s+a\s+tie)/i,  // "bet on raptors tied"
     ];
 
     let betOutcomeResult = null;
-    
+    let detectedOutcome = null;
+
     // Check for win
     for (const pattern of winPatterns) {
       const match = messageContent.match(pattern);
-      if (match && conversationId && userId) {
-        console.log('User reported BET WIN:', match[1]);
-        betOutcomeResult = await updateBetOutcome(conversationId, userId, 'win', match[1]);
+      if (match && match[1] && conversationId && userId) {
+        const teamOrDesc = match[1].trim();
+        console.log('✅ User reported BET WIN for:', teamOrDesc);
+        betOutcomeResult = await updateBetOutcome(conversationId, userId, 'win', teamOrDesc);
+        detectedOutcome = 'win';
         break;
       }
     }
-    
+
     // Check for loss if no win found
     if (!betOutcomeResult) {
       for (const pattern of lossPatterns) {
         const match = messageContent.match(pattern);
-        if (match && conversationId && userId) {
-          console.log('User reported BET LOSS:', match[1]);
-          betOutcomeResult = await updateBetOutcome(conversationId, userId, 'loss', match[1]);
+        if (match && match[1] && conversationId && userId) {
+          const teamOrDesc = match[1].trim();
+          console.log('❌ User reported BET LOSS for:', teamOrDesc);
+          betOutcomeResult = await updateBetOutcome(conversationId, userId, 'loss', teamOrDesc);
+          detectedOutcome = 'loss';
+          break;
+        }
+      }
+    }
+
+    // Check for push if neither win nor loss found
+    if (!betOutcomeResult) {
+      for (const pattern of pushPatterns) {
+        const match = messageContent.match(pattern);
+        if (match && match[1] && conversationId && userId) {
+          const teamOrDesc = match[1].trim();
+          console.log('↔️ User reported BET PUSH for:', teamOrDesc);
+          betOutcomeResult = await updateBetOutcome(conversationId, userId, 'push', teamOrDesc);
+          detectedOutcome = 'push';
           break;
         }
       }
@@ -1587,29 +1655,102 @@ Today's date: ${currentDate}`;
     const coachPrompt = bettingMode === 'advanced' ? advancedModePrompt : basicModePrompt;
     const basePrompt = coachPrompt;
 
-    // Add bet outcome context if user reported a win/loss
+    // PHASE 1.3: Add comprehensive bet outcome context with stats
     let betOutcomeContext = '';
     if (betOutcomeResult) {
-      const { bet, profit, newBankroll, initialBankroll } = betOutcomeResult;
-      const profitLoss = newBankroll - initialBankroll;
-      betOutcomeContext = `
-BET OUTCOME PROCESSED:
-- Bet: ${bet.description}
-- Amount: $${bet.amount}
-- Odds: ${bet.odds}
-- Outcome: ${bet.outcome}
-- Profit from this bet: $${profit.toFixed(2)}
-- Previous bankroll: $${initialBankroll.toFixed(2)}
-- New bankroll: $${newBankroll.toFixed(2)}
-- Overall profit/loss: $${profitLoss.toFixed(2)} (${((profitLoss / initialBankroll) * 100).toFixed(2)}%)
+      // Handle error cases (NOT_FOUND, MULTIPLE_BETS, etc.)
+      if (betOutcomeResult.error || !betOutcomeResult.success) {
+        if (betOutcomeResult.code === 'MULTIPLE_BETS') {
+          // Ask user to clarify which bet
+          betOutcomeContext = `
+MULTIPLE PENDING BETS FOUND:
+The user has ${betOutcomeResult.bets.length} pending bets matching their description:
+
+${betOutcomeResult.bets.map((b: any, i: number) => `
+${i + 1}. ${b.description}
+   - Amount: $${b.amount}
+   - Odds: ${b.odds > 0 ? '+' : ''}${b.odds}
+   - Placed: ${new Date(b.created_at).toLocaleDateString()}
+`).join('')}
 
 RESPONSE INSTRUCTIONS:
-Congratulate the user and clearly state:
-1. The profit from THIS specific bet ($${profit.toFixed(2)})
-2. Their NEW total bankroll ($${newBankroll.toFixed(2)})
-3. Brief acknowledgment of their overall performance
+Ask the user to be more specific about which bet they want to settle. List the bets above and ask them to clarify by providing more details (e.g., the exact amount, odds, or when they placed it).`;
+        } else if (betOutcomeResult.code === 'NOT_FOUND') {
+          betOutcomeContext = `
+NO PENDING BET FOUND:
+${betOutcomeResult.error}
 
-Keep it concise and celebratory. Do NOT ask for their current bankroll - you already have all the information.`;
+RESPONSE INSTRUCTIONS:
+Politely inform the user that you couldn't find a pending bet matching their description. Ask them to:
+1. Check if they already settled this bet
+2. Provide more details about the bet (exact team name, amount, or when they placed it)
+3. Or ask them to log the bet first if they haven't done so yet`;
+        } else {
+          // Generic error
+          betOutcomeContext = `
+BET SETTLEMENT ERROR:
+${betOutcomeResult.error}
+
+RESPONSE INSTRUCTIONS:
+Apologize and inform the user that there was an issue settling their bet. Ask them to try again or contact support if the problem persists.`;
+        }
+      } else {
+        // Success case - comprehensive formatted response
+        const { bet, settlement, bankroll, stats } = betOutcomeResult;
+        const outcomeEmoji = detectedOutcome === 'win' ? '🎉' : detectedOutcome === 'loss' ? '😔' : '↔️';
+        const profitSign = settlement.profit >= 0 ? '+' : '';
+        const percentSign = bankroll.percent_change >= 0 ? '+' : '';
+
+        betOutcomeContext = `
+${outcomeEmoji} BET SETTLED SUCCESSFULLY:
+
+Bet Details:
+- Description: ${bet.description}
+- Amount Wagered: $${bet.amount.toFixed(2)}
+- Odds: ${bet.odds > 0 ? '+' : ''}${bet.odds}
+- Outcome: ${bet.outcome.toUpperCase()}
+
+Financial Impact:
+- Profit/Loss from this bet: ${profitSign}$${settlement.profit.toFixed(2)}
+- Previous Bankroll: $${bankroll.previous.toFixed(2)}
+- NEW Bankroll: $${bankroll.new.toFixed(2)}
+- Change: ${profitSign}$${bankroll.change.toFixed(2)} (${percentSign}${bankroll.percent_change.toFixed(2)}%)
+
+Updated Betting Stats:
+- Total Bets Placed: ${stats.total_bets}
+- Record: ${stats.wins}W - ${stats.losses}L
+- Win Rate: ${stats.win_rate.toFixed(1)}%
+- ROI: ${stats.roi >= 0 ? '+' : ''}${stats.roi.toFixed(1)}%
+- Total Profit/Loss: ${stats.total_profit >= 0 ? '+' : ''}$${stats.total_profit.toFixed(2)}
+
+RESPONSE INSTRUCTIONS:
+Respond to the user with enthusiasm and empathy appropriate to the outcome:
+
+${detectedOutcome === 'win' ? `
+✅ FOR A WIN:
+1. Congratulate them warmly on the win
+2. Highlight the profit: "${profitSign}$${settlement.profit.toFixed(2)}"
+3. Mention their new bankroll: "$${bankroll.new.toFixed(2)}"
+4. Acknowledge their win rate: "${stats.win_rate.toFixed(1)}%"
+5. Keep it concise and celebratory
+` : detectedOutcome === 'loss' ? `
+❌ FOR A LOSS:
+1. Be empathetic and encouraging
+2. Acknowledge the loss: "$${Math.abs(settlement.profit).toFixed(2)}"
+3. Remind them of their bankroll: "$${bankroll.new.toFixed(2)}" remaining
+4. Focus on the long game and learning
+5. Be supportive, not discouraging
+` : `
+↔️ FOR A PUSH:
+1. Explain that the bet pushed (tie/voided)
+2. Confirm their stake was returned: "$${bet.amount.toFixed(2)}"
+3. Bankroll unchanged: "$${bankroll.new.toFixed(2)}"
+4. Keep it brief and neutral
+`}
+
+DO NOT ask for their current bankroll - you already have all the information above.
+Keep your response CONCISE (2-3 sentences max) but include the key numbers.`;
+      }
     }
 
     const systemPrompt = dataContext
