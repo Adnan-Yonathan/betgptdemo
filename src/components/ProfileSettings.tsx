@@ -112,7 +112,6 @@ export const ProfileSettings = ({ open, onOpenChange }: ProfileSettingsProps) =>
         .from("profiles")
         .update({
           bankroll: bankrollValue,
-          initial_bankroll: bankrollValue,
           default_bet_size: parseFloat(betSize),
           risk_tolerance: riskTolerance,
         })
