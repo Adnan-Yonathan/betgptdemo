@@ -48,13 +48,24 @@ const Index = () => {
     if (!user) return;
     const fetchProfile = async () => {
       const {
-        data
-      } = await supabase.from("profiles").select("bankroll, betting_mode").eq("id", user.id).single();
-      if (data?.bankroll) {
-        setInitialBankroll(Number(data.bankroll));
+        data,
+        error
+      } = await supabase.from("profiles").select("bankroll, betting_mode").eq("id", user.id).maybeSingle();
+
+      // If no profile exists yet, it will be created when user switches modes
+      // For now, just use defaults
+      if (error) {
+        console.error("Error fetching profile:", error);
+        return;
       }
-      if (data?.betting_mode) {
-        setBettingMode(data.betting_mode as "basic" | "advanced");
+
+      if (data) {
+        if (data.bankroll) {
+          setInitialBankroll(Number(data.bankroll));
+        }
+        if (data.betting_mode) {
+          setBettingMode(data.betting_mode as "basic" | "advanced");
+        }
       }
     };
     fetchProfile();
