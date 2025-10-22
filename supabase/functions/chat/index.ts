@@ -7,6 +7,282 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+async function fetchLineupData(query: string): Promise<string> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  console.log("Fetching lineup data for query:", query);
+
+  // Determine league from query
+  let league = 'NFL';
+  const queryLower = query.toLowerCase();
+
+  if (queryLower.includes('nba') || queryLower.includes('basketball')) {
+    league = 'NBA';
+  } else if (queryLower.includes('mlb') || queryLower.includes('baseball')) {
+    league = 'MLB';
+  } else if (queryLower.includes('nhl') || queryLower.includes('hockey')) {
+    league = 'NHL';
+  } else if (queryLower.includes('nfl') || queryLower.includes('football')) {
+    league = 'NFL';
+  }
+
+  try {
+    // Try to get recent lineups from database (last 24 hours)
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: recentLineups, error: dbError } = await supabase
+      .from('starting_lineups')
+      .select('*')
+      .eq('league', league)
+      .gte('last_updated', oneDayAgo)
+      .order('game_date', { ascending: false });
+
+    if (dbError) {
+      console.error('Database query error:', dbError);
+    }
+
+    // If we have recent data, use it
+    if (recentLineups && recentLineups.length > 0) {
+      console.log(`Found ${recentLineups.length} recent lineups in database`);
+      return formatLineupsData(recentLineups, query);
+    }
+
+    // Otherwise, fetch fresh data
+    console.log('No recent lineups found, fetching fresh data...');
+    const response = await fetch(`${supabaseUrl}/functions/v1/scrape-lineups`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseServiceKey}`,
+      },
+      body: JSON.stringify({ league, query }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch lineups: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log(`Fetched ${result.count} fresh lineups`);
+
+    return formatLineupsData(result.lineups || [], query);
+  } catch (error) {
+    console.error("Error fetching lineups:", error);
+    return "Unable to fetch lineup information at the moment. Please try again shortly.";
+  }
+}
+
+function formatLineupsData(lineups: any[], query: string): string {
+  if (!lineups || lineups.length === 0) {
+    return "No lineup information found. Lineups may not be confirmed yet.";
+  }
+
+  let result = `STARTING LINEUP DATA:\n\n`;
+
+  for (const lineup of lineups) {
+    result += `${lineup.team}\n`;
+    result += `League: ${lineup.league}\n`;
+    result += `Game Date: ${new Date(lineup.game_date).toLocaleString()}\n`;
+    result += `Lineup Quality Score: ${lineup.lineup_quality_score || 'N/A'}/100\n`;
+
+    if (lineup.starters && lineup.starters.length > 0) {
+      result += `\nSTARTERS:\n`;
+      lineup.starters.forEach((player: any, index: number) => {
+        result += `  ${index + 1}. ${player.name} - ${player.position}`;
+        if (player.jersey_number) result += ` (#${player.jersey_number})`;
+        if (player.status) result += ` - ${player.status}`;
+        result += '\n';
+      });
+    }
+
+    if (lineup.injured && lineup.injured.length > 0) {
+      result += `\nINJURIES:\n`;
+      lineup.injured.forEach((injury: any) => {
+        result += `  ⚠️ ${injury.name} (${injury.position}) - ${injury.injury_status}`;
+        if (injury.injury_type) result += ` - ${injury.injury_type}`;
+        if (injury.impact_level) result += ` [Impact: ${injury.impact_level}]`;
+        result += '\n';
+      });
+    }
+
+    if (lineup.key_absences && lineup.key_absences.length > 0) {
+      result += `\nKEY ABSENCES: ${lineup.key_absences.join(', ')}\n`;
+    }
+
+    if (lineup.lineup_changes_from_previous && lineup.lineup_changes_from_previous.length > 0) {
+      result += `\nLINEUP CHANGES: ${lineup.lineup_changes_from_previous.join(', ')}\n`;
+    }
+
+    if (lineup.formation) {
+      result += `Formation: ${lineup.formation}\n`;
+    }
+
+    result += `Data Quality: ${lineup.data_quality}\n`;
+    result += '\n---\n\n';
+  }
+
+  return result;
+}
+
+async function fetchMatchupData(query: string): Promise<string> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  console.log("Fetching matchup analysis for query:", query);
+
+  // Determine league from query
+  let league = 'NFL';
+  const queryLower = query.toLowerCase();
+
+  if (queryLower.includes('nba') || queryLower.includes('basketball')) {
+    league = 'NBA';
+  } else if (queryLower.includes('mlb') || queryLower.includes('baseball')) {
+    league = 'MLB';
+  } else if (queryLower.includes('nhl') || queryLower.includes('hockey')) {
+    league = 'NHL';
+  } else if (queryLower.includes('nfl') || queryLower.includes('football')) {
+    league = 'NFL';
+  }
+
+  try {
+    // Try to get recent matchup analysis from database (last 12 hours)
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+    const { data: recentMatchups, error: dbError } = await supabase
+      .from('matchup_analysis')
+      .select('*')
+      .eq('league', league)
+      .gte('last_updated', twelveHoursAgo)
+      .order('game_date', { ascending: false });
+
+    if (dbError) {
+      console.error('Database query error:', dbError);
+    }
+
+    // If we have recent data, use it
+    if (recentMatchups && recentMatchups.length > 0) {
+      console.log(`Found ${recentMatchups.length} recent matchup analyses in database`);
+      return formatMatchupData(recentMatchups, query);
+    }
+
+    // Otherwise, fetch fresh data
+    console.log('No recent matchup data found, fetching fresh analysis...');
+    const response = await fetch(`${supabaseUrl}/functions/v1/scrape-matchups`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseServiceKey}`,
+      },
+      body: JSON.stringify({ league, query }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch matchup analysis: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log(`Fetched ${result.count} fresh matchup analyses`);
+
+    return formatMatchupData(result.matchups || [], query);
+  } catch (error) {
+    console.error("Error fetching matchup data:", error);
+    return "Unable to fetch matchup analysis at the moment. Please try again shortly.";
+  }
+}
+
+function formatMatchupData(matchups: any[], query: string): string {
+  if (!matchups || matchups.length === 0) {
+    return "No matchup analysis found for this query.";
+  }
+
+  let result = `MATCHUP ANALYSIS DATA:\n\n`;
+
+  for (const matchup of matchups) {
+    result += `${matchup.home_team} vs ${matchup.away_team}\n`;
+    result += `League: ${matchup.league}\n`;
+    result += `Game Date: ${new Date(matchup.game_date).toLocaleString()}\n\n`;
+
+    if (matchup.h2h_history) {
+      const h2h = matchup.h2h_history;
+      result += `HEAD-TO-HEAD:\n`;
+      result += `  Total Games: ${h2h.total_games || 'N/A'}\n`;
+      result += `  ${matchup.home_team} Wins: ${h2h.home_team_wins || 'N/A'}\n`;
+      result += `  ${matchup.away_team} Wins: ${h2h.away_team_wins || 'N/A'}\n`;
+      if (h2h.home_team_ats) result += `  ${matchup.home_team} ATS: ${h2h.home_team_ats}\n`;
+      if (h2h.over_under) result += `  Over/Under: ${h2h.over_under}\n`;
+      result += '\n';
+    }
+
+    if (matchup.home_team_recent_form) {
+      const form = matchup.home_team_recent_form;
+      result += `${matchup.home_team} RECENT FORM:\n`;
+      if (form.last_10_record) result += `  Last 10: ${form.last_10_record}\n`;
+      if (form.current_streak) result += `  Current Streak: ${form.current_streak}\n`;
+      if (form.avg_points_scored) result += `  Avg Points Scored: ${form.avg_points_scored}\n`;
+      if (form.avg_points_allowed) result += `  Avg Points Allowed: ${form.avg_points_allowed}\n`;
+      result += '\n';
+    }
+
+    if (matchup.away_team_recent_form) {
+      const form = matchup.away_team_recent_form;
+      result += `${matchup.away_team} RECENT FORM:\n`;
+      if (form.last_10_record) result += `  Last 10: ${form.last_10_record}\n`;
+      if (form.current_streak) result += `  Current Streak: ${form.current_streak}\n`;
+      if (form.avg_points_scored) result += `  Avg Points Scored: ${form.avg_points_scored}\n`;
+      if (form.avg_points_allowed) result += `  Avg Points Allowed: ${form.avg_points_allowed}\n`;
+      result += '\n';
+    }
+
+    if (matchup.statistical_edges) {
+      result += `STATISTICAL EDGES:\n`;
+      Object.entries(matchup.statistical_edges).forEach(([key, value]) => {
+        result += `  ${key}: ${value}\n`;
+      });
+      result += '\n';
+    }
+
+    if (matchup.betting_trends) {
+      result += `BETTING TRENDS:\n`;
+      const trends = matchup.betting_trends;
+      if (trends.sharp_money) result += `  Sharp Money: ${trends.sharp_money}\n`;
+      if (trends.public_money) result += `  Public Money: ${trends.public_money}\n`;
+      if (trends.line_movement) result += `  Line Movement: ${trends.line_movement}\n`;
+      result += '\n';
+    }
+
+    if (matchup.situational_trends && matchup.situational_trends.length > 0) {
+      result += `SITUATIONAL TRENDS:\n`;
+      matchup.situational_trends.forEach((trend: string) => {
+        result += `  - ${trend}\n`;
+      });
+      result += '\n';
+    }
+
+    if (matchup.ai_prediction) {
+      const pred = matchup.ai_prediction;
+      result += `AI PREDICTION:\n`;
+      if (pred.predicted_winner) result += `  Predicted Winner: ${pred.predicted_winner}\n`;
+      if (pred.confidence) result += `  Confidence: ${pred.confidence}%\n`;
+      if (pred.key_factors && pred.key_factors.length > 0) {
+        result += `  Key Factors:\n`;
+        pred.key_factors.forEach((factor: string) => {
+          result += `    - ${factor}\n`;
+        });
+      }
+      result += '\n';
+    }
+
+    if (matchup.tactical_analysis) {
+      result += `TACTICAL ANALYSIS:\n${matchup.tactical_analysis}\n\n`;
+    }
+
+    result += '---\n\n';
+  }
+
+  return result;
+}
+
 async function fetchLiveScores(query: string): Promise<string> {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -523,7 +799,21 @@ serve(async (req) => {
       'score', 'final score', 'current score', 'what is the score', 'whats the score',
       'who is winning', 'whos winning', 'who won', 'final', 'result', 'results'
     ];
-    
+
+    // Patterns for lineup requests
+    const lineupKeywords = [
+      'lineup', 'starting lineup', 'starting', 'starters', 'who is starting',
+      'whos starting', 'injury', 'injured', 'out', 'questionable', 'probable',
+      'who is playing', 'whos playing', 'active', 'inactive', 'scratch'
+    ];
+
+    // Patterns for matchup analysis requests
+    const matchupKeywords = [
+      'matchup', 'h2h', 'head to head', 'head-to-head', 'versus analysis',
+      'history', 'record against', 'recent form', 'trend', 'coaching',
+      'statistical edge', 'player matchup', 'tactical', 'breakdown'
+    ];
+
     // Comprehensive patterns for betting questions
     const bettingKeywords = [
       'odds', 'line', 'spread', 'betting', 'bet on', 'best bet', 'should i bet',
@@ -534,32 +824,80 @@ serve(async (req) => {
       'worth betting', 'good bet', 'value', '+ev', 'edge',
       'sharp money', 'public', 'line movement', 'juice'
     ];
-    
+
     // Sport-specific terms that indicate game queries
     const sportTerms = [
       'nfl', 'nba', 'mlb', 'nhl', 'mls', 'ncaaf', 'ncaab',
       'football', 'basketball', 'baseball', 'hockey', 'soccer'
     ];
-    
+
     const isAskingForScore = scoreKeywords.some(keyword => messageContent.includes(keyword));
+    const isAskingForLineup = lineupKeywords.some(keyword => messageContent.includes(keyword));
+    const isAskingForMatchup = matchupKeywords.some(keyword => messageContent.includes(keyword));
     const isAskingForBettingData = bettingKeywords.some(keyword => messageContent.includes(keyword)) ||
                                    sportTerms.some(term => messageContent.includes(term));
 
     // Fetch appropriate data based on query type
     let dataContext = "";
+    let contextType = "";
+
     if (isAskingForScore) {
       try {
         console.log("User is asking for scores, fetching live scores...");
         dataContext = await fetchLiveScores(lastMessage.content);
+        contextType = "score";
         console.log("Score data fetch result:", dataContext);
       } catch (error) {
         console.error("Failed to fetch score data:", error);
         dataContext = "I could not fetch live scores at the moment. Please try again shortly.";
       }
+    } else if (isAskingForLineup) {
+      try {
+        console.log("User is asking for lineups, fetching lineup data...");
+        const lineupData = await fetchLineupData(lastMessage.content);
+        dataContext = lineupData;
+        contextType = "lineup";
+        console.log("Lineup data fetch result:", dataContext);
+
+        // Also fetch matchup data if it's a betting question with lineup inquiry
+        if (isAskingForBettingData) {
+          console.log("Also fetching matchup analysis for betting context...");
+          const matchupData = await fetchMatchupData(lastMessage.content);
+          dataContext += "\n\n" + matchupData;
+
+          // And odds data
+          const oddsData = await fetchLiveOdds(lastMessage.content);
+          dataContext += "\n\n" + oddsData;
+          contextType = "comprehensive";
+        }
+      } catch (error) {
+        console.error("Failed to fetch lineup data:", error);
+        dataContext = "I could not fetch lineup information at the moment. Please try again shortly.";
+      }
+    } else if (isAskingForMatchup) {
+      try {
+        console.log("User is asking for matchup analysis, fetching matchup data...");
+        const matchupData = await fetchMatchupData(lastMessage.content);
+        dataContext = matchupData;
+        contextType = "matchup";
+        console.log("Matchup data fetch result:", dataContext);
+
+        // Also fetch odds for betting context
+        if (isAskingForBettingData) {
+          console.log("Also fetching odds for betting context...");
+          const oddsData = await fetchLiveOdds(lastMessage.content);
+          dataContext += "\n\n" + oddsData;
+          contextType = "comprehensive";
+        }
+      } catch (error) {
+        console.error("Failed to fetch matchup data:", error);
+        dataContext = "I could not fetch matchup analysis at the moment. Please try again shortly.";
+      }
     } else if (isAskingForBettingData) {
       try {
         console.log("User is asking for game data, fetching live odds...");
         dataContext = await fetchLiveOdds(lastMessage.content);
+        contextType = "betting";
         console.log("Odds data fetch result:", dataContext);
       } catch (error) {
         console.error("Failed to fetch betting data:", error);
@@ -592,6 +930,8 @@ DATA SOURCES & ANALYTICS:
 You have access to professional-grade betting tools:
 - OpenAI for live scores, game statistics, and advanced analytics
 - The Odds API for real-time betting lines from multiple bookmakers
+- **Starting Lineup Scraper** - Real-time confirmed lineups, injury reports, and player availability
+- **Matchup Analysis Engine** - Comprehensive H2H history, recent form, tactical breakdowns, and betting trends
 - Line movement tracking showing sharp money flow
 - Closing Line Value (CLV) historical data - the gold standard metric
 - Referee/umpire tendency statistics affecting game flow
@@ -600,6 +940,8 @@ You have access to professional-grade betting tools:
 - Correlation matrices for parlay optimization
 - Kelly Criterion calculators for optimal bet sizing
 - Performance analytics by sport, bet type, and team
+- Injury impact assessments and replacement player quality analysis
+- Player vs opponent historical performance data
 
 ADVANCED FEATURES YOU MUST USE:
 1. **Expected Value Calculations**: Calculate and display EV for every bet recommendation
