@@ -27,13 +27,19 @@ export function BettingModeSelector({
     if (!user) return;
 
     try {
-      // Update mode in database
-      const { error } = await supabase
+      // Update mode in database and return the updated row to verify success
+      const { data, error } = await supabase
         .from("profiles")
         .update({ betting_mode: mode })
-        .eq("id", user.id);
+        .eq("id", user.id)
+        .select();
 
       if (error) throw error;
+
+      // Check if the update actually affected any rows
+      if (!data || data.length === 0) {
+        throw new Error("Profile not found. Please refresh the page and try again.");
+      }
 
       // Update local state
       onModeChange(mode);
@@ -45,7 +51,8 @@ export function BettingModeSelector({
       );
     } catch (error) {
       console.error("Error updating betting mode:", error);
-      toast.error("Failed to update mode. Please try again.");
+      const errorMessage = error instanceof Error ? error.message : "Failed to update mode. Please try again.";
+      toast.error(errorMessage);
     }
   };
 
