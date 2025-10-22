@@ -186,6 +186,7 @@ export type Database = {
           average_bet_size: number | null
           bankroll: number | null
           baseline_bankroll: number | null
+          betting_mode: string | null
           created_at: string
           current_streak: number | null
           default_bet_size: number | null
@@ -212,6 +213,7 @@ export type Database = {
           average_bet_size?: number | null
           bankroll?: number | null
           baseline_bankroll?: number | null
+          betting_mode?: string | null
           created_at?: string
           current_streak?: number | null
           default_bet_size?: number | null
@@ -238,6 +240,7 @@ export type Database = {
           average_bet_size?: number | null
           bankroll?: number | null
           baseline_bankroll?: number | null
+          betting_mode?: string | null
           created_at?: string
           current_streak?: number | null
           default_bet_size?: number | null
