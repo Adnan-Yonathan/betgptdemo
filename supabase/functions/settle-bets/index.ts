@@ -6,49 +6,56 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Helper function to update user's bankroll for a specific bet settlement
-async function updateUserBankroll(supabaseClient: any, userId: string, outcome: string, amount: number, actualReturn: number) {
+// Helper function to settle a bet atomically (updates bet, bankroll, and CRM in one transaction)
+async function settleBetAtomic(
+  supabaseClient: any,
+  betId: string,
+  outcome: string,
+  actualReturn: number,
+  closingLine: number | null,
+  clv: number | null
+) {
   try {
-    // Get user's current bankroll from profile
-    const { data: profile } = await supabaseClient
-      .from('profiles')
-      .select('bankroll')
-      .eq('id', userId)
-      .single();
+    const { data, error } = await supabaseClient.rpc('settle_bet_atomic', {
+      p_bet_id: betId,
+      p_outcome: outcome,
+      p_actual_return: actualReturn,
+      p_closing_line: closingLine,
+      p_clv: clv,
+    });
 
-    if (!profile) {
-      console.error(`Profile not found for user ${userId}`);
-      return;
+    if (error) {
+      console.error(`Error settling bet ${betId} atomically:`, error);
+      return { success: false, error: error.message };
     }
 
-    const currentBankroll = Number(profile.bankroll || 1000);
-    let newBankroll = currentBankroll;
-
-    // Update bankroll based on bet outcome
-    // Note: Bets are not deducted from bankroll when placed, only when settled
-    if (outcome === 'win') {
-      // Add profit only (actualReturn includes the original stake)
-      const profit = actualReturn - amount;
-      newBankroll = currentBankroll + profit;
-    } else if (outcome === 'loss') {
-      // Deduct the stake
-      newBankroll = currentBankroll - amount;
+    if (!data || data.length === 0) {
+      console.error(`No data returned from settle_bet_atomic for bet ${betId}`);
+      return { success: false, error: 'No data returned' };
     }
-    // For 'push', bankroll stays the same (no change)
 
-    // Update profile with new bankroll
-    const { error: updateError } = await supabaseClient
-      .from('profiles')
-      .update({ bankroll: newBankroll })
-      .eq('id', userId);
+    const result = data[0];
 
-    if (updateError) {
-      console.error(`Error updating bankroll for user ${userId}:`, updateError);
-    } else {
-      console.log(`Updated bankroll for user ${userId}: $${currentBankroll.toFixed(2)} -> $${newBankroll.toFixed(2)} (${outcome})`);
+    if (!result.success) {
+      console.error(`Failed to settle bet ${betId}: ${result.message}`);
+      return { success: false, error: result.message };
     }
+
+    // Log success with details
+    const betData = result.bet_data;
+    const bankrollData = result.bankroll_data;
+
+    console.log(`✓ Bet ${betId} settled: ${outcome.toUpperCase()}`);
+    console.log(`  Amount: $${betData.amount}, Return: $${betData.actual_return}, Profit: $${betData.profit}`);
+    console.log(`  Bankroll: $${bankrollData.previous_bankroll} → $${bankrollData.new_bankroll} (${bankrollData.change >= 0 ? '+' : ''}$${bankrollData.change})`);
+    if (clv !== null) {
+      console.log(`  CLV: ${clv > 0 ? '+' : ''}${clv}%`);
+    }
+
+    return { success: true, data: result };
   } catch (error) {
-    console.error(`Error in updateUserBankroll for user ${userId}:`, error);
+    console.error(`Exception in settleBetAtomic for bet ${betId}:`, error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
 
@@ -172,25 +179,25 @@ serve(async (req) => {
         }
       }
 
-      // Update bet with outcome and CLV
-      const { error: updateError } = await supabaseClient
-        .from('bets')
-        .update({
+      // Settle bet atomically (updates bet, bankroll, and CRM in one transaction)
+      const settlementResult = await settleBetAtomic(
+        supabaseClient,
+        bet.id,
+        outcome,
+        actualReturn,
+        closingLine,
+        clv
+      );
+
+      if (settlementResult.success) {
+        settledBets.push({
+          betId: bet.id,
           outcome,
-          actual_return: actualReturn,
-          settled_at: new Date().toISOString(),
-          closing_line: closingLine,
-          clv: clv,
-        })
-        .eq('id', bet.id);
-
-      if (updateError) {
-        console.error(`Error updating bet ${bet.id}:`, updateError);
+          actualReturn,
+          details: settlementResult.data
+        });
       } else {
-        settledBets.push({ betId: bet.id, outcome, actualReturn });
-
-        // Update user's bankroll in profile
-        await updateUserBankroll(supabaseClient, bet.user_id, outcome, bet.amount, actualReturn);
+        console.error(`Failed to settle bet ${bet.id}: ${settlementResult.error}`);
       }
     }
 
