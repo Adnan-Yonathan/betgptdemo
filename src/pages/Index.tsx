@@ -6,6 +6,7 @@ import { ProfileDropdown } from "@/components/ProfileDropdown";
 import { ProfileSettings } from "@/components/ProfileSettings";
 import { ThinkingIndicator } from "@/components/ThinkingIndicator";
 import { BankrollStats } from "@/components/BankrollStats";
+import { BettingModeSelector } from "@/components/BettingModeSelector";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,6 +36,7 @@ const Index = () => {
   const [initialBankroll, setInitialBankroll] = useState(1000);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [bettingMode, setBettingMode] = useState<"basic" | "advanced">("basic");
   const {
     toast
   } = useToast();
@@ -47,9 +49,12 @@ const Index = () => {
     const fetchProfile = async () => {
       const {
         data
-      } = await supabase.from("profiles").select("bankroll").eq("id", user.id).single();
+      } = await supabase.from("profiles").select("bankroll, betting_mode").eq("id", user.id).single();
       if (data?.bankroll) {
         setInitialBankroll(Number(data.bankroll));
+      }
+      if (data?.betting_mode) {
+        setBettingMode(data.betting_mode as "basic" | "advanced");
       }
     };
     fetchProfile();
@@ -196,7 +201,8 @@ const Index = () => {
             content
           }]),
           conversationId: currentConversationId,
-          userId: user?.id
+          userId: user?.id,
+          bettingMode: bettingMode
         })
       });
       if (!resp.ok) {
@@ -300,9 +306,12 @@ const Index = () => {
       <main className="flex-1 flex flex-col">
         {/* Chat Header */}
         <header className="border-b border-border px-6 py-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">BetGPT</h2>
-            <p className="text-sm text-muted-foreground">Your AI betting coach & bankroll manager</p>
+          <div className="flex items-center gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">BetGPT</h2>
+              <p className="text-sm text-muted-foreground">Your AI betting coach & bankroll manager</p>
+            </div>
+            <BettingModeSelector currentMode={bettingMode} onModeChange={setBettingMode} />
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" onClick={() => setVoiceEnabled(!voiceEnabled)} className={voiceEnabled ? "text-primary" : "text-muted-foreground"}>
