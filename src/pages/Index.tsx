@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { ChatSidebar } from "@/components/ChatSidebar";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
@@ -10,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { playAudioFromBase64 } from "@/utils/voiceUtils";
-import { Volume2, VolumeX } from "lucide-react";
+import { Volume2, VolumeX, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 interface Message {
   id: string;
@@ -26,6 +27,7 @@ const initialMessages: Message[] = [{
   timestamp: "Just now"
 }];
 const Index = () => {
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [isTyping, setIsTyping] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
@@ -293,6 +295,15 @@ const Index = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/games')}
+              className="flex items-center gap-2"
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span className="hidden sm:inline">Games Dashboard</span>
+            </Button>
             <Button variant="ghost" size="icon" onClick={() => setVoiceEnabled(!voiceEnabled)} className={voiceEnabled ? "text-primary" : "text-muted-foreground"}>
               {voiceEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
             </Button>
