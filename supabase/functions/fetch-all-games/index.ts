@@ -58,7 +58,7 @@ async function triggerOddsFetch(
   sport: string | undefined
 ): Promise<void> {
   try {
-    const sports = sport ? [sport] : ['americanfootball_nfl', 'basketball_nba', 'baseball_mlb', 'icehockey_nhl'];
+    const sports = sport ? [sport] : ['americanfootball_nfl', 'americanfootball_ncaaf', 'basketball_nba'];
 
     console.log(`[fetch-all-games] Triggering fetch for sports: ${sports.join(', ')}`);
 

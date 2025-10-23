@@ -210,6 +210,9 @@ async function fetchLineupData(query: string): Promise<string> {
 
   if (queryLower.includes('nba') || queryLower.includes('basketball')) {
     league = 'NBA';
+  } else if (queryLower.includes('ncaaf') || queryLower.includes('college football') ||
+             queryLower.includes('ncaa football') || queryLower.includes('cfb')) {
+    league = 'NCAAF';
   } else if (queryLower.includes('mlb') || queryLower.includes('baseball')) {
     league = 'MLB';
   } else if (queryLower.includes('nhl') || queryLower.includes('hockey')) {
@@ -385,6 +388,9 @@ async function fetchMatchupData(query: string): Promise<string> {
 
   if (queryLower.includes('nba') || queryLower.includes('basketball')) {
     league = 'NBA';
+  } else if (queryLower.includes('ncaaf') || queryLower.includes('college football') ||
+             queryLower.includes('ncaa football') || queryLower.includes('cfb')) {
+    league = 'NCAAF';
   } else if (queryLower.includes('mlb') || queryLower.includes('baseball')) {
     league = 'MLB';
   } else if (queryLower.includes('nhl') || queryLower.includes('hockey')) {
@@ -601,6 +607,9 @@ async function fetchLiveScores(query: string): Promise<string> {
 
   if (queryLower.includes('nba') || queryLower.includes('basketball')) {
     league = 'NBA';
+  } else if (queryLower.includes('ncaaf') || queryLower.includes('college football') ||
+             queryLower.includes('ncaa football') || queryLower.includes('cfb')) {
+    league = 'NCAAF';
   } else if (queryLower.includes('mlb') || queryLower.includes('baseball')) {
     league = 'MLB';
   } else if (queryLower.includes('nhl') || queryLower.includes('hockey')) {
@@ -806,13 +815,19 @@ async function fetchLiveOdds(query: string): Promise<string> {
     'canucks', 'golden knights', 'kraken', 'ducks', 'kings', 'sharks', 'coyotes'];
   
   // Check for sport keywords first
-  if (queryLower.includes('nba') || queryLower.includes('basketball') || 
+  if (queryLower.includes('nba') || queryLower.includes('basketball') ||
       nbaTeams.some(team => queryLower.includes(team))) {
     sport = 'basketball_nba';
-  } else if (queryLower.includes('mlb') || queryLower.includes('baseball') || 
+  } else if (queryLower.includes('ncaaf') || queryLower.includes('college football') ||
+             queryLower.includes('ncaa football') || queryLower.includes('cfb')) {
+    sport = 'americanfootball_ncaaf';
+  } else if (queryLower.includes('nfl') ||
+             (queryLower.includes('football') && !queryLower.includes('college') && !queryLower.includes('ncaa'))) {
+    sport = 'americanfootball_nfl';
+  } else if (queryLower.includes('mlb') || queryLower.includes('baseball') ||
              mlbTeams.some(team => queryLower.includes(team))) {
     sport = 'baseball_mlb';
-  } else if (queryLower.includes('nhl') || queryLower.includes('hockey') || 
+  } else if (queryLower.includes('nhl') || queryLower.includes('hockey') ||
              nhlTeams.some(team => queryLower.includes(team))) {
     sport = 'icehockey_nhl';
   } else if (queryLower.includes('soccer') || queryLower.includes('mls')) {
@@ -1413,12 +1428,12 @@ You have access to:
 - Recent team performance and head-to-head history
 
 SPORTS COVERAGE:
-You analyze all major sports:
-- Football: NFL, NCAAF
-- Basketball: NBA, NCAAB
-- Baseball: MLB
-- Hockey: NHL
-- Soccer: MLS
+You specialize in these sports with full live data access:
+- 🏈 NFL (National Football League)
+- 🏈 NCAAF (College Football)
+- 🏀 NBA (Basketball)
+
+Note: For other sports (MLB, NHL, etc.), you can provide general betting principles but may not have current live odds or comprehensive data.
 
 WHEN RECOMMENDING BETS:
 1. RECOMMENDED BET
@@ -1500,14 +1515,17 @@ ADVANCED FEATURES YOU SHOULD USE:
 This combination provides institutional-level betting analysis. Always leverage this data for superior, mathematically-sound analysis.
 
 SPORTS COVERAGE:
-You analyze ALL major sports with equal expertise:
-- Football: NFL, NCAAF, CFL
-- Basketball: NBA, NCAAB, WNBA, international leagues
-- Baseball: MLB, international leagues
-- Hockey: NHL
-- Soccer: MLS
+You specialize in these sports with comprehensive live data:
+- 🏈 NFL (National Football League) - Full coverage with live odds, scores, and analysis
+- 🏈 NCAAF (College Football) - Full coverage with live odds, scores, and analysis
+- 🏀 NBA (Basketball) - Full coverage with live odds, scores, and analysis
 
-IMPORTANT: For sports outside this list, you can provide general betting principles but cannot access live odds or scores. Be transparent about this limitation.
+LIMITED COVERAGE:
+- Baseball: MLB (historical data available, live odds may be limited)
+- Hockey: NHL (historical data available, live odds may be limited)
+- Other sports: General betting principles only
+
+IMPORTANT: For NFL, NCAAF, and NBA you have real-time betting odds from The Odds API. For other sports, you may have limited or historical data only. Always be transparent about data availability.
 
 SCORE REPORTING:
 When users ask for scores ("What is the score?", "Who won?", "Current score?"), provide:
