@@ -289,7 +289,7 @@ const Index = () => {
           <div className="flex items-center gap-4">
             <div>
               <h2 className="text-lg font-semibold text-foreground">BetGPT</h2>
-              <p className="text-sm text-muted-foreground">Your AI betting coach & bankroll manager</p>
+              <p className="text-sm text-muted-foreground">Your AI betting coach</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
