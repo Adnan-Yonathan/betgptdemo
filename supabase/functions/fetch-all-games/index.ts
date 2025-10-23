@@ -126,7 +126,39 @@ serve(async (req) => {
 
     console.log(`[fetch-all-games] Fetching games from ${today.toISOString()} to ${endDate.toISOString()}`);
 
-    // Step 1: Fetch upcoming games from betting_odds (since it has current games)
+    // Step 1: Fetch games from ESPN data (sports_scores) - Primary data source
+    let espnQuery = supabase
+      .from('sports_scores')
+      .select('*')
+      .gte('game_date', today.toISOString())
+      .lte('game_date', endDate.toISOString())
+      .order('game_date', { ascending: true });
+
+    // Filter by league if sport parameter provided
+    if (sport) {
+      const leagueMap: Record<string, string> = {
+        'americanfootball_nfl': 'NFL',
+        'americanfootball_ncaaf': 'NCAAF',
+        'basketball_nba': 'NBA',
+        'basketball_wnba': 'WNBA',
+        'baseball_mlb': 'MLB',
+        'icehockey_nhl': 'NHL',
+        'soccer_usa_mls': 'MLS'
+      };
+      const league = leagueMap[sport] || sport.toUpperCase();
+      espnQuery = espnQuery.eq('league', league);
+    }
+
+    const { data: espnData, error: espnError } = await espnQuery;
+
+    if (espnError) {
+      console.error('Error fetching ESPN data:', espnError);
+      throw espnError;
+    }
+
+    console.log(`[fetch-all-games] Found ${espnData?.length || 0} games from ESPN data`);
+
+    // Step 2: Also fetch from betting_odds for games that might not be in ESPN yet
     let oddsQuery = supabase
       .from('betting_odds')
       .select('event_id, sport_key, sport_title, home_team, away_team, commence_time')
@@ -142,24 +174,51 @@ serve(async (req) => {
 
     if (oddsError) {
       console.error('Error fetching odds:', oddsError);
-      throw oddsError;
+      // Don't throw - we can continue with just ESPN data
     }
 
-    // Check data freshness and trigger fetch if needed
+    // Check data freshness and trigger fetch if needed (for odds only)
     const shouldRefresh = await checkAndRefreshOdds(supabaseUrl, supabaseServiceKey, oddsData, sport, today, endDate);
 
     // If we triggered a refresh, re-query the data
     let finalOddsData = oddsData;
     if (shouldRefresh) {
-      console.log('[fetch-all-games] Re-querying after refresh...');
+      console.log('[fetch-all-games] Re-querying odds after refresh...');
       const { data: refreshedData } = await oddsQuery;
       finalOddsData = refreshedData || oddsData;
     }
 
-    // Get unique games
+    // Step 3: Merge ESPN and Odds data intelligently
     const uniqueGames = new Map();
+
+    // First, add all ESPN games (primary source)
+    espnData?.forEach(game => {
+      uniqueGames.set(game.event_id, {
+        event_id: game.event_id,
+        sport: mapLeagueToSportKey(game.league),
+        league: game.league,
+        home_team: game.home_team,
+        away_team: game.away_team,
+        game_date: game.game_date,
+        game_status: game.game_status,
+        home_score: game.home_score,
+        away_score: game.away_score,
+        espn_data: game.advanced_stats || {},
+        source: 'espn'
+      });
+    });
+
+    // Then, add games from Odds API that aren't in ESPN yet
     finalOddsData?.forEach(odd => {
-      if (!uniqueGames.has(odd.event_id)) {
+      // Try to match with ESPN data by teams and date
+      const espnMatch = Array.from(uniqueGames.values()).find(game =>
+        game.home_team === odd.home_team &&
+        game.away_team === odd.away_team &&
+        Math.abs(new Date(game.game_date).getTime() - new Date(odd.commence_time).getTime()) < 3600000 // Within 1 hour
+      );
+
+      if (!espnMatch) {
+        // Game not in ESPN data yet, add it from Odds API
         uniqueGames.set(odd.event_id, {
           event_id: odd.event_id,
           sport: odd.sport_key,
@@ -167,13 +226,14 @@ serve(async (req) => {
           home_team: odd.home_team,
           away_team: odd.away_team,
           game_date: odd.commence_time,
-          game_status: 'STATUS_SCHEDULED'
+          game_status: 'STATUS_SCHEDULED',
+          source: 'odds_api'
         });
       }
     });
 
     const games = Array.from(uniqueGames.values());
-    console.log(`[fetch-all-games] Found ${games.length} unique games`);
+    console.log(`[fetch-all-games] Found ${games.length} unique games (${espnData?.length || 0} from ESPN, ${games.filter(g => g.source === 'odds_api').length} from Odds API only)`);
 
     // Step 2: Enrich each game with additional data
     const enrichedGames = await Promise.all(
@@ -253,7 +313,9 @@ function extractLeague(sportTitle: string): string {
     'College Football': 'NCAAF',
     'NHL': 'NHL',
     'NBA': 'NBA',
-    'MLB': 'MLB'
+    'MLB': 'MLB',
+    'WNBA': 'WNBA',
+    'MLS': 'MLS'
   };
 
   for (const [key, value] of Object.entries(leagueMap)) {
@@ -263,6 +325,21 @@ function extractLeague(sportTitle: string): string {
   }
 
   return sportTitle;
+}
+
+function mapLeagueToSportKey(league: string): string {
+  const sportKeyMap: Record<string, string> = {
+    'NFL': 'americanfootball_nfl',
+    'NCAAF': 'americanfootball_ncaaf',
+    'NBA': 'basketball_nba',
+    'WNBA': 'basketball_wnba',
+    'MLB': 'baseball_mlb',
+    'NHL': 'icehockey_nhl',
+    'MLS': 'soccer_usa_mls',
+    'NCAAMB': 'basketball_ncaamb'
+  };
+
+  return sportKeyMap[league] || league.toLowerCase();
 }
 
 function isOutdoorSport(sport: string): boolean {
