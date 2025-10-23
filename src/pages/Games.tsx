@@ -25,8 +25,10 @@ interface GameData {
   weather?: any;
   ai_recommendation?: {
     pick: string;
-    confidence: number;
-    edge: number;
+    ev: number;
+    edge: number; // Keep for backward compatibility
+    win_probability?: number;
+    odds?: number;
     reasoning: string[];
   };
   schedule_factors?: {
@@ -47,9 +49,6 @@ const Games = () => {
   const [filters, setFilters] = useState<GameFilters>({
     sport: "all",
     dateRange: "today",
-    betType: "all",
-    minEdge: 0,
-    minConfidence: 0,
     sortBy: "edge_desc"
   });
 
@@ -137,20 +136,6 @@ const Games = () => {
       });
     }
 
-    // Edge filter
-    if (filters.minEdge > 0) {
-      filtered = filtered.filter(game =>
-        game.ai_recommendation && game.ai_recommendation.edge >= filters.minEdge
-      );
-    }
-
-    // Confidence filter
-    if (filters.minConfidence > 0) {
-      filtered = filtered.filter(game =>
-        game.ai_recommendation && game.ai_recommendation.confidence >= filters.minConfidence
-      );
-    }
-
     // Sorting
     filtered.sort((a, b) => {
       switch (filters.sortBy) {
@@ -158,8 +143,6 @@ const Games = () => {
           return (b.ai_recommendation?.edge || 0) - (a.ai_recommendation?.edge || 0);
         case "edge_asc":
           return (a.ai_recommendation?.edge || 0) - (b.ai_recommendation?.edge || 0);
-        case "confidence_desc":
-          return (b.ai_recommendation?.confidence || 0) - (a.ai_recommendation?.confidence || 0);
         case "time_asc":
           return new Date(a.game_date).getTime() - new Date(b.game_date).getTime();
         case "time_desc":
@@ -230,7 +213,7 @@ const Games = () => {
 
         {/* Stats Summary */}
         {!isLoading && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="bg-card border rounded-lg p-4">
               <p className="text-sm text-muted-foreground">Total Games</p>
               <p className="text-2xl font-bold">{filteredGames.length}</p>
@@ -239,12 +222,6 @@ const Games = () => {
               <p className="text-sm text-muted-foreground">+EV Opportunities</p>
               <p className="text-2xl font-bold text-green-600">
                 {filteredGames.filter(g => g.ai_recommendation && g.ai_recommendation.edge >= 2).length}
-              </p>
-            </div>
-            <div className="bg-card border rounded-lg p-4">
-              <p className="text-sm text-muted-foreground">High Confidence</p>
-              <p className="text-2xl font-bold">
-                {filteredGames.filter(g => g.ai_recommendation && g.ai_recommendation.confidence >= 75).length}
               </p>
             </div>
             <div className="bg-card border rounded-lg p-4">
@@ -270,9 +247,6 @@ const Games = () => {
               setFilters({
                 sport: "all",
                 dateRange: "week",
-                betType: "all",
-                minEdge: 0,
-                minConfidence: 0,
                 sortBy: "edge_desc"
               });
             }}>

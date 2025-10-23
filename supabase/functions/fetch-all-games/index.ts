@@ -228,82 +228,141 @@ async function fetchWeather(game: any) {
 }
 
 async function generateAIRecommendation(game: any, odds: any[], injuries: any[], scheduleFactor: any, weather: any) {
-  // Simple heuristic-based recommendation
-  // In production, this would call your ML model or sophisticated analysis
+  // EV-based recommendation system
+  // Calculates true win probabilities and finds highest +EV bets
 
   try {
-    // Find best odds for each team
+    // Get all available markets
     const h2hOdds = odds.filter(o => o.market_key === 'h2h');
+    const spreadOdds = odds.filter(o => o.market_key === 'spreads');
+    const totalOdds = odds.filter(o => o.market_key === 'totals');
 
     if (h2hOdds.length === 0) {
       return null;
     }
 
-    // Get home and away odds
-    const homeOdds = h2hOdds.filter(o => o.outcome_name === game.home_team);
-    const awayOdds = h2hOdds.filter(o => o.outcome_name === game.away_team);
+    // Calculate base probabilities from market odds (remove vig)
+    const homeH2HOdds = h2hOdds.filter(o => o.outcome_name === game.home_team);
+    const awayH2HOdds = h2hOdds.filter(o => o.outcome_name === game.away_team);
 
-    if (homeOdds.length === 0 || awayOdds.length === 0) {
+    if (homeH2HOdds.length === 0 || awayH2HOdds.length === 0) {
       return null;
     }
 
-    // Calculate implied probabilities
-    const homeImpliedProb = calculateImpliedProbability(homeOdds[0].outcome_price);
-    const awayImpliedProb = calculateImpliedProbability(awayOdds[0].outcome_price);
+    // Calculate average implied probabilities
+    const avgHomeImplied = homeH2HOdds.reduce((sum, o) => sum + calculateImpliedProbability(o.outcome_price), 0) / homeH2HOdds.length;
+    const avgAwayImplied = awayH2HOdds.reduce((sum, o) => sum + calculateImpliedProbability(o.outcome_price), 0) / awayH2HOdds.length;
 
-    // Simple model: adjust probabilities based on factors
-    let homeEdge = 0;
-    let awayEdge = 0;
+    // Remove vig to get fair market probabilities
+    const totalImplied = avgHomeImplied + avgAwayImplied;
+    let homeBaseProb = avgHomeImplied / totalImplied;
+    let awayBaseProb = avgAwayImplied / totalImplied;
+
+    // Adjust probabilities based on situational factors
+    let homeProbAdjustment = 0;
+    let awayProbAdjustment = 0;
     const reasoning = [];
 
-    // Rest advantage
-    if (scheduleFactor.home_rest_days > scheduleFactor.away_rest_days + 1) {
-      homeEdge += 2;
-      reasoning.push(`${game.home_team} has ${scheduleFactor.home_rest_days - scheduleFactor.away_rest_days} more rest days`);
-    } else if (scheduleFactor.away_rest_days > scheduleFactor.home_rest_days + 1) {
-      awayEdge += 2;
-      reasoning.push(`${game.away_team} has ${scheduleFactor.away_rest_days - scheduleFactor.home_rest_days} more rest days`);
+    // Rest advantage (±2-3% per extra rest day)
+    const restDiff = scheduleFactor.home_rest_days - scheduleFactor.away_rest_days;
+    if (Math.abs(restDiff) > 1) {
+      const restImpact = Math.min(Math.abs(restDiff) * 0.02, 0.05); // Cap at 5%
+      if (restDiff > 0) {
+        homeProbAdjustment += restImpact;
+        awayProbAdjustment -= restImpact;
+        reasoning.push(`${game.home_team} has ${restDiff} more rest days (+${(restImpact * 100).toFixed(1)}%)`);
+      } else {
+        awayProbAdjustment += restImpact;
+        homeProbAdjustment -= restImpact;
+        reasoning.push(`${game.away_team} has ${Math.abs(restDiff)} more rest days (+${(restImpact * 100).toFixed(1)}%)`);
+      }
     }
 
-    // Injury impact
+    // Injury impact (1-3% per significant injury)
     const homeInjuries = injuries.filter(i => i.home_team === game.home_team || i.team === game.home_team);
     const awayInjuries = injuries.filter(i => i.away_team === game.away_team || i.team === game.away_team);
 
-    if (awayInjuries.length > homeInjuries.length + 1) {
-      homeEdge += 3;
-      reasoning.push(`${game.away_team} has ${awayInjuries.length} injuries`);
-    } else if (homeInjuries.length > awayInjuries.length + 1) {
-      awayEdge += 3;
-      reasoning.push(`${game.home_team} has ${homeInjuries.length} injuries`);
+    const injuryDiff = homeInjuries.length - awayInjuries.length;
+    if (Math.abs(injuryDiff) > 0) {
+      const injuryImpact = Math.min(Math.abs(injuryDiff) * 0.015, 0.04); // Cap at 4%
+      if (injuryDiff > 0) {
+        // Home team has more injuries - disadvantage
+        homeProbAdjustment -= injuryImpact;
+        awayProbAdjustment += injuryImpact;
+        reasoning.push(`${game.home_team} has ${homeInjuries.length} key injuries (-${(injuryImpact * 100).toFixed(1)}%)`);
+      } else {
+        awayProbAdjustment -= injuryImpact;
+        homeProbAdjustment += injuryImpact;
+        reasoning.push(`${game.away_team} has ${awayInjuries.length} key injuries (-${(injuryImpact * 100).toFixed(1)}%)`);
+      }
     }
 
-    // Home field advantage (general)
-    homeEdge += 2;
-    reasoning.push(`Home field advantage for ${game.home_team}`);
+    // Home field advantage already factored into market odds
+    // Only add additional adjustment if weather is extreme (for outdoor sports)
+    if (weather && isOutdoorSport(game.sport)) {
+      if (weather.wind_speed && weather.wind_speed > 15) {
+        // High wind typically favors under and running games
+        reasoning.push(`High winds (${weather.wind_speed} mph) may impact passing game`);
+      }
+      if (weather.precipitation_prob && weather.precipitation_prob > 60) {
+        reasoning.push(`High chance of precipitation (${weather.precipitation_prob}%)`);
+      }
+    }
 
-    // Determine recommendation
-    const totalHomeEdge = homeEdge - awayEdge;
-    let pick = "";
-    let confidence = 50;
-    let edge = 0;
+    // Apply adjustments and normalize
+    let homeTrueProb = Math.max(0.05, Math.min(0.95, homeBaseProb + homeProbAdjustment));
+    let awayTrueProb = Math.max(0.05, Math.min(0.95, awayBaseProb + awayProbAdjustment));
 
-    if (totalHomeEdge > 3) {
-      pick = `${game.home_team} Moneyline (${homeOdds[0].outcome_price > 0 ? '+' : ''}${homeOdds[0].outcome_price})`;
-      confidence = Math.min(50 + totalHomeEdge * 5, 85);
-      edge = totalHomeEdge;
-    } else if (totalHomeEdge < -3) {
-      pick = `${game.away_team} Moneyline (${awayOdds[0].outcome_price > 0 ? '+' : ''}${awayOdds[0].outcome_price})`;
-      confidence = Math.min(50 + Math.abs(totalHomeEdge) * 5, 85);
-      edge = Math.abs(totalHomeEdge);
-    } else {
-      // No strong recommendation
+    // Normalize to sum to 1
+    const totalTrueProb = homeTrueProb + awayTrueProb;
+    homeTrueProb = homeTrueProb / totalTrueProb;
+    awayTrueProb = awayTrueProb / totalTrueProb;
+
+    // Find best available odds for each team
+    const bestHomeOdds = Math.max(...homeH2HOdds.map(o => o.outcome_price));
+    const bestAwayOdds = Math.max(...awayH2HOdds.map(o => o.outcome_price));
+
+    // Calculate EV for each option
+    const homeEV = calculateEV(homeTrueProb, bestHomeOdds);
+    const awayEV = calculateEV(awayTrueProb, bestAwayOdds);
+
+    // Find the best +EV opportunity
+    let bestPick = null;
+    let bestEV = -Infinity;
+    let bestOdds = 0;
+    let bestWinProb = 0;
+
+    if (homeEV > bestEV) {
+      bestEV = homeEV;
+      bestPick = `${game.home_team} Moneyline`;
+      bestOdds = bestHomeOdds;
+      bestWinProb = homeTrueProb;
+    }
+
+    if (awayEV > bestEV) {
+      bestEV = awayEV;
+      bestPick = `${game.away_team} Moneyline`;
+      bestOdds = bestAwayOdds;
+      bestWinProb = awayTrueProb;
+    }
+
+    // Only recommend if EV is positive (at least 0.5%)
+    if (bestEV < 0.5) {
       return null;
     }
 
+    // Format pick with odds
+    const formattedPick = `${bestPick} (${bestOdds > 0 ? '+' : ''}${bestOdds})`;
+
+    // Add EV information to reasoning
+    reasoning.unshift(`Expected Value: +${bestEV.toFixed(1)}% (estimated ${(bestWinProb * 100).toFixed(1)}% win probability)`);
+
     return {
-      pick,
-      confidence,
-      edge,
+      pick: formattedPick,
+      ev: bestEV,
+      edge: bestEV, // Keep 'edge' for backward compatibility
+      win_probability: bestWinProb,
+      odds: bestOdds,
       reasoning
     };
 
@@ -311,6 +370,23 @@ async function generateAIRecommendation(game: any, odds: any[], injuries: any[],
     console.error('[generateAIRecommendation] Error:', error);
     return null;
   }
+}
+
+// Helper function to calculate EV
+function calculateEV(trueWinProbability: number, americanOdds: number): number {
+  const stake = 100;
+  let profit: number;
+
+  if (americanOdds > 0) {
+    profit = stake * (americanOdds / 100);
+  } else {
+    profit = stake * (100 / Math.abs(americanOdds));
+  }
+
+  const lossProbability = 1 - trueWinProbability;
+  const ev = (trueWinProbability * profit) - (lossProbability * stake);
+
+  return (ev / stake) * 100;
 }
 
 function calculateImpliedProbability(americanOdds: number): number {

@@ -36,8 +36,10 @@ interface GameData {
   };
   ai_recommendation?: {
     pick: string;
-    confidence: number;
-    edge: number;
+    ev: number;
+    edge: number; // Keep for backward compatibility
+    win_probability?: number;
+    odds?: number;
     reasoning: string[];
   };
   schedule_factors?: {
@@ -67,28 +69,35 @@ export const GameCard = ({ game }: GameCardProps) => {
     }
   };
 
-  const getConfidenceBadge = (confidence?: number) => {
-    if (!confidence) return null;
+  const getEVBadge = (ev?: number) => {
+    if (ev === undefined || ev === null) return null;
 
-    if (confidence >= 75) {
+    if (ev >= 5) {
       return (
         <div className="flex items-center gap-1 text-green-600">
           <TrendingUp className="w-4 h-4" />
-          <span className="text-sm font-medium">{confidence}% Confident</span>
+          <span className="text-sm font-medium">+{ev.toFixed(1)}% EV</span>
         </div>
       );
-    } else if (confidence >= 50) {
+    } else if (ev >= 2) {
+      return (
+        <div className="flex items-center gap-1 text-green-500">
+          <TrendingUp className="w-4 h-4" />
+          <span className="text-sm font-medium">+{ev.toFixed(1)}% EV</span>
+        </div>
+      );
+    } else if (ev >= 0) {
       return (
         <div className="flex items-center gap-1 text-yellow-600">
           <Activity className="w-4 h-4" />
-          <span className="text-sm font-medium">{confidence}% Confident</span>
+          <span className="text-sm font-medium">+{ev.toFixed(1)}% EV</span>
         </div>
       );
     } else {
       return (
         <div className="flex items-center gap-1 text-muted-foreground">
           <TrendingDown className="w-4 h-4" />
-          <span className="text-sm font-medium">{confidence}% Confident</span>
+          <span className="text-sm font-medium">{ev.toFixed(1)}% EV</span>
         </div>
       );
     }
@@ -155,7 +164,7 @@ export const GameCard = ({ game }: GameCardProps) => {
             </CardDescription>
           </div>
           <div className="text-right">
-            {game.ai_recommendation && getConfidenceBadge(game.ai_recommendation.confidence)}
+            {game.ai_recommendation && getEVBadge(game.ai_recommendation.edge)}
           </div>
         </div>
       </CardHeader>
