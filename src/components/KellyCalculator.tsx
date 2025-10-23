@@ -1,37 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, Calculator, TrendingUp } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 
 export function KellyCalculator() {
   const [bankroll, setBankroll] = useState<number>(1000);
   const [winProbability, setWinProbability] = useState<number>(55);
   const [odds, setOdds] = useState<number>(-110);
   const [kellyMultiplier, setKellyMultiplier] = useState<number>(0.25);
-
-  // Fetch user's bankroll
-  useEffect(() => {
-    async function fetchProfile() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('bankroll, kelly_multiplier')
-        .eq('id', user.id)
-        .single();
-
-      if (profile) {
-        setBankroll(profile.bankroll || 1000);
-        setKellyMultiplier(profile.kelly_multiplier || 0.25);
-      }
-    }
-    fetchProfile();
-  }, []);
 
   // Calculate Kelly Criterion
   function calculateKelly(): {

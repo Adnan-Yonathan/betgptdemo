@@ -1038,44 +1038,29 @@ async function updateBetOutcome(
 
     console.log(`Calculated actual return: $${actualReturn} for outcome: ${outcome}`);
 
-    // PHASE 1.1: Use atomic settlement function instead of direct updates
-    const { data: settlement, error: settlementError } = await supabaseClient
-      .rpc('settle_bet_atomic', {
-        p_bet_id: bet.id,
-        p_outcome: outcome,
-        p_actual_return: actualReturn,
-        p_closing_line: null,
-        p_clv: null
-      });
-
-    if (settlementError) {
-      console.error('Error in atomic settlement:', settlementError);
-      return { error: 'Failed to settle bet', code: 'SETTLEMENT_ERROR', details: settlementError };
-    }
-
-    if (!settlement || settlement.length === 0 || !settlement[0].success) {
-      console.error('Settlement failed:', settlement);
-      return {
-        error: settlement?.[0]?.message || 'Settlement failed',
-        code: 'SETTLEMENT_FAILED'
-      };
-    }
-
-    const result = settlement[0];
-    console.log('✅ Bet settled atomically:', result);
-
-    // Fetch updated profile stats for comprehensive response
-    const { data: profile } = await supabaseClient
-      .from('profiles')
-      .select('bankroll, baseline_bankroll, total_bets_placed, total_bets_won, total_bets_lost, win_rate, roi, total_profit')
-      .eq('id', userId)
+    // Update bet with outcome
+    const { data: updatedBet, error: updateError } = await supabaseClient
+      .from('bets')
+      .update({
+        outcome,
+        actual_return: actualReturn,
+        settled_at: new Date().toISOString(),
+      })
+      .eq('id', bet.id)
+      .select()
       .single();
 
-    const percentChange = profile?.baseline_bankroll > 0
-      ? ((profile.bankroll - profile.baseline_bankroll) / profile.baseline_bankroll * 100)
-      : 0;
+    if (updateError) {
+      console.error('Error updating bet:', updateError);
+      return { error: 'Failed to settle bet', code: 'SETTLEMENT_ERROR', details: updateError };
+    }
 
-    // PHASE 1.3: Return formatted stats for AI response
+    console.log('✅ Bet settled:', updatedBet);
+
+    // Calculate profit
+    const profit = actualReturn - bet.amount;
+
+    // Return formatted stats for AI response
     return {
       success: true,
       bet: {
@@ -1086,22 +1071,8 @@ async function updateBetOutcome(
         outcome: outcome,
       },
       settlement: {
-        profit: result.bet_data.profit,
+        profit,
         actual_return: actualReturn,
-      },
-      bankroll: {
-        previous: result.bankroll_data.previous_bankroll,
-        new: result.bankroll_data.new_bankroll,
-        change: result.bankroll_data.change,
-        percent_change: percentChange,
-      },
-      stats: {
-        total_bets: profile?.total_bets_placed || 0,
-        wins: profile?.total_bets_won || 0,
-        losses: profile?.total_bets_lost || 0,
-        win_rate: profile?.win_rate || 0,
-        roi: profile?.roi || 0,
-        total_profit: profile?.total_profit || 0,
       }
     };
   } catch (error) {
@@ -1695,11 +1666,10 @@ RESPONSE INSTRUCTIONS:
 Apologize and inform the user that there was an issue settling their bet. Ask them to try again or contact support if the problem persists.`;
         }
       } else {
-        // Success case - comprehensive formatted response
-        const { bet, settlement, bankroll, stats } = betOutcomeResult;
+        // Success case - formatted response
+        const { bet, settlement } = betOutcomeResult;
         const outcomeEmoji = detectedOutcome === 'win' ? '🎉' : detectedOutcome === 'loss' ? '😔' : '↔️';
         const profitSign = settlement.profit >= 0 ? '+' : '';
-        const percentSign = bankroll.percent_change >= 0 ? '+' : '';
 
         betOutcomeContext = `
 ${outcomeEmoji} BET SETTLED SUCCESSFULLY:
@@ -1712,16 +1682,7 @@ Bet Details:
 
 Financial Impact:
 - Profit/Loss from this bet: ${profitSign}$${settlement.profit.toFixed(2)}
-- Previous Bankroll: $${bankroll.previous.toFixed(2)}
-- NEW Bankroll: $${bankroll.new.toFixed(2)}
-- Change: ${profitSign}$${bankroll.change.toFixed(2)} (${percentSign}${bankroll.percent_change.toFixed(2)}%)
-
-Updated Betting Stats:
-- Total Bets Placed: ${stats.total_bets}
-- Record: ${stats.wins}W - ${stats.losses}L
-- Win Rate: ${stats.win_rate.toFixed(1)}%
-- ROI: ${stats.roi >= 0 ? '+' : ''}${stats.roi.toFixed(1)}%
-- Total Profit/Loss: ${stats.total_profit >= 0 ? '+' : ''}$${stats.total_profit.toFixed(2)}
+- Return: $${settlement.actual_return.toFixed(2)}
 
 RESPONSE INSTRUCTIONS:
 Respond to the user with enthusiasm and empathy appropriate to the outcome:
@@ -1730,25 +1691,20 @@ ${detectedOutcome === 'win' ? `
 ✅ FOR A WIN:
 1. Congratulate them warmly on the win
 2. Highlight the profit: "${profitSign}$${settlement.profit.toFixed(2)}"
-3. Mention their new bankroll: "$${bankroll.new.toFixed(2)}"
-4. Acknowledge their win rate: "${stats.win_rate.toFixed(1)}%"
-5. Keep it concise and celebratory
+3. Keep it concise and celebratory
 ` : detectedOutcome === 'loss' ? `
 ❌ FOR A LOSS:
 1. Be empathetic and encouraging
 2. Acknowledge the loss: "$${Math.abs(settlement.profit).toFixed(2)}"
-3. Remind them of their bankroll: "$${bankroll.new.toFixed(2)}" remaining
-4. Focus on the long game and learning
-5. Be supportive, not discouraging
+3. Focus on the long game and learning
+4. Be supportive, not discouraging
 ` : `
 ↔️ FOR A PUSH:
 1. Explain that the bet pushed (tie/voided)
 2. Confirm their stake was returned: "$${bet.amount.toFixed(2)}"
-3. Bankroll unchanged: "$${bankroll.new.toFixed(2)}"
-4. Keep it brief and neutral
+3. Keep it brief and neutral
 `}
 
-DO NOT ask for their current bankroll - you already have all the information above.
 Keep your response CONCISE (2-3 sentences max) but include the key numbers.`;
       }
     }

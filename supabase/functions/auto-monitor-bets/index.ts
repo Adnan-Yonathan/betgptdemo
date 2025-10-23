@@ -90,55 +90,36 @@ async function fetchScoresForLeague(supabaseClient: any, league: string) {
   }
 }
 
-// Helper function to settle a bet atomically (updates bet, bankroll, and CRM in one transaction)
-async function settleBetAtomic(
+// Helper function to settle a bet
+async function settleBet(
   supabaseClient: any,
   betId: string,
   outcome: string,
-  actualReturn: number,
-  closingLine: number | null,
-  clv: number | null
+  actualReturn: number
 ) {
   try {
-    const { data, error } = await supabaseClient.rpc('settle_bet_atomic', {
-      p_bet_id: betId,
-      p_outcome: outcome,
-      p_actual_return: actualReturn,
-      p_closing_line: closingLine,
-      p_clv: clv,
-    });
+    const { data, error } = await supabaseClient
+      .from('bets')
+      .update({
+        outcome,
+        actual_return: actualReturn,
+        settled_at: new Date().toISOString(),
+      })
+      .eq('id', betId)
+      .select()
+      .single();
 
     if (error) {
-      console.error(`Error settling bet ${betId} atomically:`, error);
+      console.error(`Error settling bet ${betId}:`, error);
       return { success: false, error: error.message };
     }
 
-    if (!data || data.length === 0) {
-      console.error(`No data returned from settle_bet_atomic for bet ${betId}`);
-      return { success: false, error: 'No data returned' };
-    }
-
-    const result = data[0];
-
-    if (!result.success) {
-      console.error(`Failed to settle bet ${betId}: ${result.message}`);
-      return { success: false, error: result.message };
-    }
-
-    // Log success with details
-    const betData = result.bet_data;
-    const bankrollData = result.bankroll_data;
-
     console.log(`✓ Bet ${betId} settled: ${outcome.toUpperCase()}`);
-    console.log(`  Amount: $${betData.amount}, Return: $${betData.actual_return}, Profit: $${betData.profit}`);
-    console.log(`  Bankroll: $${bankrollData.previous_bankroll} → $${bankrollData.new_bankroll} (${bankrollData.change >= 0 ? '+' : ''}$${bankrollData.change})`);
-    if (clv !== null) {
-      console.log(`  CLV: ${clv > 0 ? '+' : ''}${clv}%`);
-    }
+    console.log(`  Amount: $${data.amount}, Return: $${actualReturn}`);
 
-    return { success: true, data: result };
+    return { success: true, data };
   } catch (error) {
-    console.error(`Exception in settleBetAtomic for bet ${betId}:`, error);
+    console.error(`Exception in settleBet for bet ${betId}:`, error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
@@ -207,44 +188,12 @@ async function settlePendingBets(supabaseClient: any) {
 
       console.log(`Settling bet ${bet.id}: ${outcome} (actual return: ${actualReturn})`);
 
-      // Calculate CLV (Closing Line Value) if we have opening_line
-      let closingLine = null;
-      let clv = null;
-
-      if (bet.opening_line && bet.team_bet_on && bet.market_key) {
-        const { data: closingOdds } = await supabaseClient
-          .from('betting_odds')
-          .select('outcome_price')
-          .eq('event_id', bet.event_id)
-          .eq('outcome_name', bet.team_bet_on)
-          .eq('market_key', bet.market_key)
-          .lte('last_updated', game.game_date)
-          .order('last_updated', { ascending: false })
-          .limit(1)
-          .single();
-
-        if (closingOdds) {
-          closingLine = closingOdds.outcome_price;
-
-          const { data: clvResult } = await supabaseClient
-            .rpc('calculate_clv', {
-              bet_odds: bet.odds,
-              closing_odds: closingLine
-            });
-
-          clv = clvResult;
-          console.log(`CLV for bet ${bet.id}: ${clv}% (bet at ${bet.odds}, closed at ${closingLine})`);
-        }
-      }
-
-      // Settle bet atomically (updates bet, bankroll, and CRM in one transaction)
-      const settlementResult = await settleBetAtomic(
+      // Settle bet
+      const settlementResult = await settleBet(
         supabaseClient,
         bet.id,
         outcome,
-        actualReturn,
-        closingLine,
-        clv
+        actualReturn
       );
 
       if (settlementResult.success) {

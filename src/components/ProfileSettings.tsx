@@ -11,7 +11,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -20,9 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Moon, Sun, RefreshCw, TrendingUp, TrendingDown } from "lucide-react";
-import { Tables } from "@/integrations/supabase/types";
+import { Moon, Sun } from "lucide-react";
 
 interface ProfileSettingsProps {
   open: boolean;
@@ -34,11 +31,7 @@ export const ProfileSettings = ({ open, onOpenChange }: ProfileSettingsProps) =>
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
   const [loading, setLoading] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [bankroll, setBankroll] = useState("1000");
-  const [betSize, setBetSize] = useState("100");
   const [riskTolerance, setRiskTolerance] = useState("moderate");
-  const [profile, setProfile] = useState<Tables<"profiles"> | null>(null);
 
   useEffect(() => {
     if (user && open) {
@@ -50,96 +43,17 @@ export const ProfileSettings = ({ open, onOpenChange }: ProfileSettingsProps) =>
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("*")
+        .select("risk_tolerance")
         .eq("id", user?.id)
         .single();
 
       if (error) throw error;
 
       if (data) {
-        setProfile(data);
-        setBankroll(data.bankroll?.toString() || "1000");
-        setBetSize(data.default_bet_size?.toString() || "100");
         setRiskTolerance(data.risk_tolerance || "moderate");
       }
     } catch (error: any) {
       console.error("Error loading profile:", error);
-    }
-  };
-
-  const handleSyncProfile = async () => {
-    if (!user) return;
-
-    setSyncing(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('sync-betting-profile', {
-        headers: {
-          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-        },
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Profile Synced",
-        description: "Your betting statistics have been synchronized with CRM data.",
-      });
-
-      // Reload profile to get updated stats
-      await loadProfile();
-    } catch (error: any) {
-      console.error("Error syncing profile:", error);
-      toast({
-        title: "Sync Error",
-        description: error.message || "Failed to sync profile",
-        variant: "destructive",
-      });
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  const handleResetCRM = async () => {
-    if (!user || !profile) return;
-
-    const confirmed = window.confirm(
-      "Are you sure you want to reset your CRM statistics? This will:\n\n" +
-      "• Set your baseline bankroll to current bankroll (percent change → 0%)\n" +
-      "• Reset Expected EV calculation\n" +
-      "• Keep your bet history intact\n\n" +
-      "This action cannot be undone."
-    );
-
-    if (!confirmed) return;
-
-    setLoading(true);
-    try {
-      const currentBankroll = Number(profile.bankroll || 1000);
-      
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          baseline_bankroll: currentBankroll,
-        })
-        .eq("id", user.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "CRM Reset Complete",
-        description: "Your statistics baseline has been reset to your current bankroll.",
-      });
-
-      await loadProfile();
-    } catch (error: any) {
-      console.error("Error resetting CRM:", error);
-      toast({
-        title: "Reset Error",
-        description: error.message || "Failed to reset CRM",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -148,15 +62,9 @@ export const ProfileSettings = ({ open, onOpenChange }: ProfileSettingsProps) =>
 
     setLoading(true);
     try {
-      const bankrollValue = parseFloat(bankroll);
-
-      // When user manually updates their bankroll, update both current and initial
-      // This represents resetting/starting fresh with a new bankroll amount
       const { error } = await supabase
         .from("profiles")
         .update({
-          bankroll: bankrollValue,
-          default_bet_size: parseFloat(betSize),
           risk_tolerance: riskTolerance,
         })
         .eq("id", user.id);
@@ -181,113 +89,14 @@ export const ProfileSettings = ({ open, onOpenChange }: ProfileSettingsProps) =>
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>
-            Configure your betting preferences and view your live CRM statistics.
+            Configure your betting preferences.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4">
-          {/* Live CRM Statistics Section */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-base font-semibold">Live CRM Statistics</Label>
-              <div className="flex gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleResetCRM}
-                  disabled={loading}
-                  className="h-8 px-3 text-xs"
-                >
-                  Reset CRM
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleSyncProfile}
-                  disabled={syncing}
-                  className="h-8 px-2"
-                >
-                  <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />
-                  Sync
-                </Button>
-              </div>
-            </div>
-            {profile && (
-              <div className="grid grid-cols-2 gap-3 p-4 bg-muted/30 rounded-lg">
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Total Bets</p>
-                  <p className="text-lg font-semibold">{profile.total_bets_placed || 0}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Win Rate</p>
-                  <p className="text-lg font-semibold">
-                    {profile.win_rate ? `${Number(profile.win_rate).toFixed(1)}%` : '0%'}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Record</p>
-                  <p className="text-lg font-semibold">
-                    {profile.total_bets_won || 0}-{profile.total_bets_lost || 0}-{profile.total_bets_pushed || 0}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">ROI</p>
-                  <p className={`text-lg font-semibold ${(profile.roi || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {profile.roi ? `${Number(profile.roi).toFixed(2)}%` : '0%'}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Total Profit</p>
-                  <p className={`text-lg font-semibold ${(profile.total_profit || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {profile.total_profit !== null
-                      ? `${(profile.total_profit || 0) >= 0 ? '+' : ''}$${Number(profile.total_profit).toFixed(2)}`
-                      : '$0.00'}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Current Streak</p>
-                  <p className={`text-lg font-semibold flex items-center ${(profile.current_streak || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {(profile.current_streak || 0) >= 0 ? <TrendingUp className="h-4 w-4 mr-1" /> : <TrendingDown className="h-4 w-4 mr-1" />}
-                    {Math.abs(profile.current_streak || 0)} {(profile.current_streak || 0) >= 0 ? 'W' : 'L'}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Avg Bet Size</p>
-                  <p className="text-lg font-semibold">
-                    ${profile.average_bet_size ? Number(profile.average_bet_size).toFixed(2) : '0.00'}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Pending Bets</p>
-                  <p className="text-lg font-semibold">
-                    {profile.pending_bet_count || 0} (${profile.pending_bet_amount ? Number(profile.pending_bet_amount).toFixed(2) : '0.00'})
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Largest Win</p>
-                  <p className="text-lg font-semibold text-green-500">
-                    ${profile.largest_win ? Number(profile.largest_win).toFixed(2) : '0.00'}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Largest Loss</p>
-                  <p className="text-lg font-semibold text-red-500">
-                    ${profile.largest_loss ? Number(profile.largest_loss).toFixed(2) : '0.00'}
-                  </p>
-                </div>
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Last synced: {profile?.last_sync_at
-                ? new Date(profile.last_sync_at).toLocaleString()
-                : 'Never'}
-            </p>
-          </div>
-
-          <Separator />
+        <div className="space-y-6 py-4">
           <div className="space-y-2">
             <Label>Theme</Label>
             <div className="flex gap-2">
@@ -310,37 +119,6 @@ export const ProfileSettings = ({ open, onOpenChange }: ProfileSettingsProps) =>
                 Dark
               </Button>
             </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="bankroll">Bankroll ($)</Label>
-            <Input
-              id="bankroll"
-              type="number"
-              step="0.01"
-              min="0"
-              value={bankroll}
-              onChange={(e) => setBankroll(e.target.value)}
-              placeholder="1000.00"
-            />
-            <p className="text-xs text-muted-foreground">
-              Total amount you're willing to bet with
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="betSize">Default Bet Size ($)</Label>
-            <Input
-              id="betSize"
-              type="number"
-              step="0.01"
-              min="0"
-              value={betSize}
-              onChange={(e) => setBetSize(e.target.value)}
-              placeholder="100.00"
-            />
-            <p className="text-xs text-muted-foreground">
-              Your typical bet amount
-            </p>
           </div>
 
           <div className="space-y-2">
