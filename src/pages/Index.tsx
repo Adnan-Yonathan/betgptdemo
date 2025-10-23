@@ -11,8 +11,9 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { playAudioFromBase64 } from "@/utils/voiceUtils";
-import { Volume2, VolumeX, BarChart3 } from "lucide-react";
+import { Volume2, VolumeX, BarChart3, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { UserGuide } from "@/components/UserGuide";
 interface Message {
   id: string;
   role: "user" | "assistant";
@@ -35,6 +36,7 @@ const Index = () => {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const {
     toast
   } = useToast();
@@ -298,6 +300,15 @@ const Index = () => {
             <Button
               variant="ghost"
               size="sm"
+              onClick={() => setGuideOpen(true)}
+              className="flex items-center gap-2"
+            >
+              <BookOpen className="w-4 h-4" />
+              <span className="hidden sm:inline">Before You Start</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => navigate('/games')}
               className="flex items-center gap-2"
             >
@@ -333,6 +344,7 @@ const Index = () => {
       </main>
 
       <ProfileSettings open={profileOpen} onOpenChange={setProfileOpen} />
+      <UserGuide open={guideOpen} onOpenChange={setGuideOpen} />
     </div>;
 };
 export default Index;
