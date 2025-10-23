@@ -152,7 +152,9 @@ function extractLeague(sportTitle: string): string {
     'NCAAF': 'NCAAF',
     'NCAA': 'NCAAF',
     'College Football': 'NCAAF',
-    'NHL': 'NHL'
+    'NHL': 'NHL',
+    'NBA': 'NBA',
+    'MLB': 'MLB'
   };
 
   for (const [key, value] of Object.entries(leagueMap)) {
@@ -165,7 +167,7 @@ function extractLeague(sportTitle: string): string {
 }
 
 function isOutdoorSport(sport: string): boolean {
-  const outdoorSports = ['americanfootball_nfl', 'americanfootball_ncaaf'];
+  const outdoorSports = ['americanfootball_nfl', 'americanfootball_ncaaf', 'baseball_mlb'];
   return outdoorSports.includes(sport);
 }
 

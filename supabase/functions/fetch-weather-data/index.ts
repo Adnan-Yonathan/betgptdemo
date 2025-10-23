@@ -7,7 +7,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Stadium/venue coordinates for NFL, NCAAF, and NHL teams
+// Stadium/venue coordinates for NFL, NCAAF, NHL, NBA, and MLB teams
 const VENUE_COORDINATES: Record<string, { lat: number; lon: number; venue: string }> = {
   // NFL
   'Buffalo Bills': { lat: 42.7738, lon: -78.7870, venue: 'Highmark Stadium' },
@@ -46,6 +46,18 @@ const VENUE_COORDINATES: Record<string, { lat: number; lon: number; venue: strin
   'Auburn': { lat: 32.6033, lon: -85.4894, venue: 'Jordan-Hare Stadium' },
   'Texas A&M': { lat: 30.6100, lon: -96.3403, venue: 'Kyle Field' },
 
+  // MLB (outdoor stadiums)
+  'Boston Red Sox': { lat: 42.3467, lon: -71.0972, venue: 'Fenway Park' },
+  'New York Yankees': { lat: 40.8296, lon: -73.9262, venue: 'Yankee Stadium' },
+  'Chicago Cubs': { lat: 41.9484, lon: -87.6553, venue: 'Wrigley Field' },
+  'Los Angeles Dodgers': { lat: 34.0739, lon: -118.2400, venue: 'Dodger Stadium' },
+  'San Francisco Giants': { lat: 37.7786, lon: -122.3893, venue: 'Oracle Park' },
+  'Colorado Rockies': { lat: 39.7559, lon: -104.9942, venue: 'Coors Field' },
+  'Baltimore Orioles': { lat: 39.2839, lon: -76.6217, venue: 'Oriole Park at Camden Yards' },
+  'Philadelphia Phillies': { lat: 39.9061, lon: -75.1665, venue: 'Citizens Bank Park' },
+  'Atlanta Braves': { lat: 33.8907, lon: -84.4678, venue: 'Truist Park' },
+  'Cincinnati Reds': { lat: 39.0974, lon: -84.5066, venue: 'Great American Ball Park' },
+
   // NHL (outdoor games/winter classics)
   'Boston Bruins': { lat: 42.3662, lon: -71.0621, venue: 'TD Garden' },
   'New York Rangers': { lat: 40.7505, lon: -73.9934, venue: 'Madison Square Garden' },
@@ -60,7 +72,19 @@ const VENUE_COORDINATES: Record<string, { lat: number; lon: number; venue: strin
   'Calgary Flames': { lat: 51.0375, lon: -114.0519, venue: 'Scotiabank Saddledome' },
   'Vancouver Canucks': { lat: 49.2778, lon: -123.1089, venue: 'Rogers Arena' },
   'Colorado Avalanche': { lat: 39.7487, lon: -105.0077, venue: 'Ball Arena' },
-  'Minnesota Wild': { lat: 44.9447, lon: -93.1011, venue: 'Xcel Energy Center' }
+  'Minnesota Wild': { lat: 44.9447, lon: -93.1011, venue: 'Xcel Energy Center' },
+
+  // NBA (major arenas)
+  'Los Angeles Lakers': { lat: 34.0430, lon: -118.2673, venue: 'Crypto.com Arena' },
+  'Boston Celtics': { lat: 42.3662, lon: -71.0621, venue: 'TD Garden' },
+  'Golden State Warriors': { lat: 37.7680, lon: -122.3877, venue: 'Chase Center' },
+  'Brooklyn Nets': { lat: 40.6826, lon: -73.9754, venue: 'Barclays Center' },
+  'New York Knicks': { lat: 40.7505, lon: -73.9934, venue: 'Madison Square Garden' },
+  'Chicago Bulls': { lat: 41.8807, lon: -87.6742, venue: 'United Center' },
+  'Miami Heat': { lat: 25.7814, lon: -80.1870, venue: 'FTX Arena' },
+  'Dallas Mavericks': { lat: 32.7905, lon: -96.8103, venue: 'American Airlines Center' },
+  'Phoenix Suns': { lat: 33.4457, lon: -112.0712, venue: 'Footprint Center' },
+  'Milwaukee Bucks': { lat: 43.0451, lon: -87.9172, venue: 'Fiserv Forum' }
 };
 
 serve(async (req) => {
