@@ -20,6 +20,38 @@ function getSupabaseClient() {
 }
 
 /**
+ * EST TIMEZONE HELPERS
+ * All date calculations use America/New_York timezone (Eastern Time)
+ * This ensures consistent behavior regardless of server timezone
+ */
+
+/**
+ * Gets the current date/time in Eastern Time
+ */
+function getNowInEST(): Date {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+}
+
+/**
+ * Gets midnight (start of day) today in Eastern Time
+ */
+function getTodayStartEST(): Date {
+  const nowEST = getNowInEST();
+  return new Date(nowEST.getFullYear(), nowEST.getMonth(), nowEST.getDate());
+}
+
+/**
+ * Gets end of day tomorrow in Eastern Time (23:59:59)
+ */
+function getTomorrowEndEST(): Date {
+  const todayStart = getTodayStartEST();
+  const tomorrowEnd = new Date(todayStart);
+  tomorrowEnd.setDate(tomorrowEnd.getDate() + 2); // Start of day after tomorrow
+  tomorrowEnd.setMilliseconds(-1); // End of tomorrow
+  return tomorrowEnd;
+}
+
+/**
  * EMERGENCY FIX: Timeout wrapper to prevent first message from hanging
  * Wraps a promise with a timeout to ensure responses even if external APIs are slow
  * @param promise - The promise to wrap
@@ -187,12 +219,20 @@ async function fetchLineupData(query: string): Promise<string> {
   }
 
   try {
+    // Calculate date range for today + tomorrow in EST
+    const todayStart = getTodayStartEST();
+    const tomorrowEnd = getTomorrowEndEST();
+
+    console.log(`[DATE FILTER] Fetching lineups from ${todayStart.toISOString()} to ${tomorrowEnd.toISOString()} (EST)`);
+
     // EMERGENCY FIX: Stale-While-Revalidate caching strategy
     // Check for any cached lineups
     const { data: cachedLineups, error: cacheError } = await supabase
       .from('starting_lineups')
       .select('*')
       .eq('league', league)
+      .gte('game_date', todayStart.toISOString())
+      .lte('game_date', tomorrowEnd.toISOString())
       .order('last_updated', { ascending: false });
 
     if (cacheError) {
@@ -258,10 +298,14 @@ async function fetchLineupData(query: string): Promise<string> {
   } catch (error) {
     console.error("[ERROR] Error fetching lineups:", error);
     // Fallback: try to use any cached data
+    const todayStart = getTodayStartEST();
+    const tomorrowEnd = getTomorrowEndEST();
     const { data: fallbackLineups } = await supabase
       .from('starting_lineups')
       .select('*')
       .eq('league', league)
+      .gte('game_date', todayStart.toISOString())
+      .lte('game_date', tomorrowEnd.toISOString())
       .order('last_updated', { ascending: false });
 
     if (fallbackLineups && fallbackLineups.length > 0) {
@@ -350,12 +394,20 @@ async function fetchMatchupData(query: string): Promise<string> {
   }
 
   try {
+    // Calculate date range for today + tomorrow in EST
+    const todayStart = getTodayStartEST();
+    const tomorrowEnd = getTomorrowEndEST();
+
+    console.log(`[DATE FILTER] Fetching matchups from ${todayStart.toISOString()} to ${tomorrowEnd.toISOString()} (EST)`);
+
     // EMERGENCY FIX: Stale-While-Revalidate caching strategy
     // Check for any cached matchup data
     const { data: cachedMatchups, error: cacheError } = await supabase
       .from('matchup_analysis')
       .select('*')
       .eq('league', league)
+      .gte('game_date', todayStart.toISOString())
+      .lte('game_date', tomorrowEnd.toISOString())
       .order('last_updated', { ascending: false });
 
     if (cacheError) {
@@ -421,10 +473,14 @@ async function fetchMatchupData(query: string): Promise<string> {
   } catch (error) {
     console.error("[ERROR] Error fetching matchup data:", error);
     // Fallback: try to use any cached data
+    const todayStart = getTodayStartEST();
+    const tomorrowEnd = getTomorrowEndEST();
     const { data: fallbackMatchups } = await supabase
       .from('matchup_analysis')
       .select('*')
       .eq('league', league)
+      .gte('game_date', todayStart.toISOString())
+      .lte('game_date', tomorrowEnd.toISOString())
       .order('last_updated', { ascending: false });
 
     if (fallbackMatchups && fallbackMatchups.length > 0) {
@@ -554,12 +610,20 @@ async function fetchLiveScores(query: string): Promise<string> {
   }
 
   try {
+    // Calculate date range for today + tomorrow in EST
+    const todayStart = getTodayStartEST();
+    const tomorrowEnd = getTomorrowEndEST();
+
+    console.log(`[DATE FILTER] Fetching scores from ${todayStart.toISOString()} to ${tomorrowEnd.toISOString()} (EST)`);
+
     // EMERGENCY FIX: Stale-While-Revalidate caching strategy
     // Check for any cached scores
     const { data: cachedScores, error: cacheError } = await supabase
       .from('sports_scores')
       .select('*')
       .eq('league', league)
+      .gte('game_date', todayStart.toISOString())
+      .lte('game_date', tomorrowEnd.toISOString())
       .order('last_updated', { ascending: false })
       .limit(50);
 
@@ -612,6 +676,8 @@ async function fetchLiveScores(query: string): Promise<string> {
         .from('sports_scores')
         .select('*')
         .eq('league', league)
+        .gte('game_date', todayStart.toISOString())
+        .lte('game_date', tomorrowEnd.toISOString())
         .order('game_date', { ascending: false })
         .limit(50);
 
@@ -636,10 +702,14 @@ async function fetchLiveScores(query: string): Promise<string> {
   } catch (error) {
     console.error("[ERROR] Error fetching scores:", error);
     // Fallback: try to use any cached data
+    const todayStart = getTodayStartEST();
+    const tomorrowEnd = getTomorrowEndEST();
     const { data: fallbackScores } = await supabase
       .from('sports_scores')
       .select('*')
       .eq('league', league)
+      .gte('game_date', todayStart.toISOString())
+      .lte('game_date', tomorrowEnd.toISOString())
       .order('game_date', { ascending: false })
       .limit(50);
 
@@ -750,12 +820,20 @@ async function fetchLiveOdds(query: string): Promise<string> {
   }
 
   try {
+    // Calculate date range for today + tomorrow in EST
+    const todayStart = getTodayStartEST();
+    const tomorrowEnd = getTomorrowEndEST();
+
+    console.log(`[DATE FILTER] Fetching odds from ${todayStart.toISOString()} to ${tomorrowEnd.toISOString()} (EST)`);
+
     // EMERGENCY FIX: Stale-While-Revalidate caching strategy
     // Check for any cached data first (even if older than 30 min)
     const { data: cachedOdds, error: cacheError } = await supabase
       .from('betting_odds')
       .select('*')
       .eq('sport_key', sport)
+      .gte('commence_time', todayStart.toISOString())
+      .lte('commence_time', tomorrowEnd.toISOString())
       .order('last_updated', { ascending: false })
       .limit(200);
 
@@ -808,6 +886,8 @@ async function fetchLiveOdds(query: string): Promise<string> {
         .from('betting_odds')
         .select('*')
         .eq('sport_key', sport)
+        .gte('commence_time', todayStart.toISOString())
+        .lte('commence_time', tomorrowEnd.toISOString())
         .order('last_updated', { ascending: false })
         .limit(200);
 
@@ -832,10 +912,14 @@ async function fetchLiveOdds(query: string): Promise<string> {
   } catch (error) {
     console.error("[ERROR] Error fetching odds:", error);
     // Last resort: try to use any cached data we have
+    const todayStart = getTodayStartEST();
+    const tomorrowEnd = getTomorrowEndEST();
     const { data: fallbackOdds } = await supabase
       .from('betting_odds')
       .select('*')
       .eq('sport_key', sport)
+      .gte('commence_time', todayStart.toISOString())
+      .lte('commence_time', tomorrowEnd.toISOString())
       .order('last_updated', { ascending: false })
       .limit(200);
 
