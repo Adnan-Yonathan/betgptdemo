@@ -183,30 +183,111 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          average_bet_size: number | null
+          bankroll: number | null
+          baseline_bankroll: number | null
           created_at: string
+          current_streak: number | null
+          default_bet_size: number | null
           email: string | null
           id: string
+          kelly_multiplier: number | null
+          largest_loss: number | null
+          largest_win: number | null
+          last_sync_at: string | null
+          pending_bet_amount: number | null
+          pending_bet_count: number | null
           risk_tolerance: string | null
-          theme: string | null
+          roi: number | null
+          total_bets_lost: number | null
+          total_bets_placed: number | null
+          total_bets_pushed: number | null
+          total_bets_won: number | null
+          total_profit: number | null
           updated_at: string
+          win_rate: number | null
         }
         Insert: {
           avatar_url?: string | null
+          average_bet_size?: number | null
+          bankroll?: number | null
+          baseline_bankroll?: number | null
           created_at?: string
+          current_streak?: number | null
+          default_bet_size?: number | null
           email?: string | null
           id: string
+          kelly_multiplier?: number | null
+          largest_loss?: number | null
+          largest_win?: number | null
+          last_sync_at?: string | null
+          pending_bet_amount?: number | null
+          pending_bet_count?: number | null
           risk_tolerance?: string | null
-          theme?: string | null
+          roi?: number | null
+          total_bets_lost?: number | null
+          total_bets_placed?: number | null
+          total_bets_pushed?: number | null
+          total_bets_won?: number | null
+          total_profit?: number | null
           updated_at?: string
+          win_rate?: number | null
         }
         Update: {
           avatar_url?: string | null
+          average_bet_size?: number | null
+          bankroll?: number | null
+          baseline_bankroll?: number | null
           created_at?: string
+          current_streak?: number | null
+          default_bet_size?: number | null
           email?: string | null
           id?: string
+          kelly_multiplier?: number | null
+          largest_loss?: number | null
+          largest_win?: number | null
+          last_sync_at?: string | null
+          pending_bet_amount?: number | null
+          pending_bet_count?: number | null
           risk_tolerance?: string | null
-          theme?: string | null
+          roi?: number | null
+          total_bets_lost?: number | null
+          total_bets_placed?: number | null
+          total_bets_pushed?: number | null
+          total_bets_won?: number | null
+          total_profit?: number | null
           updated_at?: string
+          win_rate?: number | null
+        }
+        Relationships: []
+      }
+      scraped_websites: {
+        Row: {
+          created_at: string
+          custom_prompt: string | null
+          extract_type: string | null
+          id: string
+          scraped_data: Json | null
+          url: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          custom_prompt?: string | null
+          extract_type?: string | null
+          id?: string
+          scraped_data?: Json | null
+          url: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          custom_prompt?: string | null
+          extract_type?: string | null
+          id?: string
+          scraped_data?: Json | null
+          url?: string
+          user_id?: string | null
         }
         Relationships: []
       }
