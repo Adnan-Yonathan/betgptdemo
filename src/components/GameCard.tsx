@@ -97,10 +97,10 @@ export const GameCard = ({ game }: GameCardProps) => {
   const getSportIcon = (league: string) => {
     const sportEmojis: Record<string, string> = {
       NFL: "🏈",
-      NBA: "🏀",
-      MLB: "⚾",
+      NCAAF: "🏈",
       NHL: "🏒",
-      MLS: "⚽"
+      NBA: "🏀",
+      MLB: "⚾"
     };
     return sportEmojis[league] || "🎯";
   };

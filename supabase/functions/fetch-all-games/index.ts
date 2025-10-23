@@ -149,10 +149,12 @@ serve(async (req) => {
 function extractLeague(sportTitle: string): string {
   const leagueMap: Record<string, string> = {
     'NFL': 'NFL',
-    'NBA': 'NBA',
-    'MLB': 'MLB',
+    'NCAAF': 'NCAAF',
+    'NCAA': 'NCAAF',
+    'College Football': 'NCAAF',
     'NHL': 'NHL',
-    'MLS': 'MLS'
+    'NBA': 'NBA',
+    'MLB': 'MLB'
   };
 
   for (const [key, value] of Object.entries(leagueMap)) {
@@ -165,7 +167,7 @@ function extractLeague(sportTitle: string): string {
 }
 
 function isOutdoorSport(sport: string): boolean {
-  const outdoorSports = ['americanfootball_nfl', 'baseball_mlb', 'soccer_usa_mls'];
+  const outdoorSports = ['americanfootball_nfl', 'americanfootball_ncaaf', 'baseball_mlb'];
   return outdoorSports.includes(sport);
 }
 
