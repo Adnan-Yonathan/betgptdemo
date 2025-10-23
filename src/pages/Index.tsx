@@ -23,7 +23,7 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 const initialMessages: Message[] = [{
   id: "1",
   role: "assistant",
-  content: "Hey! I'm BetGPT 👋\n\nI'm your AI betting coach and bankroll manager. I help you:\n\n• Make smarter betting decisions\n• Track your bets and performance\n• Manage your bankroll strategically\n• Analyze odds and find value\n\nJust tell me about a bet you're considering, one you've placed, or ask me anything about sports betting strategy!",
+  content: "Hey! I'm BetGPT 👋\n\nYour AI sports betting analyst with professional-grade tools. I help you:\n\n• Analyze games across NFL, NBA, MLB, NHL, and College Football\n• Calculate Expected Value (EV) and find +EV opportunities\n• Optimize bet sizing with Kelly Criterion\n• Compare odds across multiple sportsbooks\n• Track performance with advanced metrics (ROI, CLV, Sharpe Ratio)\n• Monitor injuries, weather, and key matchup factors\n\nAsk me about any game, get betting recommendations, or explore the Games Dashboard to see real-time odds and EV calculations!",
   timestamp: "Just now"
 }];
 const Index = () => {
