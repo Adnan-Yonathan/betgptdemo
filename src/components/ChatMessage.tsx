@@ -29,23 +29,55 @@ export const ChatMessage = memo(({
     });
   }, [content]);
   
-  return <div className="mb-8 animate-fade-in group">
-      {/* Role Label */}
-      <div className="mb-2">
-        
+  return (
+    <div className={cn(
+      "mb-6 animate-fade-in group flex gap-3",
+      isUser ? "flex-row-reverse" : "flex-row"
+    )}>
+      {/* Avatar Badge */}
+      <div className={cn(
+        "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold",
+        isUser
+          ? "bg-[hsl(var(--chat-user-bg))] text-white"
+          : "bg-[hsl(var(--chat-ai-bg))] text-foreground"
+      )}>
+        {isUser ? "You" : "AI"}
       </div>
 
-      {/* Message Content */}
-      <div className="text-foreground">
-        <p className="text-[15px] leading-relaxed whitespace-pre-wrap">
-          {formattedContent}
-          {isStreaming && <span className="inline-block w-[2px] h-5 bg-foreground ml-0.5 animate-pulse align-middle" />}
-        </p>
-        {timestamp && <span className="text-xs text-muted-foreground mt-2 block transition-opacity duration-200 opacity-0 group-hover:opacity-100">
+      {/* Message Bubble */}
+      <div className={cn(
+        "flex flex-col max-w-[75%]",
+        isUser ? "items-end" : "items-start"
+      )}>
+        {/* Role Label */}
+        <div className="mb-1 px-1">
+          <span className="text-xs font-medium text-muted-foreground">
+            {isUser ? "You" : "BetGPT"}
+          </span>
+        </div>
+
+        {/* Message Content */}
+        <div className={cn(
+          "rounded-2xl px-4 py-3",
+          isUser
+            ? "bg-[hsl(var(--chat-user-bg))] text-white rounded-tr-sm"
+            : "bg-[hsl(var(--chat-ai-bg))] text-foreground rounded-tl-sm"
+        )}>
+          <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">
+            {formattedContent}
+            {isStreaming && <span className="inline-block w-[2px] h-5 bg-current ml-0.5 animate-pulse align-middle" />}
+          </p>
+        </div>
+
+        {/* Timestamp */}
+        {timestamp && (
+          <span className="text-xs text-muted-foreground mt-1 px-1 transition-opacity duration-200 opacity-0 group-hover:opacity-100">
             {timestamp}
-          </span>}
+          </span>
+        )}
       </div>
-    </div>;
+    </div>
+  );
 }, (prevProps, nextProps) => {
   // Custom comparison function for memo
   // Only re-render if these props actually change
