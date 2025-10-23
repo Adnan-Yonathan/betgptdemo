@@ -7,13 +7,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Stadium/venue coordinates for NFL, MLB, and MLS teams
+// Stadium/venue coordinates for NFL, NCAAF, and NHL teams
 const VENUE_COORDINATES: Record<string, { lat: number; lon: number; venue: string }> = {
   // NFL
   'Buffalo Bills': { lat: 42.7738, lon: -78.7870, venue: 'Highmark Stadium' },
   'Miami Dolphins': { lat: 25.9580, lon: -80.2389, venue: 'Hard Rock Stadium' },
   'New England Patriots': { lat: 42.0909, lon: -71.2643, venue: 'Gillette Stadium' },
   'New York Jets': { lat: 40.8135, lon: -74.0745, venue: 'MetLife Stadium' },
+  'New York Giants': { lat: 40.8135, lon: -74.0745, venue: 'MetLife Stadium' },
   'Green Bay Packers': { lat: 44.5013, lon: -88.0622, venue: 'Lambeau Field' },
   'Chicago Bears': { lat: 41.8623, lon: -87.6167, venue: 'Soldier Field' },
   'Kansas City Chiefs': { lat: 39.0489, lon: -94.4839, venue: 'Arrowhead Stadium' },
@@ -23,19 +24,43 @@ const VENUE_COORDINATES: Record<string, { lat: number; lon: number; venue: strin
   'Philadelphia Eagles': { lat: 39.9008, lon: -75.1675, venue: 'Lincoln Financial Field' },
   'Seattle Seahawks': { lat: 47.5952, lon: -122.3316, venue: 'Lumen Field' },
   'San Francisco 49ers': { lat: 37.4030, lon: -121.9697, venue: "Levi's Stadium" },
+  'Pittsburgh Steelers': { lat: 40.4468, lon: -80.0158, venue: 'Acrisure Stadium' },
+  'Cleveland Browns': { lat: 41.5061, lon: -81.6995, venue: 'Cleveland Browns Stadium' },
+  'Baltimore Ravens': { lat: 39.2780, lon: -76.6227, venue: 'M&T Bank Stadium' },
+  'Cincinnati Bengals': { lat: 39.0954, lon: -84.5160, venue: 'Paycor Stadium' },
 
-  // MLB (outdoor stadiums)
-  'Boston Red Sox': { lat: 42.3467, lon: -71.0972, venue: 'Fenway Park' },
-  'New York Yankees': { lat: 40.8296, lon: -73.9262, venue: 'Yankee Stadium' },
-  'Chicago Cubs': { lat: 41.9484, lon: -87.6553, venue: 'Wrigley Field' },
-  'Los Angeles Dodgers': { lat: 34.0739, lon: -118.2400, venue: 'Dodger Stadium' },
-  'San Francisco Giants': { lat: 37.7786, lon: -122.3893, venue: 'Oracle Park' },
-  'Colorado Rockies': { lat: 39.7559, lon: -104.9942, venue: 'Coors Field' },
+  // College Football (Major Programs)
+  'Alabama': { lat: 33.2082, lon: -87.5502, venue: 'Bryant-Denny Stadium' },
+  'Georgia': { lat: 33.9496, lon: -83.3732, venue: 'Sanford Stadium' },
+  'Ohio State': { lat: 40.0018, lon: -83.0197, venue: 'Ohio Stadium' },
+  'Michigan': { lat: 42.2658, lon: -83.7486, venue: 'Michigan Stadium' },
+  'Penn State': { lat: 40.8122, lon: -77.8563, venue: 'Beaver Stadium' },
+  'Texas': { lat: 30.2839, lon: -97.7323, venue: 'Darrell K Royal Stadium' },
+  'Oklahoma': { lat: 35.2055, lon: -97.4428, venue: 'Gaylord Family Oklahoma Memorial Stadium' },
+  'USC': { lat: 34.0141, lon: -118.2879, venue: 'Los Angeles Memorial Coliseum' },
+  'Notre Dame': { lat: 41.6990, lon: -86.2346, venue: 'Notre Dame Stadium' },
+  'Clemson': { lat: 34.6782, lon: -82.8437, venue: 'Memorial Stadium' },
+  'Florida': { lat: 29.6499, lon: -82.3487, venue: 'Ben Hill Griffin Stadium' },
+  'LSU': { lat: 30.4121, lon: -91.1838, venue: 'Tiger Stadium' },
+  'Tennessee': { lat: 35.9550, lon: -83.9252, venue: 'Neyland Stadium' },
+  'Auburn': { lat: 32.6033, lon: -85.4894, venue: 'Jordan-Hare Stadium' },
+  'Texas A&M': { lat: 30.6100, lon: -96.3403, venue: 'Kyle Field' },
 
-  // MLS (outdoor)
-  'Seattle Sounders': { lat: 47.5952, lon: -122.3316, venue: 'Lumen Field' },
-  'Portland Timbers': { lat: 45.5215, lon: -122.6919, venue: 'Providence Park' },
-  'LA Galaxy': { lat: 33.8644, lon: -118.2611, venue: 'Dignity Health Sports Park' }
+  // NHL (outdoor games/winter classics)
+  'Boston Bruins': { lat: 42.3662, lon: -71.0621, venue: 'TD Garden' },
+  'New York Rangers': { lat: 40.7505, lon: -73.9934, venue: 'Madison Square Garden' },
+  'Chicago Blackhawks': { lat: 41.8807, lon: -87.6742, venue: 'United Center' },
+  'Detroit Red Wings': { lat: 42.3411, lon: -83.0552, venue: 'Little Caesars Arena' },
+  'Toronto Maple Leafs': { lat: 43.6435, lon: -79.3791, venue: 'Scotiabank Arena' },
+  'Montreal Canadiens': { lat: 45.4961, lon: -73.5693, venue: 'Bell Centre' },
+  'Pittsburgh Penguins': { lat: 40.4394, lon: -79.9892, venue: 'PPG Paints Arena' },
+  'Washington Capitals': { lat: 38.8981, lon: -77.0209, venue: 'Capital One Arena' },
+  'Philadelphia Flyers': { lat: 39.9012, lon: -75.1720, venue: 'Wells Fargo Center' },
+  'Edmonton Oilers': { lat: 53.5467, lon: -113.4969, venue: 'Rogers Place' },
+  'Calgary Flames': { lat: 51.0375, lon: -114.0519, venue: 'Scotiabank Saddledome' },
+  'Vancouver Canucks': { lat: 49.2778, lon: -123.1089, venue: 'Rogers Arena' },
+  'Colorado Avalanche': { lat: 39.7487, lon: -105.0077, venue: 'Ball Arena' },
+  'Minnesota Wild': { lat: 44.9447, lon: -93.1011, venue: 'Xcel Energy Center' }
 };
 
 serve(async (req) => {

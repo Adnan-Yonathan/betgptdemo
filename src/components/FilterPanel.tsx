@@ -94,10 +94,8 @@ export const FilterPanel = ({ onFilterChange, isExpanded, onToggle }: FilterPane
               <SelectContent>
                 <SelectItem value="all">All Sports</SelectItem>
                 <SelectItem value="americanfootball_nfl">NFL</SelectItem>
-                <SelectItem value="basketball_nba">NBA</SelectItem>
-                <SelectItem value="baseball_mlb">MLB</SelectItem>
+                <SelectItem value="americanfootball_ncaaf">College Football</SelectItem>
                 <SelectItem value="icehockey_nhl">NHL</SelectItem>
-                <SelectItem value="soccer_usa_mls">MLS</SelectItem>
               </SelectContent>
             </Select>
           </div>
