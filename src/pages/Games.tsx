@@ -214,7 +214,7 @@ const Games = () => {
               <MessageSquare className="w-4 h-4 mr-2" />
               Chat
             </Button>
-            <ProfileDropdown />
+            <ProfileDropdown onOpenProfile={() => {}} />
           </div>
         </div>
       </header>

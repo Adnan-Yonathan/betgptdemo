@@ -155,7 +155,7 @@ serve(async (req) => {
       .eq('id', user.id)
       .single();
 
-    const percentChange = profile?.baseline_bankroll > 0
+    const percentChange = profile?.baseline_bankroll && profile.baseline_bankroll > 0
       ? ((profile.bankroll - profile.baseline_bankroll) / profile.baseline_bankroll * 100)
       : 0;
 

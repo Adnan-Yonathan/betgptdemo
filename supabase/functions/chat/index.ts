@@ -1005,7 +1005,7 @@ async function updateBetOutcome(
       return {
         error: 'MULTIPLE_BETS',
         code: 'MULTIPLE_BETS',
-        bets: bets.map(b => ({
+        bets: bets.map((b: any) => ({
           id: b.id,
           description: b.description,
           amount: b.amount,

@@ -104,7 +104,7 @@ serve(async (req) => {
         }
 
         // Generate AI recommendation
-        const aiRecommendation = await generateAIRecommendation(game, gameOdds, injuries, scheduleFactor, weather);
+        const aiRecommendation = await generateAIRecommendation(game, gameOdds || [], injuries || [], scheduleFactor, weather);
 
         return {
           ...game,
