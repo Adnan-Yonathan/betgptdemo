@@ -7,6 +7,94 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Helper function to check data freshness and trigger refresh if needed
+async function checkAndRefreshOdds(
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  oddsData: any[] | null,
+  sport: string | undefined,
+  startDate: Date,
+  endDate: Date
+): Promise<boolean> {
+  try {
+    // If no data at all, definitely refresh
+    if (!oddsData || oddsData.length === 0) {
+      console.log('[fetch-all-games] No data found - triggering refresh');
+      await triggerOddsFetch(supabaseUrl, supabaseServiceKey, sport);
+      return true;
+    }
+
+    // Check freshness of existing data
+    const now = new Date();
+    const mostRecentUpdate = oddsData.reduce((latest, odd) => {
+      const oddDate = new Date(odd.last_updated || 0);
+      return oddDate > latest ? oddDate : latest;
+    }, new Date(0));
+
+    const dataAgeMinutes = (now.getTime() - mostRecentUpdate.getTime()) / (1000 * 60);
+
+    console.log(`[fetch-all-games] Data age: ${dataAgeMinutes.toFixed(1)} minutes`);
+
+    // If data is older than 60 minutes, refresh
+    if (dataAgeMinutes > 60) {
+      console.log('[fetch-all-games] Data is stale - triggering refresh');
+      await triggerOddsFetch(supabaseUrl, supabaseServiceKey, sport);
+      return true;
+    }
+
+    // Data is fresh enough
+    return false;
+
+  } catch (error) {
+    console.error('[fetch-all-games] Error checking data freshness:', error);
+    return false;
+  }
+}
+
+// Helper function to trigger odds fetch
+async function triggerOddsFetch(
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  sport: string | undefined
+): Promise<void> {
+  try {
+    const sports = sport ? [sport] : ['americanfootball_nfl', 'basketball_nba', 'baseball_mlb', 'icehockey_nhl'];
+
+    console.log(`[fetch-all-games] Triggering fetch for sports: ${sports.join(', ')}`);
+
+    // Trigger fetch for each sport (but don't wait for all to complete)
+    const fetchPromises = sports.map(async (s) => {
+      const response = await fetch(`${supabaseUrl}/functions/v1/fetch-betting-odds`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({
+          sport: s,
+          regions: 'us',
+          markets: 'h2h,spreads,totals'
+        }),
+      });
+
+      if (!response.ok) {
+        console.warn(`[fetch-all-games] Failed to fetch ${s}: ${response.status}`);
+      } else {
+        console.log(`[fetch-all-games] Successfully triggered fetch for ${s}`);
+      }
+    });
+
+    // Wait for at least the first sport to complete
+    await Promise.race(fetchPromises);
+
+    // Give it a moment for data to be written
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+  } catch (error) {
+    console.error('[fetch-all-games] Error triggering odds fetch:', error);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -57,9 +145,20 @@ serve(async (req) => {
       throw oddsError;
     }
 
+    // Check data freshness and trigger fetch if needed
+    const shouldRefresh = await checkAndRefreshOdds(supabaseUrl, supabaseServiceKey, oddsData, sport, today, endDate);
+
+    // If we triggered a refresh, re-query the data
+    let finalOddsData = oddsData;
+    if (shouldRefresh) {
+      console.log('[fetch-all-games] Re-querying after refresh...');
+      const { data: refreshedData } = await oddsQuery;
+      finalOddsData = refreshedData || oddsData;
+    }
+
     // Get unique games
     const uniqueGames = new Map();
-    oddsData?.forEach(odd => {
+    finalOddsData?.forEach(odd => {
       if (!uniqueGames.has(odd.event_id)) {
         uniqueGames.set(odd.event_id, {
           event_id: odd.event_id,
