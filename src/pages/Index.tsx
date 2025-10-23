@@ -5,7 +5,6 @@ import { ChatInput } from "@/components/ChatInput";
 import { ProfileDropdown } from "@/components/ProfileDropdown";
 import { ProfileSettings } from "@/components/ProfileSettings";
 import { ThinkingIndicator } from "@/components/ThinkingIndicator";
-import { BankrollStats } from "@/components/BankrollStats";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,7 +31,6 @@ const Index = () => {
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
-  const [initialBankroll, setInitialBankroll] = useState(1000);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const {
@@ -42,25 +40,6 @@ const Index = () => {
     user
   } = useAuth();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!user) return;
-    const fetchProfile = async () => {
-      const {
-        data,
-        error
-      } = await supabase.from("profiles").select("bankroll").eq("id", user.id).maybeSingle();
-
-      if (error) {
-        console.error("Error fetching profile:", error);
-        return;
-      }
-
-      if (data?.bankroll) {
-        setInitialBankroll(Number(data.bankroll));
-      }
-    };
-    fetchProfile();
-  }, [user]);
   useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTo({
@@ -320,9 +299,6 @@ const Index = () => {
             <ProfileDropdown onOpenProfile={() => setProfileOpen(true)} />
           </div>
         </header>
-
-        {/* Bankroll Stats */}
-        <BankrollStats />
 
         {/* Messages */}
         <ScrollArea className="flex-1 px-6 py-8">
