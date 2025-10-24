@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { playAudioFromBase64 } from "@/utils/voiceUtils";
-import { Volume2, VolumeX, BarChart3, BookOpen, Sparkles, LineChart } from "lucide-react";
+import { Volume2, VolumeX, BarChart3, BookOpen, LineChart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserGuide } from "@/components/UserGuide";
 interface Message {
@@ -300,10 +300,6 @@ const Index = () => {
             <Button variant="ghost" size="sm" onClick={() => setGuideOpen(true)} className="flex items-center gap-2">
               <BookOpen className="w-4 h-4" />
               <span className="hidden sm:inline">Guide</span>
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/ai-feed')} className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-yellow-500" />
-              <span className="hidden sm:inline">AI Picks</span>
             </Button>
             <Button variant="ghost" size="sm" onClick={() => navigate('/game-insights')} className="flex items-center gap-2">
               <LineChart className="w-4 h-4" />
