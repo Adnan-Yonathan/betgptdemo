@@ -40,6 +40,17 @@ export const BettingDashboard = () => {
     try {
       setLoading(true);
 
+      // Fetch profile bankroll
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("bankroll")
+        .eq("id", user.id)
+        .single();
+
+      if (profileError) throw profileError;
+
+      const initialBankroll = profile?.bankroll || 1000;
+
       // Fetch all bets for the user
       const { data: bets, error } = await supabase
         .from("bets")
@@ -56,7 +67,7 @@ export const BettingDashboard = () => {
           currentStreak: 0,
           streakType: "none",
           totalBets: 0,
-          bankroll: 1000, // Default starting bankroll
+          bankroll: initialBankroll,
           todayChange: 0,
           totalProfit: 0,
         });
@@ -109,8 +120,8 @@ export const BettingDashboard = () => {
         todayWins.reduce((sum, b) => sum + (b.actual_return || 0), 0) -
         todayLosses.reduce((sum, b) => sum + b.amount, 0);
 
-      // Mock bankroll (will connect to profile.bankroll when available)
-      const bankroll = 1000 + totalProfit;
+      // Calculate current bankroll from initial bankroll + total profit
+      const bankroll = initialBankroll + totalProfit;
 
       setStats({
         roi,
