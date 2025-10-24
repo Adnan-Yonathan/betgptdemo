@@ -1,10 +1,10 @@
-# ESPN API Integration for Player Statistics
+# Sports API Integration for Player Statistics
 
-This document describes the ESPN API integration for enhanced player statistics analysis in the Quantara betting platform.
+This document describes the sports API integration for enhanced player statistics analysis in the Quantara betting platform.
 
 ## Overview
 
-The ESPN API integration provides real-time, detailed player statistics from ESPN's unofficial API endpoints. This data enhances the existing player prop prediction system with more accurate and comprehensive player performance data.
+The sports API integration provides real-time, detailed player statistics from multiple sources including ESPN and NBA.com official APIs. This data enhances the existing player prop prediction system with more accurate and comprehensive player performance data.
 
 ## Architecture
 
@@ -287,9 +287,9 @@ CREATE TABLE player_performance_history (
 }
 ```
 
-## ESPN API Endpoints Used
+## Sports API Endpoints Used
 
-### 1. NBA Summary Endpoint
+### 1. NBA Summary Endpoint (ESPN)
 ```
 https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/summary
 ?region=us&lang=en&contentorigin=espn&event={event_id}
@@ -297,12 +297,42 @@ https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/summary
 
 **Returns:** Detailed game summary including box scores and player statistics
 
-### 2. NBA Scoreboard Endpoint
+### 2. NBA Scoreboard Endpoint (NBA.com Official)
 ```
-https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard
+https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json
 ```
 
-**Returns:** List of today's games with event IDs, scores, and status
+**Returns:** List of today's NBA games with game IDs, scores, status, and team information
+
+**Response Structure:**
+```json
+{
+  "scoreboard": {
+    "games": [
+      {
+        "gameId": "0022400123",
+        "gameTimeUTC": "2024-10-24T00:00:00Z",
+        "gameStatusText": "Final",
+        "homeTeam": {
+          "teamName": "Lakers",
+          "score": 112
+        },
+        "awayTeam": {
+          "teamName": "Warriors",
+          "score": 108
+        }
+      }
+    ]
+  }
+}
+```
+
+### 3. NFL Scoreboard Endpoint (ESPN)
+```
+https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard
+```
+
+**Returns:** List of today's NFL games with event IDs, scores, and status
 
 ## Usage Guide
 
@@ -451,4 +481,7 @@ For issues or questions about the ESPN API integration:
 
 ## License and Legal
 
-**Important:** ESPN's API is unofficial and not documented publicly. This integration is for educational and research purposes. Be mindful of ESPN's terms of service and use the API responsibly.
+**Important:**
+- ESPN's API endpoints are unofficial and not publicly documented. Use responsibly and be mindful of ESPN's terms of service.
+- NBA.com's scoreboard API is an official CDN endpoint providing public game data.
+- This integration is for educational and research purposes. Always respect the terms of service of the respective APIs.
