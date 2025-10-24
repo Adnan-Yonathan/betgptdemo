@@ -10,6 +10,8 @@ import { lazy, Suspense } from "react";
 // Lazy load pages for better initial load performance
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
+const AIFeed = lazy(() => import("./pages/AIFeed"));
+const GameInsightsDemo = lazy(() => import("./pages/GameInsightsDemo"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Loading component for Suspense fallback
@@ -58,6 +60,8 @@ const App = () => (
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
+                <Route path="/ai-feed" element={<AIFeed />} />
+                <Route path="/game-insights" element={<GameInsightsDemo />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
