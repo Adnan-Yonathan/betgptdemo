@@ -51,52 +51,48 @@ export const PersonalizedFeed = () => {
     try {
       setLoading(true);
 
-      // TODO: Replace with actual API call when getAIInsights() is available
-      // const { data, error } = await supabase.functions.invoke('get-ai-insights');
+      // Check if we have cached data from today
+      const cacheKey = "ai-picks-cache";
+      const cacheTimestampKey = "ai-picks-timestamp";
+      const cached = localStorage.getItem(cacheKey);
+      const cacheTimestamp = localStorage.getItem(cacheTimestampKey);
 
-      // Mock data for now - simulates AI-generated picks
-      const mockSuggestions: AISuggestion[] = [
-        {
-          id: "1",
-          team: "Lakers",
-          opponent: "vs Warriors",
-          line: "-3.5",
-          confidence: 78,
-          ev: 5.2,
-          reasoning: "Strong home court advantage, 3-0 ATS in last 3. Warriors missing key defender.",
-          sport: "NBA",
-          gameTime: "Tonight 7:00 PM",
-        },
-        {
-          id: "2",
-          team: "Chiefs",
-          opponent: "@ Bills",
-          line: "+2.5",
-          confidence: 72,
-          ev: 3.8,
-          reasoning: "Mahomes excels as underdog. Bills defense allowing 28 PPG in last 4.",
-          sport: "NFL",
-          gameTime: "Sunday 1:00 PM",
-        },
-        {
-          id: "3",
-          team: "Red Sox",
-          opponent: "vs Yankees",
-          line: "Over 9.5",
-          confidence: 65,
-          ev: 2.1,
-          reasoning: "Both bullpens depleted. Wind blowing out at 15 MPH. History of high scoring.",
-          sport: "MLB",
-          gameTime: "Today 4:10 PM",
-        },
-      ];
+      // Check if cache is valid (less than 24 hours old)
+      const now = Date.now();
+      const cacheAge = cacheTimestamp ? now - parseInt(cacheTimestamp) : Infinity;
+      const cacheValidDuration = 24 * 60 * 60 * 1000; // 24 hours
 
-      // Simulate network delay
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      if (cached && cacheAge < cacheValidDuration) {
+        console.log("Using cached AI picks");
+        setSuggestions(JSON.parse(cached));
+        setLoading(false);
+        return;
+      }
 
-      setSuggestions(mockSuggestions);
+      // Fetch fresh data from Supabase function
+      console.log("Fetching fresh AI picks from API");
+      const { data, error } = await supabase.functions.invoke("get-ai-picks");
+
+      if (error) {
+        console.error("Error loading AI picks:", error);
+        throw error;
+      }
+
+      const picks = data?.picks || [];
+      setSuggestions(picks);
+
+      // Cache the results
+      localStorage.setItem(cacheKey, JSON.stringify(picks));
+      localStorage.setItem(cacheTimestampKey, now.toString());
+
+      console.log(`Loaded ${picks.length} AI picks`);
     } catch (error) {
       console.error("Error loading suggestions:", error);
+      toast({
+        title: "Error loading AI picks",
+        description: "Could not load AI predictions. Please try again later.",
+        variant: "destructive",
+      });
       setSuggestions([]);
     } finally {
       setLoading(false);
