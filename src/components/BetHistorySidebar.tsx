@@ -1,0 +1,202 @@
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Plus, TrendingUp, TrendingDown, Minus, Clock, Search, RefreshCw, Info } from "lucide-react";
+import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
+interface Bet {
+  id: string;
+  amount: number;
+  odds: number;
+  outcome: string;
+  description: string;
+  potential_return: number | null;
+  actual_return: number | null;
+  created_at: string;
+  settled_at: string | null;
+}
+interface BetHistorySidebarProps {
+  onNewBet: () => void;
+}
+export const BetHistorySidebar = ({
+  onNewBet
+}: BetHistorySidebarProps) => {
+  const {
+    user
+  } = useAuth();
+  const { toast } = useToast();
+  const [bets, setBets] = useState<Bet[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSettling, setIsSettling] = useState(false);
+  useEffect(() => {
+    if (!user) return;
+    const fetchBets = async () => {
+      const {
+        data
+      } = await supabase.from("bets").select("*").eq("user_id", user.id).order("created_at", {
+        ascending: false
+      });
+      if (data) setBets(data);
+    };
+    fetchBets();
+
+    // Subscribe to bet changes
+    const channel = supabase.channel('bet-history-changes').on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'bets',
+      filter: `user_id=eq.${user.id}`
+    }, () => fetchBets()).subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+  const getOutcomeIcon = (outcome: string) => {
+    switch (outcome) {
+      case 'win':
+        return <TrendingUp className="h-4 w-4 text-green-500" />;
+      case 'loss':
+        return <TrendingDown className="h-4 w-4 text-red-500" />;
+      case 'push':
+        return <Minus className="h-4 w-4 text-muted-foreground" />;
+      default:
+        return <Clock className="h-4 w-4 text-yellow-500" />;
+    }
+  };
+  const getOutcomeColor = (outcome: string) => {
+    switch (outcome) {
+      case 'win':
+        return 'text-green-500';
+      case 'loss':
+        return 'text-red-500';
+      case 'push':
+        return 'text-muted-foreground';
+      default:
+        return 'text-yellow-500';
+    }
+  };
+
+  const filteredBets = bets.filter(bet => 
+    bet.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    bet.outcome.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleSettleBets = async () => {
+    if (!user) return;
+    
+    setIsSettling(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('settle-bets');
+      
+      if (error) {
+        toast({
+          title: "Error settling bets",
+          description: "Could not check game results. Please try again.",
+          variant: "destructive",
+        });
+      } else {
+        const settledCount = data?.settledCount || 0;
+        if (settledCount > 0) {
+          toast({
+            title: "Bets settled!",
+            description: `${settledCount} bet(s) have been updated with final results.`,
+          });
+        } else {
+          toast({
+            title: "No updates",
+            description: "No pending bets have finished yet.",
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error settling bets:', error);
+      toast({
+        title: "Error",
+        description: "Failed to check game results.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSettling(false);
+    }
+  };
+
+  return <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col h-screen">
+      <div className="p-4 border-b border-sidebar-border space-y-2">
+        <Button onClick={onNewBet} className="w-full justify-start gap-2 bg-sidebar-accent hover:bg-sidebar-accent/80 text-sidebar-foreground">
+          <Plus className="w-4 h-4" />
+          New chat
+        </Button>
+        <Button
+          onClick={handleSettleBets}
+          disabled={isSettling || !user}
+          variant="outline"
+          className="w-full justify-start gap-2 text-xs"
+        >
+          <RefreshCw className={`w-3 h-3 ${isSettling ? 'animate-spin' : ''}`} />
+          {isSettling ? 'Checking...' : 'Check Results'}
+        </Button>
+        <div className="flex items-start gap-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded text-xs text-blue-600 dark:text-blue-400">
+          <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
+          <p>Bets auto-settle every 10 min when games finish</p>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="p-4 border-b border-sidebar-border">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sidebar-foreground/50" />
+          <Input 
+            placeholder="Search bets" 
+            value={searchQuery} 
+            onChange={e => setSearchQuery(e.target.value)} 
+            className="pl-9 bg-sidebar-accent border-sidebar-border text-sidebar-foreground placeholder:text-sidebar-foreground/50" 
+          />
+        </div>
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className="p-2 space-y-1">
+          {filteredBets.length === 0 && user && <div className="text-center py-8 px-4">
+              <p className="text-sm text-sidebar-foreground/50">
+                {bets.length === 0 
+                  ? "No bets logged yet. Start tracking your bets in the chat!"
+                  : "No bets match your search"}
+              </p>
+            </div>}
+          {!user && <p className="text-sm text-sidebar-foreground/50 text-center p-4">
+              Sign in to view bet history
+            </p>}
+          {filteredBets.map(bet => <div key={bet.id} className="p-3 rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors cursor-pointer">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    {getOutcomeIcon(bet.outcome)}
+                    <span className={`text-xs font-semibold uppercase ${getOutcomeColor(bet.outcome)}`}>
+                      {bet.outcome}
+                    </span>
+                  </div>
+                  <span className="text-xs text-sidebar-foreground/50">
+                    {format(new Date(bet.created_at), "MMM d")}
+                  </span>
+                </div>
+
+                <p className="text-sm font-medium text-sidebar-foreground mb-1 line-clamp-2">
+                  {bet.description}
+                </p>
+
+                <div className="flex items-center justify-between text-xs text-sidebar-foreground/70">
+                  <span>${bet.amount.toFixed(2)} @ {bet.odds > 0 ? '+' : ''}{bet.odds}</span>
+                  {bet.outcome === 'win' && bet.actual_return && <span className="text-green-500 font-semibold">
+                      +${bet.actual_return.toFixed(2)}
+                    </span>}
+                  {bet.outcome === 'loss' && <span className="text-red-500 font-semibold">
+                      -${bet.amount.toFixed(2)}
+                    </span>}
+                </div>
+              </div>)}
+        </div>
+      </ScrollArea>
+    </aside>;
+};
