@@ -37,7 +37,7 @@ interface ESPNResponse {
 // Helper function to fetch and update scores for a league
 async function fetchScoresForLeague(supabaseClient: any, league: string) {
   try {
-    const espnUrl = `https://site.web.api.espn.com/apis/site/v2/sports/football/${league}/scoreboard`;
+    const espnUrl = `https://site.api.espn.com/apis/site/v2/sports/football/${league}/scoreboard`;
     console.log(`Fetching scores for ${league.toUpperCase()} from: ${espnUrl}`);
 
     const response = await fetch(espnUrl);

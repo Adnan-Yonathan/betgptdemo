@@ -19,10 +19,10 @@ interface ESPNGame {
 }
 
 /**
- * Fetches today's NBA games from ESPN scoreboard
+ * Fetches today's NBA games from NBA.com live scoreboard
  */
 async function fetchESPNScoreboard(): Promise<ESPNGame[]> {
-  const scoreboard_url = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard';
+  const scoreboard_url = 'https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json';
 
   const response = await fetch(scoreboard_url, {
     headers: {
@@ -32,38 +32,26 @@ async function fetchESPNScoreboard(): Promise<ESPNGame[]> {
   });
 
   if (!response.ok) {
-    throw new Error(`ESPN Scoreboard API error: ${response.status}`);
+    throw new Error(`NBA Scoreboard API error: ${response.status}`);
   }
 
   const data = await response.json();
   const games: ESPNGame[] = [];
 
-  if (data.events) {
-    data.events.forEach((event: any) => {
-      const competition = event.competitions?.[0];
-      const competitors = competition?.competitors || [];
-
-      let homeTeam = '';
-      let awayTeam = '';
-      let homeScore = 0;
-      let awayScore = 0;
-
-      competitors.forEach((team: any) => {
-        if (team.homeAway === 'home') {
-          homeTeam = team.team?.displayName || team.team?.name || '';
-          homeScore = parseInt(team.score) || 0;
-        } else {
-          awayTeam = team.team?.displayName || team.team?.name || '';
-          awayScore = parseInt(team.score) || 0;
-        }
-      });
+  if (data.scoreboard?.games) {
+    data.scoreboard.games.forEach((game: any) => {
+      const homeTeam = game.homeTeam?.teamName || '';
+      const awayTeam = game.awayTeam?.teamName || '';
+      const homeScore = parseInt(game.homeTeam?.score) || 0;
+      const awayScore = parseInt(game.awayTeam?.score) || 0;
+      const status = game.gameStatusText || 'Unknown';
 
       games.push({
-        id: event.id,
-        date: event.date,
-        name: event.name,
-        shortName: event.shortName,
-        status: competition?.status?.type?.description || 'Unknown',
+        id: game.gameId || '',
+        date: game.gameTimeUTC || new Date().toISOString(),
+        name: `${awayTeam} @ ${homeTeam}`,
+        shortName: `${awayTeam} @ ${homeTeam}`,
+        status,
         homeTeam,
         awayTeam,
         homeScore,
