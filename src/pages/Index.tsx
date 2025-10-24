@@ -24,7 +24,7 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 const initialMessages: Message[] = [{
   id: "1",
   role: "assistant",
-  content: "Hey! I'm BetGPT 👋\n\nYour AI sports betting analyst with professional-grade tools. I help you:\n\n• Analyze games across NFL, NBA, MLB, NHL, and College Football\n• Calculate Expected Value (EV) and find +EV opportunities\n• Optimize bet sizing with Kelly Criterion\n• Compare odds across multiple sportsbooks\n• Track performance with advanced metrics (ROI, CLV, Sharpe Ratio)\n• Monitor injuries, weather, and key matchup factors\n\nAsk me about any game, get betting recommendations, or explore the Games Dashboard to see real-time odds and EV calculations!",
+  content: "Welcome to Qauntara - your sports quantitative analysis platform.\n\nI'm your AI sports betting analyst. Here's what you can do:\n\n• Chat with me to analyze games across NFL, NBA, MLB, NHL, and College Football\n• View the Game Insights dashboard for real-time odds and EV calculations\n• Manage your betting profile and track your bankroll\n• Use the Kelly Criterion calculator for optimal bet sizing\n• Monitor your performance with advanced metrics (ROI, CLV, Sharpe Ratio)\n• Compare odds and identify +EV opportunities across sportsbooks\n\nAsk me about any game or matchup to get started!",
   timestamp: "Just now"
 }];
 const Index = () => {
@@ -292,8 +292,8 @@ const Index = () => {
         <header className="border-b border-border px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div>
-              <h2 className="text-lg font-semibold text-foreground">BetGPT</h2>
-              <p className="text-sm text-muted-foreground">Your AI betting coach</p>
+              <h2 className="text-lg font-semibold text-foreground">Qauntara</h2>
+              <p className="text-sm text-muted-foreground">your sports quantitative</p>
             </div>
           </div>
           <div className="flex items-center gap-2">

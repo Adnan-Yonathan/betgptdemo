@@ -16,7 +16,7 @@ export const UserGuide = ({ open, onOpenChange }: UserGuideProps) => {
         <DialogHeader>
           <DialogTitle className="text-2xl">Before You Start</DialogTitle>
           <DialogDescription>
-            Essential information for using BetGPT effectively and responsibly
+            Essential information for using Qauntara effectively and responsibly
           </DialogDescription>
         </DialogHeader>
 
@@ -48,7 +48,7 @@ export const UserGuide = ({ open, onOpenChange }: UserGuideProps) => {
                   </h3>
                   <div className="space-y-3 ml-7">
                     <div>
-                      <h4 className="font-medium">BetGPT is a tool, not a crystal ball</h4>
+                      <h4 className="font-medium">Qauntara is a tool, not a crystal ball</h4>
                       <p className="text-sm text-muted-foreground">
                         Provides data-driven analysis to inform YOUR decisions. You maintain full control and responsibility.
                       </p>
@@ -98,7 +98,7 @@ export const UserGuide = ({ open, onOpenChange }: UserGuideProps) => {
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-semibold mb-2">What Makes BetGPT Different</h3>
+                  <h3 className="text-lg font-semibold mb-2">What Makes Qauntara Different</h3>
                   <ul className="space-y-2 ml-4 text-sm list-disc">
                     <li>Goes beyond simple picks - shows the math (EV, Kelly sizing)</li>
                     <li>Multi-sportsbook odds comparison</li>
@@ -129,7 +129,7 @@ export const UserGuide = ({ open, onOpenChange }: UserGuideProps) => {
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
-                  Critical: Understanding these limitations is essential before using BetGPT
+                  Critical: Understanding these limitations is essential before using Qauntara
                 </AlertDescription>
               </Alert>
 
@@ -187,7 +187,7 @@ export const UserGuide = ({ open, onOpenChange }: UserGuideProps) => {
                 <div>
                   <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
                     <AlertTriangle className="h-5 w-5 text-red-500" />
-                    What BetGPT CANNOT Do
+                    What Qauntara CANNOT Do
                   </h3>
                   <ul className="space-y-2 ml-7 text-sm">
                     <li className="flex items-start gap-2">
@@ -229,7 +229,7 @@ export const UserGuide = ({ open, onOpenChange }: UserGuideProps) => {
               </div>
             </TabsContent>
 
-            {/* Section 3: How to Use BetGPT */}
+            {/* Section 3: How to Use Qauntara */}
             <TabsContent value="howto" className="space-y-4">
               <div className="space-y-6">
                 <div>
@@ -330,7 +330,7 @@ export const UserGuide = ({ open, onOpenChange }: UserGuideProps) => {
                     Getting the Best Results
                   </h3>
                   <ol className="space-y-3 ml-7 text-sm list-decimal">
-                    <li><strong>Cross-reference multiple sources</strong> - Don't rely solely on BetGPT</li>
+                    <li><strong>Cross-reference multiple sources</strong> - Don't rely solely on Qauntara</li>
                     <li><strong>Check timing</strong> - Verify injury reports and lineups before bet placement</li>
                     <li><strong>Use appropriate Kelly fraction</strong> - Start with 0.25x, never full Kelly</li>
                     <li><strong>Focus on +EV opportunities</strong> - Avoid negative or zero EV bets</li>
@@ -604,7 +604,7 @@ export const UserGuide = ({ open, onOpenChange }: UserGuideProps) => {
                   <div className="space-y-2 text-sm text-muted-foreground">
                     <p>Users are responsible for knowing and complying with their local gambling laws and regulations.</p>
                     <p>Online sports betting may be restricted or illegal in some jurisdictions. Age restrictions apply (21+ in most US states).</p>
-                    <p>BetGPT provides analysis tools only and is not liable for any betting losses, legal issues, or addiction-related problems.</p>
+                    <p>Qauntara provides analysis tools only and is not liable for any betting losses, legal issues, or addiction-related problems.</p>
                     <p>This platform is for informational and entertainment purposes only - not professional financial advice.</p>
                   </div>
                 </div>

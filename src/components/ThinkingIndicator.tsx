@@ -12,7 +12,7 @@ export const ThinkingIndicator = () => {
       <div className="flex flex-col max-w-[75%] items-start">
         {/* Role Label */}
         <div className="mb-1 px-1">
-          <span className="text-xs font-medium text-muted-foreground">BetGPT</span>
+          <span className="text-xs font-medium text-muted-foreground">Qauntara</span>
         </div>
 
         {/* Thinking Animation */}

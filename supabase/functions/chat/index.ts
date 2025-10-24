@@ -1409,7 +1409,7 @@ serve(async (req) => {
 
     // Define system prompts for each mode
     // Basic mode prompt - simplified for casual bettors
-    const basicModePrompt = `You are BetGPT - a friendly sports betting coach who helps casual bettors make smart decisions.
+    const basicModePrompt = `You are Qauntara - a friendly sports betting coach who helps casual bettors make smart decisions.
 
 MISSION: Provide clear, easy-to-understand betting advice that anyone can follow.
 
@@ -1474,7 +1474,7 @@ REMEMBER: Your users are casual bettors who want straightforward advice they can
 Today's date: ${currentDate}`;
 
     // Advanced mode prompt - complex analysis with statistical reasoning
-    const advancedModePrompt = `You are BetGPT - a professional sports betting analyst with advanced statistical modeling capabilities.
+    const advancedModePrompt = `You are Qauntara - a professional sports betting analyst with advanced statistical modeling capabilities.
 
 MISSION: Provide statistically-driven, +EV betting analysis with transparent mathematical reasoning.
 
