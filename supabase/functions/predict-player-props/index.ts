@@ -114,14 +114,14 @@ async function generatePropPrediction(supabase: any, prop: any) {
   };
 }
 
-async function getPlayerHistory(supabase: any, playerName: string, propType: string) {
-  // Get player's recent games
+async function getPlayerHistory(supabase: any, playerName: string, propType: string, opponent?: string, isHome?: boolean) {
+  // Get player's recent games from ESPN-enhanced data
   const { data: history } = await supabase
     .from('player_performance_history')
     .select('*')
     .eq('player_name', playerName)
     .order('game_date', { ascending: false })
-    .limit(20);
+    .limit(30);
 
   if (!history || history.length === 0) {
     // Return default averages if no history
@@ -133,6 +133,7 @@ async function getPlayerHistory(supabase: any, playerName: string, propType: str
       homeAwaySplit: 1.0,
       trend: 'neutral',
       sampleSize: 0,
+      consistency: 0,
     };
   }
 
@@ -149,6 +150,7 @@ async function getPlayerHistory(supabase: any, playerName: string, propType: str
       homeAwaySplit: 1.0,
       trend: 'neutral',
       sampleSize: 0,
+      consistency: 0,
     };
   }
 
@@ -156,17 +158,56 @@ async function getPlayerHistory(supabase: any, playerName: string, propType: str
   const last5Avg = values.slice(0, 5).reduce((a: number, b: number) => a + b, 0) / Math.min(5, values.length);
   const last10Avg = values.slice(0, 10).reduce((a: number, b: number) => a + b, 0) / Math.min(10, values.length);
 
+  // Calculate vs opponent average (ESPN data provides opponent info)
+  let vsOpponentAvg = seasonAvg;
+  if (opponent) {
+    const vsOpponentGames = history.filter((game: any) => game.opponent === opponent);
+    if (vsOpponentGames.length > 0) {
+      const opponentValues = vsOpponentGames
+        .map((game: any) => game.stats?.[statKey] || 0)
+        .filter((v: number) => v > 0);
+      vsOpponentAvg = opponentValues.reduce((a: number, b: number) => a + b, 0) / opponentValues.length;
+    }
+  }
+
+  // Calculate home/away split (ESPN data provides home_away field)
+  let homeAwaySplit = 1.0;
+  const homeGames = history.filter((game: any) => game.home_away === 'home');
+  const awayGames = history.filter((game: any) => game.home_away === 'away');
+
+  if (homeGames.length > 0 && awayGames.length > 0) {
+    const homeValues = homeGames
+      .map((game: any) => game.stats?.[statKey] || 0)
+      .filter((v: number) => v > 0);
+    const awayValues = awayGames
+      .map((game: any) => game.stats?.[statKey] || 0)
+      .filter((v: number) => v > 0);
+
+    if (homeValues.length > 0 && awayValues.length > 0) {
+      const homeAvg = homeValues.reduce((a: number, b: number) => a + b, 0) / homeValues.length;
+      const awayAvg = awayValues.reduce((a: number, b: number) => a + b, 0) / awayValues.length;
+
+      // homeAwaySplit: >1 means better at home, <1 means better away
+      homeAwaySplit = awayAvg > 0 ? homeAvg / awayAvg : 1.0;
+    }
+  }
+
   // Calculate trend (improving, declining, or neutral)
   const trend = last5Avg > seasonAvg * 1.1 ? 'improving' : last5Avg < seasonAvg * 0.9 ? 'declining' : 'neutral';
+
+  // Calculate consistency (lower variance = more consistent)
+  const variance = values.reduce((sum, val) => sum + Math.pow(val - seasonAvg, 2), 0) / values.length;
+  const consistency = seasonAvg > 0 ? 1 - Math.min(Math.sqrt(variance) / seasonAvg, 1) : 0;
 
   return {
     seasonAvg,
     last5Avg,
     last10Avg,
-    vsOpponentAvg: last5Avg, // Simplified - would need opponent-specific history
-    homeAwaySplit: 1.0, // Simplified - would need home/away breakdown
+    vsOpponentAvg,
+    homeAwaySplit,
     trend,
     sampleSize: values.length,
+    consistency: Math.round(consistency * 100) / 100,
   };
 }
 
@@ -189,15 +230,35 @@ function getStatKey(propType: string): string {
 function calculatePredictedValue(history: any, prop: any) {
   // Weight recent games more heavily
   const weights = {
-    last5: 0.5,
-    last10: 0.3,
-    season: 0.2,
+    last5: 0.4,
+    last10: 0.25,
+    season: 0.15,
+    vsOpponent: 0.15,
+    homeAway: 0.05,
   };
 
-  const predicted =
+  // Base prediction from weighted averages
+  let predicted =
     history.last5Avg * weights.last5 +
     history.last10Avg * weights.last10 +
-    history.seasonAvg * weights.season;
+    history.seasonAvg * weights.season +
+    history.vsOpponentAvg * weights.vsOpponent;
+
+  // Apply home/away adjustment
+  // If homeAwaySplit > 1 and playing at home, boost prediction
+  // If homeAwaySplit < 1 and playing away, boost prediction
+  const homeAwayAdjustment = history.homeAwaySplit !== 1.0
+    ? (history.homeAwaySplit - 1.0) * weights.homeAway * predicted
+    : 0;
+
+  predicted += homeAwayAdjustment;
+
+  // Adjust based on trend
+  if (history.trend === 'improving') {
+    predicted *= 1.05; // 5% boost for improving trend
+  } else if (history.trend === 'declining') {
+    predicted *= 0.95; // 5% reduction for declining trend
+  }
 
   return Math.round(predicted * 10) / 10;
 }
@@ -227,26 +288,35 @@ async function getInjuryImpact(supabase: any, team: string, playerName: string) 
 }
 
 function calculateConfidence(history: any): number {
-  // Confidence based on sample size and consistency
+  // Enhanced confidence calculation using ESPN data
   const sampleSize = history.sampleSize;
-  const consistency = history.seasonAvg > 0 ? Math.abs(history.last5Avg - history.seasonAvg) / history.seasonAvg : 1;
+  const consistency = history.consistency || 0;
 
-  let confidence = 50; // Base confidence
+  let confidence = 40; // Base confidence
 
-  // Increase confidence with more data
-  if (sampleSize >= 10) confidence += 20;
+  // Increase confidence with more data (ESPN provides more historical games)
+  if (sampleSize >= 20) confidence += 30;
+  else if (sampleSize >= 15) confidence += 25;
+  else if (sampleSize >= 10) confidence += 20;
   else if (sampleSize >= 5) confidence += 10;
 
-  // Increase confidence with consistency
-  if (consistency < 0.1) confidence += 20;
-  else if (consistency < 0.2) confidence += 10;
+  // Increase confidence with consistency (ESPN data allows better variance calculation)
+  if (consistency >= 0.8) confidence += 20; // Very consistent
+  else if (consistency >= 0.7) confidence += 15;
+  else if (consistency >= 0.6) confidence += 10;
+  else if (consistency >= 0.5) confidence += 5;
 
-  // Adjust for trend
+  // Adjust for trend clarity
   if (history.trend === 'improving' || history.trend === 'declining') {
     confidence += 5; // Clearer trends are easier to predict
   }
 
-  return Math.min(100, confidence);
+  // Bonus for having opponent-specific data
+  if (history.vsOpponentAvg !== history.seasonAvg) {
+    confidence += 5; // We have actual vs-opponent history
+  }
+
+  return Math.min(95, confidence); // Cap at 95% (never 100% certain)
 }
 
 function calculatePropEdge(
