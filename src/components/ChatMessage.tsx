@@ -52,7 +52,7 @@ export const ChatMessage = memo(({
         {/* Role Label */}
         <div className="mb-1 px-1">
           <span className="text-xs font-medium text-muted-foreground">
-            {isUser ? "You" : "BetGPT"}
+            {isUser ? "You" : "Qauntara"}
           </span>
         </div>
 
