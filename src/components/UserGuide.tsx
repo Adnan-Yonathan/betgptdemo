@@ -338,6 +338,12 @@ export const UserGuide = ({ open, onOpenChange }: UserGuideProps) => {
                     <li><strong>Set bankroll limits</strong> - Never exceed your preset betting budget</li>
                     <li><strong>Update probabilities</strong> - As new information emerges, reassess</li>
                   </ol>
+                  <Alert className="mt-4">
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Optimal Timing:</strong> Responses are most accurate near game time. For best results, ask for analysis approximately 60 minutes before game time when line shifts, late injuries, and EV values have stabilized.
+                    </AlertDescription>
+                  </Alert>
                 </div>
 
                 <div>
