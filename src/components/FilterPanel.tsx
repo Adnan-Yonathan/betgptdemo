@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Filter, X } from "lucide-react";
 
@@ -9,28 +10,26 @@ interface FilterPanelProps {
   onFilterChange: (filters: GameFilters) => void;
   isExpanded: boolean;
   onToggle: () => void;
-  currentFilters?: GameFilters;
 }
 
 export interface GameFilters {
   sport: string;
   dateRange: string;
+  betType: string;
+  minEdge: number;
+  minConfidence: number;
   sortBy: string;
 }
 
-export const FilterPanel = ({ onFilterChange, isExpanded, onToggle, currentFilters }: FilterPanelProps) => {
+export const FilterPanel = ({ onFilterChange, isExpanded, onToggle }: FilterPanelProps) => {
   const [filters, setFilters] = useState<GameFilters>({
     sport: "all",
     dateRange: "today",
+    betType: "all",
+    minEdge: 0,
+    minConfidence: 0,
     sortBy: "edge_desc"
   });
-
-  // Sync with parent filters when they change
-  useEffect(() => {
-    if (currentFilters) {
-      setFilters(currentFilters);
-    }
-  }, [currentFilters]);
 
   const handleFilterChange = (key: keyof GameFilters, value: string | number) => {
     const newFilters = { ...filters, [key]: value };
@@ -42,6 +41,9 @@ export const FilterPanel = ({ onFilterChange, isExpanded, onToggle, currentFilte
     const defaultFilters: GameFilters = {
       sport: "all",
       dateRange: "today",
+      betType: "all",
+      minEdge: 0,
+      minConfidence: 0,
       sortBy: "edge_desc"
     };
     setFilters(defaultFilters);
@@ -78,7 +80,7 @@ export const FilterPanel = ({ onFilterChange, isExpanded, onToggle, currentFilte
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Sport Filter */}
           <div className="space-y-2">
             <Label htmlFor="sport-filter">Sport</Label>
@@ -91,14 +93,11 @@ export const FilterPanel = ({ onFilterChange, isExpanded, onToggle, currentFilte
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Sports</SelectItem>
-                <SelectItem value="americanfootball_nfl">🏈 NFL</SelectItem>
-                <SelectItem value="americanfootball_ncaaf">🏈 College Football (NCAAF)</SelectItem>
-                <SelectItem value="basketball_nba">🏀 NBA</SelectItem>
-                <SelectItem value="basketball_wnba">🏀 WNBA</SelectItem>
-                <SelectItem value="basketball_ncaamb">🏀 College Basketball (NCAAMB)</SelectItem>
-                <SelectItem value="baseball_mlb">⚾ MLB</SelectItem>
-                <SelectItem value="icehockey_nhl">🏒 NHL</SelectItem>
-                <SelectItem value="soccer_usa_mls">⚽ MLS</SelectItem>
+                <SelectItem value="americanfootball_nfl">NFL</SelectItem>
+                <SelectItem value="basketball_nba">NBA</SelectItem>
+                <SelectItem value="baseball_mlb">MLB</SelectItem>
+                <SelectItem value="icehockey_nhl">NHL</SelectItem>
+                <SelectItem value="soccer_usa_mls">MLS</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -121,6 +120,55 @@ export const FilterPanel = ({ onFilterChange, isExpanded, onToggle, currentFilte
               </SelectContent>
             </Select>
           </div>
+
+          {/* Bet Type Filter */}
+          <div className="space-y-2">
+            <Label htmlFor="bet-type-filter">Bet Type</Label>
+            <Select
+              value={filters.betType}
+              onValueChange={(value) => handleFilterChange("betType", value)}
+            >
+              <SelectTrigger id="bet-type-filter">
+                <SelectValue placeholder="All Types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="h2h">Moneyline</SelectItem>
+                <SelectItem value="spreads">Spread</SelectItem>
+                <SelectItem value="totals">Over/Under</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Minimum Edge Slider */}
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <Label>Minimum Edge</Label>
+            <span className="text-sm text-muted-foreground">{filters.minEdge}%</span>
+          </div>
+          <Slider
+            value={[filters.minEdge]}
+            onValueChange={(value) => handleFilterChange("minEdge", value[0])}
+            max={20}
+            step={1}
+            className="w-full"
+          />
+        </div>
+
+        {/* Minimum Confidence Slider */}
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <Label>Minimum Confidence</Label>
+            <span className="text-sm text-muted-foreground">{filters.minConfidence}%</span>
+          </div>
+          <Slider
+            value={[filters.minConfidence]}
+            onValueChange={(value) => handleFilterChange("minConfidence", value[0])}
+            max={100}
+            step={5}
+            className="w-full"
+          />
         </div>
 
         {/* Sort By */}
@@ -131,11 +179,12 @@ export const FilterPanel = ({ onFilterChange, isExpanded, onToggle, currentFilte
             onValueChange={(value) => handleFilterChange("sortBy", value)}
           >
             <SelectTrigger id="sort-filter">
-              <SelectValue placeholder="Sort by EV (High to Low)" />
+              <SelectValue placeholder="Sort by Edge (High to Low)" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="edge_desc">EV (High to Low)</SelectItem>
-              <SelectItem value="edge_asc">EV (Low to High)</SelectItem>
+              <SelectItem value="edge_desc">Edge (High to Low)</SelectItem>
+              <SelectItem value="edge_asc">Edge (Low to High)</SelectItem>
+              <SelectItem value="confidence_desc">Confidence (High to Low)</SelectItem>
               <SelectItem value="time_asc">Game Time (Earliest First)</SelectItem>
               <SelectItem value="time_desc">Game Time (Latest First)</SelectItem>
             </SelectContent>

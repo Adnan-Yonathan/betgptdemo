@@ -36,10 +36,8 @@ interface GameData {
   };
   ai_recommendation?: {
     pick: string;
-    ev: number;
-    edge: number; // Keep for backward compatibility
-    win_probability?: number;
-    odds?: number;
+    confidence: number;
+    edge: number;
     reasoning: string[];
   };
   schedule_factors?: {
@@ -69,35 +67,28 @@ export const GameCard = ({ game }: GameCardProps) => {
     }
   };
 
-  const getEVBadge = (ev?: number) => {
-    if (ev === undefined || ev === null) return null;
+  const getConfidenceBadge = (confidence?: number) => {
+    if (!confidence) return null;
 
-    if (ev >= 5) {
+    if (confidence >= 75) {
       return (
         <div className="flex items-center gap-1 text-green-600">
           <TrendingUp className="w-4 h-4" />
-          <span className="text-sm font-medium">+{ev.toFixed(1)}% EV</span>
+          <span className="text-sm font-medium">{confidence}% Confident</span>
         </div>
       );
-    } else if (ev >= 2) {
-      return (
-        <div className="flex items-center gap-1 text-green-500">
-          <TrendingUp className="w-4 h-4" />
-          <span className="text-sm font-medium">+{ev.toFixed(1)}% EV</span>
-        </div>
-      );
-    } else if (ev >= 0) {
+    } else if (confidence >= 50) {
       return (
         <div className="flex items-center gap-1 text-yellow-600">
           <Activity className="w-4 h-4" />
-          <span className="text-sm font-medium">+{ev.toFixed(1)}% EV</span>
+          <span className="text-sm font-medium">{confidence}% Confident</span>
         </div>
       );
     } else {
       return (
         <div className="flex items-center gap-1 text-muted-foreground">
           <TrendingDown className="w-4 h-4" />
-          <span className="text-sm font-medium">{ev.toFixed(1)}% EV</span>
+          <span className="text-sm font-medium">{confidence}% Confident</span>
         </div>
       );
     }
@@ -106,10 +97,10 @@ export const GameCard = ({ game }: GameCardProps) => {
   const getSportIcon = (league: string) => {
     const sportEmojis: Record<string, string> = {
       NFL: "🏈",
-      NCAAF: "🏈",
-      NHL: "🏒",
       NBA: "🏀",
-      MLB: "⚾"
+      MLB: "⚾",
+      NHL: "🏒",
+      MLS: "⚽"
     };
     return sportEmojis[league] || "🎯";
   };
@@ -164,7 +155,7 @@ export const GameCard = ({ game }: GameCardProps) => {
             </CardDescription>
           </div>
           <div className="text-right">
-            {game.ai_recommendation && getEVBadge(game.ai_recommendation.ev)}
+            {game.ai_recommendation && getConfidenceBadge(game.ai_recommendation.confidence)}
           </div>
         </div>
       </CardHeader>
@@ -175,7 +166,7 @@ export const GameCard = ({ game }: GameCardProps) => {
           <div className="bg-muted/50 rounded-lg p-4 space-y-2">
             <div className="flex items-center justify-between">
               <h4 className="font-semibold text-sm">AI Recommended Bet</h4>
-              {getEdgeBadge(game.ai_recommendation.ev)}
+              {getEdgeBadge(game.ai_recommendation.edge)}
             </div>
             <p className="text-lg font-bold">{game.ai_recommendation.pick}</p>
             {game.ai_recommendation.reasoning && game.ai_recommendation.reasoning.length > 0 && (
