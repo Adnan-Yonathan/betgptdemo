@@ -164,7 +164,7 @@ export const GameCard = ({ game }: GameCardProps) => {
             </CardDescription>
           </div>
           <div className="text-right">
-            {game.ai_recommendation && getEVBadge(game.ai_recommendation.edge)}
+            {game.ai_recommendation && getEVBadge(game.ai_recommendation.ev)}
           </div>
         </div>
       </CardHeader>
@@ -175,7 +175,7 @@ export const GameCard = ({ game }: GameCardProps) => {
           <div className="bg-muted/50 rounded-lg p-4 space-y-2">
             <div className="flex items-center justify-between">
               <h4 className="font-semibold text-sm">AI Recommended Bet</h4>
-              {getEdgeBadge(game.ai_recommendation.edge)}
+              {getEdgeBadge(game.ai_recommendation.ev)}
             </div>
             <p className="text-lg font-bold">{game.ai_recommendation.pick}</p>
             {game.ai_recommendation.reasoning && game.ai_recommendation.reasoning.length > 0 && (

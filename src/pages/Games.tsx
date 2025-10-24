@@ -209,6 +209,7 @@ const Games = () => {
           onFilterChange={handleFilterChange}
           isExpanded={isFilterExpanded}
           onToggle={() => setIsFilterExpanded(!isFilterExpanded)}
+          currentFilters={filters}
         />
 
         {/* Stats Summary */}
