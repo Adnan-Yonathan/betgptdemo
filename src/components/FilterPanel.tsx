@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,6 +9,7 @@ interface FilterPanelProps {
   onFilterChange: (filters: GameFilters) => void;
   isExpanded: boolean;
   onToggle: () => void;
+  currentFilters?: GameFilters;
 }
 
 export interface GameFilters {
@@ -17,12 +18,19 @@ export interface GameFilters {
   sortBy: string;
 }
 
-export const FilterPanel = ({ onFilterChange, isExpanded, onToggle }: FilterPanelProps) => {
+export const FilterPanel = ({ onFilterChange, isExpanded, onToggle, currentFilters }: FilterPanelProps) => {
   const [filters, setFilters] = useState<GameFilters>({
     sport: "all",
     dateRange: "today",
     sortBy: "edge_desc"
   });
+
+  // Sync with parent filters when they change
+  useEffect(() => {
+    if (currentFilters) {
+      setFilters(currentFilters);
+    }
+  }, [currentFilters]);
 
   const handleFilterChange = (key: keyof GameFilters, value: string | number) => {
     const newFilters = { ...filters, [key]: value };

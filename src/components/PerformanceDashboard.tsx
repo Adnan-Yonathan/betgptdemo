@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { TrendingUp, TrendingDown, AlertCircle, Award, BarChart3 } from 'lucide-react';
 
 interface Analytics {
@@ -37,6 +38,7 @@ export function PerformanceDashboard() {
   const [groupBy, setGroupBy] = useState<'sport' | 'bet_type' | 'team'>('sport');
   const [timeRange, setTimeRange] = useState<'all' | 'last_7_days' | 'last_30_days'>('last_30_days');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAnalytics();
@@ -45,6 +47,7 @@ export function PerformanceDashboard() {
   async function fetchAnalytics() {
     try {
       setLoading(true);
+      setError(null);
       const { data, error } = await supabase.functions.invoke('performance-analytics', {
         body: { groupBy, timeRange }
       });
@@ -55,6 +58,7 @@ export function PerformanceDashboard() {
       }
     } catch (error) {
       console.error('Error fetching analytics:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load analytics');
     } finally {
       setLoading(false);
     }
@@ -62,6 +66,27 @@ export function PerformanceDashboard() {
 
   if (loading) {
     return <div className="p-4">Loading performance analytics...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="p-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="h-5 w-5" />
+              Error Loading Analytics
+            </CardTitle>
+            <CardDescription>{error}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={fetchAnalytics} variant="outline">
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   if (!analytics) {
