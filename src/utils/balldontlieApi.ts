@@ -479,6 +479,13 @@ export function convertBDLGameToESPN(
   game: BallDontLieGame,
   stats: BallDontLieStats[]
 ): ESPNGameData {
+  // Filter stats to only include players from the home or away team
+  const filteredStats = stats.filter(
+    (stat) =>
+      stat.team.id === game.home_team.id ||
+      stat.team.id === game.visitor_team.id
+  );
+
   return {
     event_id: String(game.id),
     game_date: game.date,
@@ -487,7 +494,7 @@ export function convertBDLGameToESPN(
     home_score: game.home_team_score,
     away_score: game.visitor_team_score,
     status: game.status,
-    players: stats.map(convertBDLToESPNFormat),
+    players: filteredStats.map(convertBDLToESPNFormat),
   };
 }
 
