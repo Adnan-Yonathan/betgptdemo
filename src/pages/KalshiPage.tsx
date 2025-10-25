@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { KalshiMarketBrowser } from '@/components/KalshiMarketBrowser';
 import { KalshiPortfolioDashboard } from '@/components/KalshiPortfolioDashboard';
+import { KalshiSetupCheck } from '@/components/KalshiSetupCheck';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TrendingUp, Wallet, AlertCircle, ArrowLeft } from 'lucide-react';
@@ -67,6 +68,9 @@ const KalshiPage = () => {
 
           <TabsContent value="markets" className="mt-6">
             <div className="grid gap-6">
+              {/* Setup Check - shows warning if not configured */}
+              <KalshiSetupCheck />
+
               {/* Info Banner */}
               <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                 <div className="flex items-start gap-3">
