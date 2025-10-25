@@ -196,7 +196,7 @@ async function getPlayerHistory(supabase: any, playerName: string, propType: str
   const trend = last5Avg > seasonAvg * 1.1 ? 'improving' : last5Avg < seasonAvg * 0.9 ? 'declining' : 'neutral';
 
   // Calculate consistency (lower variance = more consistent)
-  const variance = values.reduce((sum, val) => sum + Math.pow(val - seasonAvg, 2), 0) / values.length;
+  const variance = values.reduce((sum: number, val: number) => sum + Math.pow(val - seasonAvg, 2), 0) / values.length;
   const consistency = seasonAvg > 0 ? 1 - Math.min(Math.sqrt(variance) / seasonAvg, 1) : 0;
 
   return {

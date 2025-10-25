@@ -67,7 +67,7 @@ serve(async (req) => {
  * Line moves opposite to public betting percentage
  */
 async function detectReverseLineMovement(supabase: any) {
-  const signals = [];
+  const signals: any[] = [];
 
   // Get recent line movements
   const { data: movements } = await supabase
@@ -86,7 +86,7 @@ async function detectReverseLineMovement(supabase: any) {
     if (!groupedMovements.has(key)) {
       groupedMovements.set(key, []);
     }
-    groupedMovements.get(key).push(movement);
+    groupedMovements.get(key)!.push(movement);
   }
 
   // Analyze each event for RLM
@@ -151,7 +151,7 @@ async function detectReverseLineMovement(supabase: any) {
  * Rapid line movement across multiple bookmakers
  */
 async function detectSteamMoves(supabase: any) {
-  const signals = [];
+  const signals: any[] = [];
 
   // Get odds from last 15 minutes
   const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
@@ -172,7 +172,7 @@ async function detectSteamMoves(supabase: any) {
     if (!groupedOdds.has(key)) {
       groupedOdds.set(key, []);
     }
-    groupedOdds.get(key).push(odds);
+    groupedOdds.get(key)!.push(odds);
   }
 
   // Detect steam (3+ books moving in 15 minutes)
@@ -215,7 +215,7 @@ async function detectSteamMoves(supabase: any) {
  * When known sharp books (Pinnacle, etc.) agree on a line
  */
 async function detectSharpBookConsensus(supabase: any) {
-  const signals = [];
+  const signals: any[] = [];
 
   const SHARP_BOOKS = ['Pinnacle', 'CRIS', 'Circa Sports', '5Dimes'];
 
@@ -237,7 +237,7 @@ async function detectSharpBookConsensus(supabase: any) {
     if (!groupedOdds.has(key)) {
       groupedOdds.set(key, []);
     }
-    groupedOdds.get(key).push(odd);
+    groupedOdds.get(key)!.push(odd);
   }
 
   // Check for consensus among sharp books

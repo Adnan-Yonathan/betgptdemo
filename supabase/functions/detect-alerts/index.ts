@@ -62,7 +62,7 @@ serve(async (req) => {
  * Detect significant line movements (steam moves and reverse line movement)
  */
 async function detectLineMovementAlerts(supabase: any) {
-  const alerts = [];
+  const alerts: any[] = [];
 
   // Get recent betting odds with opening lines
   const { data: recentOdds } = await supabase
@@ -166,7 +166,7 @@ async function detectLineMovementAlerts(supabase: any) {
  * Detect steam moves (rapid line movement across multiple books)
  */
 async function detectSteamMoves(supabase: any) {
-  const alerts = [];
+  const alerts: any[] = [];
 
   // Get odds updated in last 10 minutes
   const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
@@ -187,7 +187,7 @@ async function detectSteamMoves(supabase: any) {
     if (!eventMarkets.has(key)) {
       eventMarkets.set(key, []);
     }
-    eventMarkets.get(key).push(odds);
+    eventMarkets.get(key)!.push(odds);
   }
 
   // Check for steam (3+ books moving in same 10-minute window)
@@ -236,7 +236,7 @@ async function detectSteamMoves(supabase: any) {
  * Detect EV discrepancies (model predictions vs market odds)
  */
 async function detectEVDiscrepancies(supabase: any) {
-  const alerts = [];
+  const alerts: any[] = [];
 
   // Get model predictions with high edge
   const { data: predictions } = await supabase
@@ -280,7 +280,7 @@ async function detectEVDiscrepancies(supabase: any) {
  * Detect closing line alerts (games closing soon with edge)
  */
 async function detectClosingLineAlerts(supabase: any) {
-  const alerts = [];
+  const alerts: any[] = [];
 
   // Get games starting in next 1-3 hours with model edge
   const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000).toISOString();
@@ -328,7 +328,7 @@ async function detectClosingLineAlerts(supabase: any) {
  * Detect injury alerts (key players out/doubtful)
  */
 async function detectInjuryAlerts(supabase: any) {
-  const alerts = [];
+  const alerts: any[] = [];
 
   // Get high-impact injuries from last 24 hours
   const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -384,7 +384,7 @@ async function detectInjuryAlerts(supabase: any) {
  * Detect best line alerts (significant odds differences across books)
  */
 async function detectBestLineAlerts(supabase: any) {
-  const alerts = [];
+  const alerts: any[] = [];
 
   // Get recent odds
   const { data: odds } = await supabase
@@ -403,7 +403,7 @@ async function detectBestLineAlerts(supabase: any) {
     if (!groupedOdds.has(key)) {
       groupedOdds.set(key, []);
     }
-    groupedOdds.get(key).push(odd);
+    groupedOdds.get(key)!.push(odd);
   }
 
   // Find significant differences

@@ -40,7 +40,7 @@ serve(async (req) => {
       console.log(`[run-daily-predictions] NFL: Generated ${results.nfl.count} predictions`);
     } catch (error) {
       console.error("[run-daily-predictions] NFL Error:", error);
-      results.nfl.error = error.message;
+      results.nfl.error = error instanceof Error ? error.message : String(error);
     }
 
     // Run NBA predictions
@@ -55,7 +55,7 @@ serve(async (req) => {
       console.log(`[run-daily-predictions] NBA: Generated ${results.nba.count} predictions`);
     } catch (error) {
       console.error("[run-daily-predictions] NBA Error:", error);
-      results.nba.error = error.message;
+      results.nba.error = error instanceof Error ? error.message : String(error);
     }
 
     // Run MLB predictions
@@ -70,7 +70,7 @@ serve(async (req) => {
       console.log(`[run-daily-predictions] MLB: Generated ${results.mlb.count} predictions`);
     } catch (error) {
       console.error("[run-daily-predictions] MLB Error:", error);
-      results.mlb.error = error.message;
+      results.mlb.error = error instanceof Error ? error.message : String(error);
     }
 
     // Run player props predictions
@@ -85,7 +85,7 @@ serve(async (req) => {
       console.log(`[run-daily-predictions] Player Props: Generated ${results.playerProps.count} predictions`);
     } catch (error) {
       console.error("[run-daily-predictions] Player Props Error:", error);
-      results.playerProps.error = error.message;
+      results.playerProps.error = error instanceof Error ? error.message : String(error);
     }
 
     // Run sharp money detection
@@ -100,7 +100,7 @@ serve(async (req) => {
       console.log(`[run-daily-predictions] Sharp Money: Detected ${results.sharpMoney.count} signals`);
     } catch (error) {
       console.error("[run-daily-predictions] Sharp Money Error:", error);
-      results.sharpMoney.error = error.message;
+      results.sharpMoney.error = error instanceof Error ? error.message : String(error);
     }
 
     // Run alert detection
@@ -115,7 +115,7 @@ serve(async (req) => {
       console.log(`[run-daily-predictions] Alerts: Generated ${results.alerts.count} alerts`);
     } catch (error) {
       console.error("[run-daily-predictions] Alerts Error:", error);
-      results.alerts.error = error.message;
+      results.alerts.error = error instanceof Error ? error.message : String(error);
     }
 
     // Calculate totals
@@ -167,7 +167,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message || "Internal server error",
+        error: error instanceof Error ? error.message : "Internal server error",
         timestamp: new Date().toISOString(),
       }),
       {

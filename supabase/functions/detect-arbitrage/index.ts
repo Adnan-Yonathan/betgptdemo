@@ -9,6 +9,7 @@ const corsHeaders = {
 // ============================================================================
 // ARBITRAGE DETECTION
 // ============================================================================
+// Deployment trigger
 
 interface ArbitrageOpportunity {
   type: 'pure_arb' | 'positive_ev' | 'hedge';
