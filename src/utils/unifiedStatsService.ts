@@ -31,6 +31,7 @@ import {
 } from './espnApi';
 
 import { statsCache, CacheKeys, getGameCacheType } from './statsCache';
+import { getTodayEST } from './dateUtils';
 import type { ESPNPlayerStats, ESPNGameData } from '@/types/balldontlie';
 
 // ============================================================================
@@ -227,7 +228,7 @@ export async function getGames(params: {
   const startTime = Date.now();
   const { date, sport = 'basketball_nba', preferredSource = 'auto', userId } = params;
 
-  const targetDate = date || new Date().toISOString().split('T')[0];
+  const targetDate = date || getTodayEST();
   const useBallDontLie =
     preferredSource === 'balldontlie' ||
     (preferredSource === 'auto' && shouldUseBallDontLie(userId));

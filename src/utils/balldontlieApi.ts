@@ -12,6 +12,7 @@
  * - ESPN format conversion for compatibility
  */
 
+import { getTodayEST } from './dateUtils';
 import type {
   BallDontLieTeam,
   BallDontLiePlayer,
@@ -298,10 +299,10 @@ export async function getBallDontLieGamesByDate(
 }
 
 /**
- * Get today's games
+ * Get today's games (using Eastern Time zone)
  */
 export async function getTodaysGames(): Promise<BallDontLieGame[]> {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayEST();
   return getBallDontLieGamesByDate(today);
 }
 

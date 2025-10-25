@@ -5,6 +5,7 @@ import { TrendingUp, TrendingDown, Target, Flame, DollarSign, BarChart3 } from "
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getTodayStartEST } from "@/utils/dateUtils";
 
 interface DashboardStats {
   roi: number;
@@ -106,9 +107,8 @@ export const BettingDashboard = () => {
         }
       }
 
-      // Calculate today's change
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      // Calculate today's change (using Eastern Time zone)
+      const today = getTodayStartEST();
       const todayBets = settledBets.filter((b) => {
         const betDate = new Date(b.settled_at || b.created_at);
         return betDate >= today;

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.75.1';
+import { getNowInEST } from '../_shared/dateUtils.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -33,12 +34,17 @@ serve(async (req) => {
 
     console.log('[MLB_MODEL] Starting MLB predictions...');
 
+    // Get upcoming MLB games (using Eastern Time zone)
+    const todayEST = getNowInEST();
+    const sevenDaysFromNowEST = new Date(todayEST);
+    sevenDaysFromNowEST.setDate(sevenDaysFromNowEST.getDate() + 7);
+
     const { data: upcomingGames } = await supabase
       .from('sports_scores')
       .select('*')
       .eq('league', 'MLB')
-      .gte('date', new Date().toISOString())
-      .lte('date', new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString())
+      .gte('date', todayEST.toISOString())
+      .lte('date', sevenDaysFromNowEST.toISOString())
       .order('date', { ascending: true });
 
     if (!upcomingGames || upcomingGames.length === 0) {

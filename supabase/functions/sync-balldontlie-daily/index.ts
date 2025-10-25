@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.75.1';
+import { getYesterdayEST } from '../_shared/dateUtils.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -66,8 +67,8 @@ Deno.serve(async (req) => {
     // Parse request body
     const { sync_date } = await req.json().catch(() => ({}));
 
-    // Default to yesterday if no date provided
-    const targetDate = sync_date || getYesterday();
+    // Default to yesterday if no date provided (using Eastern Time zone)
+    const targetDate = sync_date || getYesterdayEST();
 
     console.log(`[BALLDONTLIE-SYNC] Starting daily sync for ${targetDate}`);
 
@@ -181,12 +182,6 @@ Deno.serve(async (req) => {
 // ============================================================================
 // UTILITIES
 // ============================================================================
-
-function getYesterday(): string {
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  return yesterday.toISOString().split('T')[0];
-}
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));

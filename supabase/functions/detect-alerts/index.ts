@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.75.1';
+import { getNowInEST } from '../_shared/dateUtils.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -64,11 +65,11 @@ serve(async (req) => {
 async function detectLineMovementAlerts(supabase: any) {
   const alerts: any[] = [];
 
-  // Get recent betting odds with opening lines
+  // Get recent betting odds with opening lines (using Eastern Time zone)
   const { data: recentOdds } = await supabase
     .from('betting_odds')
     .select('*')
-    .gte('commence_time', new Date().toISOString())
+    .gte('commence_time', getNowInEST().toISOString())
     .order('last_update', { ascending: false });
 
   if (!recentOdds) return alerts;
@@ -168,14 +169,15 @@ async function detectLineMovementAlerts(supabase: any) {
 async function detectSteamMoves(supabase: any) {
   const alerts: any[] = [];
 
-  // Get odds updated in last 10 minutes
-  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  // Get odds updated in last 10 minutes (using Eastern Time zone)
+  const nowEST = getNowInEST();
+  const tenMinutesAgo = new Date(nowEST.getTime() - 10 * 60 * 1000).toISOString();
 
   const { data: recentUpdates } = await supabase
     .from('betting_odds')
     .select('*')
     .gte('last_update', tenMinutesAgo)
-    .gte('commence_time', new Date().toISOString());
+    .gte('commence_time', nowEST.toISOString());
 
   if (!recentUpdates || recentUpdates.length === 0) return alerts;
 
@@ -238,13 +240,13 @@ async function detectSteamMoves(supabase: any) {
 async function detectEVDiscrepancies(supabase: any) {
   const alerts: any[] = [];
 
-  // Get model predictions with high edge
+  // Get model predictions with high edge (using Eastern Time zone)
   const { data: predictions } = await supabase
     .from('model_predictions')
     .select('*')
     .gte('edge_percentage', 3)
     .eq('game_completed', false)
-    .gte('game_date', new Date().toISOString())
+    .gte('game_date', getNowInEST().toISOString())
     .order('edge_percentage', { ascending: false })
     .limit(50);
 
@@ -282,9 +284,10 @@ async function detectEVDiscrepancies(supabase: any) {
 async function detectClosingLineAlerts(supabase: any) {
   const alerts: any[] = [];
 
-  // Get games starting in next 1-3 hours with model edge
-  const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-  const threeHoursFromNow = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
+  // Get games starting in next 1-3 hours with model edge (using Eastern Time zone)
+  const nowEST = getNowInEST();
+  const oneHourFromNow = new Date(nowEST.getTime() + 60 * 60 * 1000).toISOString();
+  const threeHoursFromNow = new Date(nowEST.getTime() + 3 * 60 * 60 * 1000).toISOString();
 
   const { data: predictions } = await supabase
     .from('model_predictions')
@@ -330,8 +333,9 @@ async function detectClosingLineAlerts(supabase: any) {
 async function detectInjuryAlerts(supabase: any) {
   const alerts: any[] = [];
 
-  // Get high-impact injuries from last 24 hours
-  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  // Get high-impact injuries from last 24 hours (using Eastern Time zone)
+  const nowEST = getNowInEST();
+  const yesterday = new Date(nowEST.getTime() - 24 * 60 * 60 * 1000).toISOString();
 
   const { data: injuries } = await supabase
     .from('injury_reports')
@@ -348,7 +352,7 @@ async function detectInjuryAlerts(supabase: any) {
       .from('sports_scores')
       .select('*')
       .or(`home_team.eq.${injury.team},away_team.eq.${injury.team}`)
-      .gte('date', new Date().toISOString())
+      .gte('date', getNowInEST().toISOString())
       .limit(1);
 
     if (upcomingGames && upcomingGames.length > 0) {
@@ -386,12 +390,15 @@ async function detectInjuryAlerts(supabase: any) {
 async function detectBestLineAlerts(supabase: any) {
   const alerts: any[] = [];
 
-  // Get recent odds
+  // Get recent odds (using Eastern Time zone)
+  const nowEST = getNowInEST();
+  const sevenDaysFromNowEST = new Date(nowEST.getTime() + 7 * 24 * 60 * 60 * 1000);
+
   const { data: odds } = await supabase
     .from('betting_odds')
     .select('*')
-    .gte('commence_time', new Date().toISOString())
-    .lte('commence_time', new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString());
+    .gte('commence_time', nowEST.toISOString())
+    .lte('commence_time', sevenDaysFromNowEST.toISOString());
 
   if (!odds) return alerts;
 
