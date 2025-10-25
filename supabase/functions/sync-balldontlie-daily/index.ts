@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
     // Fetch games for the target date
     const gamesResponse = await fetchFromBallDontLie('/games', {
       dates: [targetDate],
-      per_page: 100,
+      per_page: 250,
     });
 
     const games = gamesResponse.data || [];
@@ -126,8 +126,7 @@ Deno.serve(async (req) => {
           stored_count: statsResult.stored_count,
         });
 
-        // Small delay to avoid rate limiting
-        await sleep(500);
+        // Rate limiting removed for faster syncing
       } catch (error) {
         failureCount++;
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';

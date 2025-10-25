@@ -261,7 +261,7 @@ export interface BallDontLieConfig {
 
 export const DEFAULT_CONFIG: Partial<BallDontLieConfig> = {
   baseUrl: 'https://api.balldontlie.io/v1',
-  timeout: 10000,
-  retries: 3,
-  retryDelay: 1000,
+  timeout: 30000,
+  retries: 10,
+  retryDelay: 500,
 };

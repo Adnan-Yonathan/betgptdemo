@@ -183,8 +183,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Small delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Rate limiting removed for faster syncing
     }
 
     console.log(`Sync complete: ${successCount} successful, ${failureCount} failed`);
