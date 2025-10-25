@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Kalshi credentials and keys (sensitive)
+KALSHI_KEY_TEMP.txt
+paste-key-here.txt
+*.pem
+kalshi-private-key*
