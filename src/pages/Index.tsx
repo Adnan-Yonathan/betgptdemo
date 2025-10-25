@@ -14,6 +14,9 @@ import { playAudioFromBase64 } from "@/utils/voiceUtils";
 import { Volume2, VolumeX, BookOpen, LineChart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserGuide } from "@/components/UserGuide";
+import { LiveScoresTerminal } from "@/components/LiveScoresTerminal";
+import { useBetTracking } from "@/contexts/BetTrackingContext";
+import { parseBetFromMessage } from "@/utils/betParser";
 interface Message {
   id: string;
   role: "user" | "assistant";
@@ -43,6 +46,7 @@ const Index = () => {
   const {
     user
   } = useAuth();
+  const { addTrackedBet } = useBetTracking();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -158,6 +162,22 @@ const Index = () => {
     setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
     setStreamingMessageId(null);
+
+    // Check if this message contains a bet and track the game
+    const parsedBet = parseBetFromMessage(content);
+    if (parsedBet && parsedBet.team) {
+      // Extract team name from the bet
+      const teamName = parsedBet.team.trim();
+
+      // For now, we'll need to infer the matchup - in a real scenario,
+      // you'd want to query your odds/games database to find the full matchup
+      addTrackedBet({
+        team: teamName,
+        homeTeam: teamName, // Simplified - in production, fetch actual matchup
+        awayTeam: '', // Will be matched in the terminal component
+        timestamp: Date.now(),
+      });
+    }
 
     // Save to database if user is logged in
     if (user) {
@@ -286,8 +306,11 @@ const Index = () => {
   };
   return <div className="flex h-screen bg-background">
       <ChatSidebar currentConversationId={currentConversationId} onConversationSelect={loadConversation} onNewChat={handleNewChat} />
-      
+
       <main className="flex-1 flex flex-col">
+        {/* Live Scores Terminal */}
+        <LiveScoresTerminal />
+
         {/* Chat Header */}
         <header className="border-b border-border px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
