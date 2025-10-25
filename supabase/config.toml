@@ -20,3 +20,18 @@ verify_jwt = false
 
 [functions.auto-monitor-bets]
 verify_jwt = false
+
+[functions.test-kalshi-connection]
+verify_jwt = false
+
+[functions.fetch-kalshi-markets]
+verify_jwt = false
+
+[functions.analyze-kalshi-market]
+verify_jwt = false
+
+[functions.detect-arbitrage]
+verify_jwt = false
+
+[functions.monitor-kalshi-alerts]
+verify_jwt = false
