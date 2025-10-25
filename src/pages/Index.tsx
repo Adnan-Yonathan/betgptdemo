@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { playAudioFromBase64 } from "@/utils/voiceUtils";
-import { Volume2, VolumeX, BarChart3, BookOpen, LineChart } from "lucide-react";
+import { Volume2, VolumeX, BookOpen, LineChart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserGuide } from "@/components/UserGuide";
 interface Message {
