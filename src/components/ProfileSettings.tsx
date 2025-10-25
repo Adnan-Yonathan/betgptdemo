@@ -21,8 +21,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Moon, Sun } from "lucide-react";
-import { BettingDashboard } from "./BettingDashboard";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface ProfileSettingsProps {
   open: boolean;
@@ -110,94 +108,83 @@ export const ProfileSettings = ({ open, onOpenChange }: ProfileSettingsProps) =>
         <DialogHeader>
           <DialogTitle>Betting Profile</DialogTitle>
           <DialogDescription>
-            Track your performance and configure preferences.
+            Configure your betting preferences.
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="dashboard" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
-          </TabsList>
+        <div className="space-y-6 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="bankroll">Bankroll</Label>
+            <Input
+              id="bankroll"
+              type="number"
+              min="0"
+              step="0.01"
+              value={bankroll}
+              onChange={(e) => setBankroll(e.target.value)}
+              placeholder="Enter your bankroll"
+            />
+            <p className="text-xs text-muted-foreground">
+              Your initial bankroll amount for betting calculations
+            </p>
+          </div>
 
-          <TabsContent value="dashboard" className="space-y-4 py-4">
-            <BettingDashboard />
-          </TabsContent>
-
-          <TabsContent value="settings" className="space-y-6 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="bankroll">Bankroll</Label>
-              <Input
-                id="bankroll"
-                type="number"
-                min="0"
-                step="0.01"
-                value={bankroll}
-                onChange={(e) => setBankroll(e.target.value)}
-                placeholder="Enter your bankroll"
-              />
-              <p className="text-xs text-muted-foreground">
-                Your initial bankroll amount for betting calculations
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Theme</Label>
-              <div className="flex gap-2">
-                <Button
-                  variant={theme === "light" ? "default" : "outline"}
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => setTheme("light")}
-                >
-                  <Sun className="h-4 w-4 mr-2" />
-                  Light
-                </Button>
-                <Button
-                  variant={theme === "dark" ? "default" : "outline"}
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => setTheme("dark")}
-                >
-                  <Moon className="h-4 w-4 mr-2" />
-                  Dark
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="riskTolerance">Risk Tolerance</Label>
-              <Select value={riskTolerance} onValueChange={setRiskTolerance}>
-                <SelectTrigger id="riskTolerance">
-                  <SelectValue placeholder="Select risk level" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="conservative">
-                    Conservative - Play it safe
-                  </SelectItem>
-                  <SelectItem value="moderate">
-                    Moderate - Balanced approach
-                  </SelectItem>
-                  <SelectItem value="aggressive">
-                    Aggressive - High risk, high reward
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                How much risk you're comfortable with
-              </p>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-4">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
+          <div className="space-y-2">
+            <Label>Theme</Label>
+            <div className="flex gap-2">
+              <Button
+                variant={theme === "light" ? "default" : "outline"}
+                size="sm"
+                className="flex-1"
+                onClick={() => setTheme("light")}
+              >
+                <Sun className="h-4 w-4 mr-2" />
+                Light
               </Button>
-              <Button onClick={handleSave} disabled={loading}>
-                {loading ? "Saving..." : "Save Changes"}
+              <Button
+                variant={theme === "dark" ? "default" : "outline"}
+                size="sm"
+                className="flex-1"
+                onClick={() => setTheme("dark")}
+              >
+                <Moon className="h-4 w-4 mr-2" />
+                Dark
               </Button>
             </div>
-          </TabsContent>
-        </Tabs>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="riskTolerance">Risk Tolerance</Label>
+            <Select value={riskTolerance} onValueChange={setRiskTolerance}>
+              <SelectTrigger id="riskTolerance">
+                <SelectValue placeholder="Select risk level" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="conservative">
+                  Conservative - Play it safe
+                </SelectItem>
+                <SelectItem value="moderate">
+                  Moderate - Balanced approach
+                </SelectItem>
+                <SelectItem value="aggressive">
+                  Aggressive - High risk, high reward
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              How much risk you're comfortable with
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={loading}>
+              {loading ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
