@@ -24,7 +24,7 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 const initialMessages: Message[] = [{
   id: "1",
   role: "assistant",
-  content: "Welcome to Qauntara - your sports quantitative analysis platform.\n\nI'm your AI sports betting analyst. Here's what you can do:\n\n• Chat with me to analyze games across NFL, NBA, MLB, NHL, and College Football\n• View the Game Insights dashboard for real-time odds and EV calculations\n• Manage your betting profile and track your bankroll\n• Use the Kelly Criterion calculator for optimal bet sizing\n• Monitor your performance with advanced metrics (ROI, CLV, Sharpe Ratio)\n• Compare odds and identify +EV opportunities across sportsbooks\n\nAsk me about any game or matchup to get started!",
+  content: "Welcome to Qauntara - your sports quantitative analysis platform.\n\nI'm your AI sports betting analyst. Here's what you can do:\n\n• Chat with me to analyze games across NFL, NBA, MLB, NHL, and College Football\n• View the Game Insights dashboard for real-time odds and EV calculations\n• Manage your betting profile and track your bankroll\n• Use the Kelly Criterion calculator for optimal bet sizing\n• Monitor your performance with advanced metrics (ROI, CLV, Sharpe Ratio)\n• Compare odds and identify +EV opportunities across sportsbooks\n\nImportant notes:\n• Queries are most accurate as the game gets closer\n• Player-specific data is not accurate - only team data is reliable\n\nAsk me about any game or matchup to get started!",
   timestamp: "Just now"
 }];
 const Index = () => {
