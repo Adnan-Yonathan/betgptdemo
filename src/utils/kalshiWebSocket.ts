@@ -42,8 +42,8 @@ type ConnectionHandler = () => void;
 export class KalshiWebSocketClient {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 10;
-  private reconnectDelay = 1000; // Start with 1 second
+  private maxReconnectAttempts = 100;
+  private reconnectDelay = 500; // Start with 0.5 seconds
   private maxReconnectDelay = 30000; // Max 30 seconds
   private reconnectTimer: NodeJS.Timeout | null = null;
   private pingInterval: NodeJS.Timeout | null = null;

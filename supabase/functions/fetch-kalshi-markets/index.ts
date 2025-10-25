@@ -207,12 +207,12 @@ async function fetchSportsMarkets(): Promise<any[]> {
     let cursor: string | undefined = undefined;
     let hasMore = true;
     let pageCount = 0;
-    const maxPages = 10; // Prevent infinite loops
+    const maxPages = 100; // Increased limit for more comprehensive fetching
 
     while (hasMore && pageCount < maxPages) {
       const params: Record<string, any> = {
         status: 'open',
-        limit: 200,
+        limit: 500,
       };
 
       if (cursor) {

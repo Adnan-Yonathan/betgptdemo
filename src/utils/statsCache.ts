@@ -24,9 +24,9 @@ import type { CacheEntry, CacheType } from '@/types/balldontlie';
 export const CACHE_TTL: Record<CacheType, number> = {
   teams: 24 * 60 * 60 * 1000,        // 24 hours
   players: 4 * 60 * 60 * 1000,       // 4 hours
-  games_live: 2 * 60 * 1000,         // 2 minutes
+  games_live: 30 * 1000,             // 30 seconds (fresher live data)
   games_final: 24 * 60 * 60 * 1000,  // 24 hours
-  stats: 15 * 60 * 1000,             // 15 minutes
+  stats: 1 * 60 * 1000,              // 1 minute (fresher stats)
   season_avg: 24 * 60 * 60 * 1000,   // 24 hours
 };
 
@@ -36,7 +36,7 @@ export const CACHE_TTL: Record<CacheType, number> = {
 
 export class StatsCache {
   private cache = new Map<string, CacheEntry<any>>();
-  private maxSize = 1000; // Maximum cache entries
+  private maxSize = 5000; // Maximum cache entries (increased for more caching)
   private hits = 0;
   private misses = 0;
 

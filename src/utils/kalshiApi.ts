@@ -258,7 +258,7 @@ async function kalshiFetch<T>(
     body,
     params = {},
     requireAuth = true,
-    retries = 3,
+    retries = 10,
   } = options;
 
   // Build URL with query parameters
@@ -329,7 +329,7 @@ async function kalshiFetch<T>(
 
       // Wait before retry (exponential backoff)
       if (attempt < retries - 1) {
-        const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+        const delay = Math.pow(2, attempt) * 500; // 0.5s, 1s, 2s, 4s, etc.
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -366,7 +366,7 @@ export async function getMarkets(params: GetMarketsParams = {}): Promise<KalshiM
   const response = await kalshiFetch<KalshiMarketsResponse>('/markets', {
     method: 'GET',
     params: {
-      limit: params.limit || 100,
+      limit: params.limit || 500,
       cursor: params.cursor,
       event_ticker: params.event_ticker,
       series_ticker: params.series_ticker,
@@ -425,7 +425,7 @@ export async function getEvent(eventTicker: string): Promise<KalshiEvent> {
 export async function getSportsMarkets(sport?: 'NBA' | 'NFL' | 'MLB' | 'NHL'): Promise<KalshiMarket[]> {
   const params: GetMarketsParams = {
     status: 'open',
-    limit: 200,
+    limit: 500,
   };
 
   // Filter by sport if specified

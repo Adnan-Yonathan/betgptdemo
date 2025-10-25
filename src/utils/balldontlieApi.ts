@@ -40,8 +40,8 @@ import { statsCache, CacheKeys } from './statsCache';
 const API_KEY = import.meta.env.VITE_BALLDONTLIE_API_KEY || import.meta.env.BALLDONTLIE_API_KEY;
 const BASE_URL = 'https://api.balldontlie.io/v1';
 const ENABLE_CACHING = true;
-const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 1000;
+const MAX_RETRIES = 10;
+const RETRY_DELAY_MS = 500;
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -286,7 +286,7 @@ export async function getBallDontLieGamesByDate(
 
   const games = await getBallDontLieGames({
     dates: [date],
-    per_page: 100,
+    per_page: 250,
   });
 
   // Cache the result
@@ -342,7 +342,7 @@ export async function getBallDontLieStatsByDate(
 
   const stats = await getBallDontLieStats({
     dates: [date],
-    per_page: 100,
+    per_page: 250,
   });
 
   // Cache the result
@@ -372,7 +372,7 @@ export async function getBallDontLieGameStats(
 
   const stats = await getBallDontLieStats({
     game_ids: [gameId],
-    per_page: 100,
+    per_page: 250,
   });
 
   // Cache the result
@@ -512,7 +512,7 @@ export async function getBallDontLieGamesRange(
   const games = await getBallDontLieGames({
     start_date: startDate,
     end_date: endDate,
-    per_page: 100,
+    per_page: 250,
   });
 
   return games;
@@ -528,7 +528,7 @@ export async function getBallDontLieMultiplePlayerStats(
   const stats = await getBallDontLieStats({
     player_ids: playerIds,
     dates: [date],
-    per_page: 100,
+    per_page: 250,
   });
 
   return stats;
