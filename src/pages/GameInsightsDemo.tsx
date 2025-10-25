@@ -62,74 +62,11 @@ const GameInsightsDemo = () => {
         return;
       }
 
-      // Fetch predictions with sharp money data
-      console.log("Fetching fresh game insights from database");
-      const { data: predictions, error: predError } = await supabase
-        .from("model_predictions")
-        .select(`
-          *,
-          prediction_models!inner(
-            model_name,
-            is_active
-          )
-        `)
-        .eq("prediction_models.is_active", true)
-        .eq("game_started", false)
-        .gte("game_date", new Date().toISOString())
-        .order("confidence_score", { ascending: false })
-        .limit(5);
-
-      if (predError) {
-        console.error("Error fetching predictions:", predError);
-        throw predError;
-      }
-
-      // Fetch sharp money signals for these games
-      const eventIds = predictions?.map(p => p.event_id) || [];
-      const { data: sharpSignals } = await supabase
-        .from("sharp_money_signals")
-        .select("*")
-        .in("event_id", eventIds);
-
-      // Fetch line movement data
-      const { data: lineHistory } = await supabase
-        .from("line_movement_history")
-        .select("*")
-        .in("event_id", eventIds)
-        .order("recorded_at", { ascending: true });
-
-      // Transform data to GameData format
-      const gameData: GameData[] = (predictions || []).map((pred) => {
-        const sharp = sharpSignals?.find(s => s.event_id === pred.event_id);
-        const lines = lineHistory?.filter(l => l.event_id === pred.event_id) || [];
-        const openingLine = lines[0]?.spread || 0;
-        const currentLine = lines[lines.length - 1]?.spread || openingLine;
-
-        let direction: "up" | "down" | "stable" = "stable";
-        if (currentLine > openingLine + 0.5) direction = "up";
-        else if (currentLine < openingLine - 0.5) direction = "down";
-
-        // Extract injuries from feature values
-        const features = pred.feature_values as Record<string, any> || {};
-        const injuries: string[] = features.injuries || [];
-
-        return {
-          eventId: pred.event_id,
-          homeTeam: pred.home_team,
-          awayTeam: pred.away_team,
-          valuePercent: pred.edge_percentage || 0,
-          sharpMoneyPercent: sharp?.sharp_percentage || 50,
-          lineMovement: {
-            opening: openingLine,
-            current: currentLine,
-            direction,
-          },
-          dataConfidence: pred.confidence_score || 75,
-          injuries,
-          weather: features.weather || "N/A",
-          publicBettingPercent: sharp?.public_percentage || 50,
-        };
-      });
+      // Note: These tables don't exist yet, using empty data for now
+      console.log("Game insights feature requires additional database tables");
+      
+      // TODO: Create model_predictions, sharp_money_signals, line_movement_history tables
+      const gameData: GameData[] = [];
 
       setGames(gameData);
 

@@ -62,7 +62,17 @@ export const LiveGameWithKalshi: React.FC<LiveGameWithKalshiProps> = ({
         .single();
 
       if (error) throw error;
-      if (data) setGameScore(data);
+      if (data) {
+        setGameScore({
+          home_team: data.home_team,
+          away_team: data.away_team,
+          home_score: data.home_score || 0,
+          away_score: data.away_score || 0,
+          status: data.game_status || 'unknown',
+          period: 0, // Not available in sports_scores table
+          game_date: data.game_date,
+        });
+      }
     } catch (error) {
       console.error('Error fetching game score:', error);
     }
@@ -84,7 +94,13 @@ export const LiveGameWithKalshi: React.FC<LiveGameWithKalshiProps> = ({
         .limit(10);
 
       if (error) throw error;
-      setKalshiMarkets(data || []);
+      // Cast fields to proper types
+      const markets = (data || []).map(m => ({
+        ...m,
+        market_type: (m.market_type === 'scalar' ? 'scalar' : 'binary') as 'binary' | 'scalar',
+        status: (m.status === 'closed' || m.status === 'settled' || m.status === 'finalized' ? m.status : 'open') as 'open' | 'closed' | 'settled' | 'finalized'
+      }));
+      setKalshiMarkets(markets);
 
       // Auto-select first market for WebSocket
       if (data && data.length > 0) {

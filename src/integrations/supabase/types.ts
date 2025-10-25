@@ -148,6 +148,279 @@ export type Database = {
         }
         Relationships: []
       }
+      kalshi_fills: {
+        Row: {
+          action: string
+          count: number
+          created_at: string
+          id: string
+          market_ticker: string
+          order_id: string | null
+          price: number
+          side: string
+          total_cost: number
+          trade_id: string | null
+          trade_time: string
+          trade_type: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          count: number
+          created_at?: string
+          id?: string
+          market_ticker: string
+          order_id?: string | null
+          price: number
+          side: string
+          total_cost: number
+          trade_id?: string | null
+          trade_time: string
+          trade_type?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          count?: number
+          created_at?: string
+          id?: string
+          market_ticker?: string
+          order_id?: string | null
+          price?: number
+          side?: string
+          total_cost?: number
+          trade_id?: string | null
+          trade_time?: string
+          trade_type?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      kalshi_markets: {
+        Row: {
+          can_close_early: boolean | null
+          cap_strike: number | null
+          category: string | null
+          close_time: string
+          created_at: string
+          event_ticker: string
+          expected_expiration_time: string | null
+          expiration_time: string
+          floor_strike: number | null
+          id: string
+          last_price: number | null
+          liquidity: number | null
+          market_type: string
+          no_ask: number | null
+          no_bid: number | null
+          open_interest: number | null
+          previous_yes_ask: number | null
+          previous_yes_bid: number | null
+          rules_primary: string | null
+          rules_secondary: string | null
+          series_ticker: string | null
+          sport_key: string | null
+          status: string
+          strike_type: string | null
+          subtitle: string | null
+          synced_at: string | null
+          tags: string[] | null
+          ticker: string
+          title: string
+          updated_at: string
+          volume: number | null
+          volume_24h: number | null
+          yes_ask: number | null
+          yes_bid: number | null
+        }
+        Insert: {
+          can_close_early?: boolean | null
+          cap_strike?: number | null
+          category?: string | null
+          close_time: string
+          created_at?: string
+          event_ticker: string
+          expected_expiration_time?: string | null
+          expiration_time: string
+          floor_strike?: number | null
+          id?: string
+          last_price?: number | null
+          liquidity?: number | null
+          market_type?: string
+          no_ask?: number | null
+          no_bid?: number | null
+          open_interest?: number | null
+          previous_yes_ask?: number | null
+          previous_yes_bid?: number | null
+          rules_primary?: string | null
+          rules_secondary?: string | null
+          series_ticker?: string | null
+          sport_key?: string | null
+          status?: string
+          strike_type?: string | null
+          subtitle?: string | null
+          synced_at?: string | null
+          tags?: string[] | null
+          ticker: string
+          title: string
+          updated_at?: string
+          volume?: number | null
+          volume_24h?: number | null
+          yes_ask?: number | null
+          yes_bid?: number | null
+        }
+        Update: {
+          can_close_early?: boolean | null
+          cap_strike?: number | null
+          category?: string | null
+          close_time?: string
+          created_at?: string
+          event_ticker?: string
+          expected_expiration_time?: string | null
+          expiration_time?: string
+          floor_strike?: number | null
+          id?: string
+          last_price?: number | null
+          liquidity?: number | null
+          market_type?: string
+          no_ask?: number | null
+          no_bid?: number | null
+          open_interest?: number | null
+          previous_yes_ask?: number | null
+          previous_yes_bid?: number | null
+          rules_primary?: string | null
+          rules_secondary?: string | null
+          series_ticker?: string | null
+          sport_key?: string | null
+          status?: string
+          strike_type?: string | null
+          subtitle?: string | null
+          synced_at?: string | null
+          tags?: string[] | null
+          ticker?: string
+          title?: string
+          updated_at?: string
+          volume?: number | null
+          volume_24h?: number | null
+          yes_ask?: number | null
+          yes_bid?: number | null
+        }
+        Relationships: []
+      }
+      kalshi_orders: {
+        Row: {
+          action: string
+          canceled_at: string | null
+          count: number
+          created_at: string
+          executed_at: string | null
+          id: string
+          market_ticker: string
+          no_price: number | null
+          order_id: string | null
+          order_type: string
+          placed_at: string
+          remaining_count: number | null
+          side: string
+          status: string
+          updated_at: string
+          user_id: string
+          yes_price: number | null
+        }
+        Insert: {
+          action: string
+          canceled_at?: string | null
+          count: number
+          created_at?: string
+          executed_at?: string | null
+          id?: string
+          market_ticker: string
+          no_price?: number | null
+          order_id?: string | null
+          order_type?: string
+          placed_at?: string
+          remaining_count?: number | null
+          side: string
+          status?: string
+          updated_at?: string
+          user_id: string
+          yes_price?: number | null
+        }
+        Update: {
+          action?: string
+          canceled_at?: string | null
+          count?: number
+          created_at?: string
+          executed_at?: string | null
+          id?: string
+          market_ticker?: string
+          no_price?: number | null
+          order_id?: string | null
+          order_type?: string
+          placed_at?: string
+          remaining_count?: number | null
+          side?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+          yes_price?: number | null
+        }
+        Relationships: []
+      }
+      kalshi_positions: {
+        Row: {
+          average_price: number
+          closed_at: string | null
+          created_at: string
+          current_price: number
+          current_value: number
+          id: string
+          market_ticker: string
+          opened_at: string
+          position_side: string
+          quantity: number
+          status: string
+          total_cost: number
+          unrealized_pnl: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          average_price: number
+          closed_at?: string | null
+          created_at?: string
+          current_price?: number
+          current_value?: number
+          id?: string
+          market_ticker: string
+          opened_at?: string
+          position_side: string
+          quantity: number
+          status?: string
+          total_cost: number
+          unrealized_pnl?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          average_price?: number
+          closed_at?: string | null
+          created_at?: string
+          current_price?: number
+          current_value?: number
+          id?: string
+          market_ticker?: string
+          opened_at?: string
+          position_side?: string
+          quantity?: number
+          status?: string
+          total_cost?: number
+          unrealized_pnl?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string
@@ -183,33 +456,111 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          average_bet_size: number | null
           bankroll: number | null
+          baseline_bankroll: number | null
           created_at: string
+          current_streak: number | null
+          default_bet_size: number | null
           email: string | null
           id: string
+          kelly_multiplier: number | null
+          largest_loss: number | null
+          largest_win: number | null
+          last_sync_at: string | null
+          pending_bet_amount: number | null
+          pending_bet_count: number | null
           risk_tolerance: string | null
-          theme: string | null
+          roi: number | null
+          total_bets_lost: number | null
+          total_bets_placed: number | null
+          total_bets_pushed: number | null
+          total_bets_won: number | null
+          total_profit: number | null
           updated_at: string
+          win_rate: number | null
         }
         Insert: {
           avatar_url?: string | null
+          average_bet_size?: number | null
           bankroll?: number | null
+          baseline_bankroll?: number | null
           created_at?: string
+          current_streak?: number | null
+          default_bet_size?: number | null
           email?: string | null
           id: string
+          kelly_multiplier?: number | null
+          largest_loss?: number | null
+          largest_win?: number | null
+          last_sync_at?: string | null
+          pending_bet_amount?: number | null
+          pending_bet_count?: number | null
           risk_tolerance?: string | null
-          theme?: string | null
+          roi?: number | null
+          total_bets_lost?: number | null
+          total_bets_placed?: number | null
+          total_bets_pushed?: number | null
+          total_bets_won?: number | null
+          total_profit?: number | null
           updated_at?: string
+          win_rate?: number | null
         }
         Update: {
           avatar_url?: string | null
+          average_bet_size?: number | null
           bankroll?: number | null
+          baseline_bankroll?: number | null
           created_at?: string
+          current_streak?: number | null
+          default_bet_size?: number | null
           email?: string | null
           id?: string
+          kelly_multiplier?: number | null
+          largest_loss?: number | null
+          largest_win?: number | null
+          last_sync_at?: string | null
+          pending_bet_amount?: number | null
+          pending_bet_count?: number | null
           risk_tolerance?: string | null
-          theme?: string | null
+          roi?: number | null
+          total_bets_lost?: number | null
+          total_bets_placed?: number | null
+          total_bets_pushed?: number | null
+          total_bets_won?: number | null
+          total_profit?: number | null
           updated_at?: string
+          win_rate?: number | null
+        }
+        Relationships: []
+      }
+      scraped_websites: {
+        Row: {
+          created_at: string
+          custom_prompt: string | null
+          extract_type: string | null
+          id: string
+          scraped_data: Json | null
+          url: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          custom_prompt?: string | null
+          extract_type?: string | null
+          id?: string
+          scraped_data?: Json | null
+          url: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          custom_prompt?: string | null
+          extract_type?: string | null
+          id?: string
+          scraped_data?: Json | null
+          url?: string
+          user_id?: string | null
         }
         Relationships: []
       }

@@ -54,6 +54,7 @@ export interface KalshiMarket {
   // Categories
   category?: string;
   tags?: string[];
+  sport_key?: string;
 }
 
 export interface KalshiEvent {

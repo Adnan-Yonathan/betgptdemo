@@ -5,6 +5,7 @@
  * Auto-reconnects on disconnect with exponential backoff.
  */
 
+import React from 'react';
 import { KalshiAPI } from './kalshiApi';
 
 // ============================================================================

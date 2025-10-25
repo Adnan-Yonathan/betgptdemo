@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface ESPNPlayerStats {
   name: string;
@@ -116,19 +116,9 @@ export async function getPlayerPerformanceHistory(
   limit: number = 20
 ): Promise<any[]> {
   try {
-    const { data, error } = await supabase
-      .from('player_performance_history')
-      .select('*')
-      .eq('player_name', playerName)
-      .order('game_date', { ascending: false })
-      .limit(limit);
-
-    if (error) {
-      console.error('Error fetching player history:', error);
-      return [];
-    }
-
-    return data || [];
+    // TODO: player_performance_history table doesn't exist yet
+    console.log('Player performance history feature requires database table setup');
+    return [];
   } catch (error) {
     console.error('Exception fetching player history:', error);
     return [];
@@ -278,27 +268,9 @@ export async function getPlayerPropPredictions(
   playerName?: string
 ): Promise<any[]> {
   try {
-    let query = supabase
-      .from('player_prop_predictions')
-      .select('*')
-      .order('edge_percentage', { ascending: false });
-
-    if (eventId) {
-      query = query.eq('event_id', eventId);
-    }
-
-    if (playerName) {
-      query = query.eq('player_name', playerName);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('Error fetching prop predictions:', error);
-      return [];
-    }
-
-    return data || [];
+    // TODO: player_prop_predictions table doesn't exist yet
+    console.log('Player prop predictions feature requires database table setup');
+    return [];
   } catch (error) {
     console.error('Exception fetching prop predictions:', error);
     return [];
