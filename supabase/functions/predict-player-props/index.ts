@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.75.1';
+import { getNowInEST } from '../_shared/dateUtils.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,12 +19,16 @@ serve(async (req) => {
 
     console.log('[PROPS] Starting player prop predictions...');
 
-    // Get player props from database
+    // Get player props from database (using Eastern Time zone)
+    const todayEST = getNowInEST();
+    const sevenDaysFromNowEST = new Date(todayEST);
+    sevenDaysFromNowEST.setDate(sevenDaysFromNowEST.getDate() + 7);
+
     const { data: props } = await supabase
       .from('player_props')
       .select('*')
-      .gte('game_date', new Date().toISOString())
-      .lte('game_date', new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString());
+      .gte('game_date', todayEST.toISOString())
+      .lte('game_date', sevenDaysFromNowEST.toISOString());
 
     if (!props || props.length === 0) {
       return new Response(

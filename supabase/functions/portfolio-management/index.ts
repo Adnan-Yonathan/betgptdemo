@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.75.1';
+import { getTodayEST } from '../_shared/dateUtils.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -105,10 +106,10 @@ async function calculateExposure(supabase: any, userId: string) {
   // Calculate portfolio correlation score
   const correlationScore = await calculatePortfolioCorrelation(supabase, activeBets);
 
-  // Update daily exposure
+  // Update daily exposure (using Eastern Time zone)
   await supabase.from('daily_risk_exposure').upsert({
     user_id: userId,
-    date: new Date().toISOString().split('T')[0],
+    date: getTodayEST(),
     total_amount_risked: totalRisked,
     total_potential_win: totalPotentialWin,
     total_potential_loss: totalRisked,
@@ -332,7 +333,7 @@ async function getPortfolioSummary(supabase: any, userId: string) {
     .from('daily_risk_exposure')
     .select('*')
     .eq('user_id', userId)
-    .eq('date', new Date().toISOString().split('T')[0])
+    .eq('date', getTodayEST())
     .single();
 
   // Get pending correlation warnings
@@ -380,7 +381,7 @@ async function checkRiskLimits(supabase: any, userId: string, betAmount: number)
     .from('daily_risk_exposure')
     .select('*')
     .eq('user_id', userId)
-    .eq('date', new Date().toISOString().split('T')[0])
+    .eq('date', getTodayEST())
     .single();
 
   const currentExposure = todayExposure?.total_amount_risked || 0;

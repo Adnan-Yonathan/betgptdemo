@@ -15,6 +15,7 @@
  * - Season averages: 24 hours (updates once daily)
  */
 
+import { formatDateEST } from './dateUtils';
 import type { CacheEntry, CacheType } from '@/types/balldontlie';
 
 // ============================================================================
@@ -228,10 +229,10 @@ export function getGameCacheType(status: string): 'games_live' | 'games_final' {
 }
 
 /**
- * Format a Date object to YYYY-MM-DD for cache keys
+ * Format a Date object to YYYY-MM-DD for cache keys (using Eastern Time zone)
  */
 export function formatDateForCache(date: Date): string {
-  return date.toISOString().split('T')[0];
+  return formatDateEST(date);
 }
 
 /**
