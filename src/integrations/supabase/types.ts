@@ -124,6 +124,39 @@ export type Database = {
         }
         Relationships: []
       }
+      betting_odds_fetch_log: {
+        Row: {
+          api_requests_remaining: number | null
+          created_at: string
+          error_message: string | null
+          events_count: number | null
+          id: string
+          odds_count: number | null
+          sports_fetched: string[]
+          success: boolean
+        }
+        Insert: {
+          api_requests_remaining?: number | null
+          created_at?: string
+          error_message?: string | null
+          events_count?: number | null
+          id?: string
+          odds_count?: number | null
+          sports_fetched: string[]
+          success?: boolean
+        }
+        Update: {
+          api_requests_remaining?: number | null
+          created_at?: string
+          error_message?: string | null
+          events_count?: number | null
+          id?: string
+          odds_count?: number | null
+          sports_fetched?: string[]
+          success?: boolean
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           created_at: string
@@ -421,6 +454,48 @@ export type Database = {
         }
         Relationships: []
       }
+      line_movement_history: {
+        Row: {
+          bookmaker: string
+          created_at: string
+          event_id: string
+          id: string
+          market_key: string
+          moneyline_away: number | null
+          moneyline_home: number | null
+          recorded_at: string
+          sport: string
+          spread: number | null
+          total: number | null
+        }
+        Insert: {
+          bookmaker: string
+          created_at?: string
+          event_id: string
+          id?: string
+          market_key?: string
+          moneyline_away?: number | null
+          moneyline_home?: number | null
+          recorded_at?: string
+          sport: string
+          spread?: number | null
+          total?: number | null
+        }
+        Update: {
+          bookmaker?: string
+          created_at?: string
+          event_id?: string
+          id?: string
+          market_key?: string
+          moneyline_away?: number | null
+          moneyline_home?: number | null
+          recorded_at?: string
+          sport?: string
+          spread?: number | null
+          total?: number | null
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string
@@ -452,6 +527,156 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      model_predictions: {
+        Row: {
+          away_team: string
+          confidence_score: number | null
+          created_at: string
+          edge_percentage: number | null
+          event_id: string
+          feature_values: Json | null
+          game_date: string | null
+          home_team: string
+          id: string
+          league: string | null
+          model_version: string | null
+          predicted_outcome: string | null
+          predicted_value: number | null
+          prediction_type: string
+          sport: string
+        }
+        Insert: {
+          away_team: string
+          confidence_score?: number | null
+          created_at?: string
+          edge_percentage?: number | null
+          event_id: string
+          feature_values?: Json | null
+          game_date?: string | null
+          home_team: string
+          id?: string
+          league?: string | null
+          model_version?: string | null
+          predicted_outcome?: string | null
+          predicted_value?: number | null
+          prediction_type: string
+          sport: string
+        }
+        Update: {
+          away_team?: string
+          confidence_score?: number | null
+          created_at?: string
+          edge_percentage?: number | null
+          event_id?: string
+          feature_values?: Json | null
+          game_date?: string | null
+          home_team?: string
+          id?: string
+          league?: string | null
+          model_version?: string | null
+          predicted_outcome?: string | null
+          predicted_value?: number | null
+          prediction_type?: string
+          sport?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          action_url: string | null
+          created_at: string
+          dismissed: boolean
+          id: string
+          message: string
+          metadata: Json | null
+          read: boolean
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          action_url?: string | null
+          created_at?: string
+          dismissed?: boolean
+          id?: string
+          message: string
+          metadata?: Json | null
+          read?: boolean
+          title: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          action_url?: string | null
+          created_at?: string
+          dismissed?: boolean
+          id?: string
+          message?: string
+          metadata?: Json | null
+          read?: boolean
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      opening_closing_lines: {
+        Row: {
+          closed_at: string | null
+          closing_moneyline_away: number | null
+          closing_moneyline_home: number | null
+          closing_spread: number | null
+          closing_total: number | null
+          created_at: string
+          event_id: string
+          id: string
+          league: string | null
+          opened_at: string | null
+          opening_moneyline_away: number | null
+          opening_moneyline_home: number | null
+          opening_spread: number | null
+          opening_total: number | null
+          sport: string
+          updated_at: string
+        }
+        Insert: {
+          closed_at?: string | null
+          closing_moneyline_away?: number | null
+          closing_moneyline_home?: number | null
+          closing_spread?: number | null
+          closing_total?: number | null
+          created_at?: string
+          event_id: string
+          id?: string
+          league?: string | null
+          opened_at?: string | null
+          opening_moneyline_away?: number | null
+          opening_moneyline_home?: number | null
+          opening_spread?: number | null
+          opening_total?: number | null
+          sport: string
+          updated_at?: string
+        }
+        Update: {
+          closed_at?: string | null
+          closing_moneyline_away?: number | null
+          closing_moneyline_home?: number | null
+          closing_spread?: number | null
+          closing_total?: number | null
+          created_at?: string
+          event_id?: string
+          id?: string
+          league?: string | null
+          opened_at?: string | null
+          opening_moneyline_away?: number | null
+          opening_moneyline_home?: number | null
+          opening_spread?: number | null
+          opening_total?: number | null
+          sport?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -564,6 +789,45 @@ export type Database = {
         }
         Relationships: []
       }
+      sharp_money_signals: {
+        Row: {
+          created_at: string
+          detected_at: string
+          event_id: string
+          id: string
+          league: string | null
+          line_movement_indicator: string | null
+          public_percentage: number | null
+          sharp_percentage: number | null
+          signal_strength: string | null
+          sport: string
+        }
+        Insert: {
+          created_at?: string
+          detected_at?: string
+          event_id: string
+          id?: string
+          league?: string | null
+          line_movement_indicator?: string | null
+          public_percentage?: number | null
+          sharp_percentage?: number | null
+          signal_strength?: string | null
+          sport: string
+        }
+        Update: {
+          created_at?: string
+          detected_at?: string
+          event_id?: string
+          id?: string
+          league?: string | null
+          line_movement_indicator?: string | null
+          public_percentage?: number | null
+          sharp_percentage?: number | null
+          signal_strength?: string | null
+          sport?: string
+        }
+        Relationships: []
+      }
       sports_scores: {
         Row: {
           away_score: number | null
@@ -606,6 +870,48 @@ export type Database = {
           last_updated?: string
           league?: string
           sport?: string
+        }
+        Relationships: []
+      }
+      user_alert_preferences: {
+        Row: {
+          arbitrage_alerts: boolean | null
+          created_at: string
+          id: string
+          injury_alerts: boolean | null
+          line_movement_alerts: boolean | null
+          min_edge_threshold: number | null
+          notification_methods: Json | null
+          sharp_money_alerts: boolean | null
+          updated_at: string
+          user_id: string
+          value_bet_alerts: boolean | null
+        }
+        Insert: {
+          arbitrage_alerts?: boolean | null
+          created_at?: string
+          id?: string
+          injury_alerts?: boolean | null
+          line_movement_alerts?: boolean | null
+          min_edge_threshold?: number | null
+          notification_methods?: Json | null
+          sharp_money_alerts?: boolean | null
+          updated_at?: string
+          user_id: string
+          value_bet_alerts?: boolean | null
+        }
+        Update: {
+          arbitrage_alerts?: boolean | null
+          created_at?: string
+          id?: string
+          injury_alerts?: boolean | null
+          line_movement_alerts?: boolean | null
+          min_edge_threshold?: number | null
+          notification_methods?: Json | null
+          sharp_money_alerts?: boolean | null
+          updated_at?: string
+          user_id?: string
+          value_bet_alerts?: boolean | null
         }
         Relationships: []
       }
