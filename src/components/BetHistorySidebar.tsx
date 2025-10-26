@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Plus, TrendingUp, TrendingDown, Minus, Clock, Search, RefreshCw, Info } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { BetActions } from "./BetManagement";
+import { ParlayDisplay } from "./ParlayDisplay";
 interface Bet {
   id: string;
   amount: number;
@@ -169,7 +171,7 @@ export const BetHistorySidebar = ({
           {!user && <p className="text-sm text-sidebar-foreground/50 text-center p-4">
               Sign in to view bet history
             </p>}
-          {filteredBets.map(bet => <div key={bet.id} className="p-3 rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors cursor-pointer">
+          {filteredBets.map(bet => <div key={bet.id} className="p-3 rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-2">
                     {getOutcomeIcon(bet.outcome)}
@@ -186,7 +188,7 @@ export const BetHistorySidebar = ({
                   {bet.description}
                 </p>
 
-                <div className="flex items-center justify-between text-xs text-sidebar-foreground/70">
+                <div className="flex items-center justify-between text-xs text-sidebar-foreground/70 mb-2">
                   <span>${bet.amount.toFixed(2)} @ {bet.odds > 0 ? '+' : ''}{bet.odds}</span>
                   {bet.outcome === 'win' && bet.actual_return && <span className="text-green-500 font-semibold">
                       +${bet.actual_return.toFixed(2)}
@@ -195,6 +197,13 @@ export const BetHistorySidebar = ({
                       -${bet.amount.toFixed(2)}
                     </span>}
                 </div>
+
+                {/* Show bet actions for pending bets */}
+                {bet.outcome === 'pending' && (
+                  <div className="mt-2 pt-2 border-t border-sidebar-border">
+                    <BetActions bet={bet} onUpdate={fetchBets} />
+                  </div>
+                )}
               </div>)}
         </div>
       </ScrollArea>
