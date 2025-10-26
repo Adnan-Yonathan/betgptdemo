@@ -104,25 +104,54 @@ function simpleHash(str: string): number {
 // ERROR LOGGING
 // ============================================================================
 
-function logSourceError(
+import { supabase } from '@/integrations/supabase/client';
+
+async function logSourceError(
   source: 'balldontlie' | 'espn',
   operation: string,
-  error: Error
+  error: Error,
+  params?: any
 ) {
   console.error(`[${source.toUpperCase()}] ${operation} failed:`, error.message);
 
-  // TODO: Log to database via api_source_log table
-  // This will be implemented in the database migration step
+  // Log to database for monitoring
+  // Note: Temporarily disabled until types are regenerated after migration
+  try {
+    await supabase.from('api_source_log' as any).insert({
+      source,
+      operation,
+      success: false,
+      error_message: error.message,
+      params: params || {},
+      created_at: new Date().toISOString(),
+    });
+  } catch (logError) {
+    console.error('Failed to log API error:', logError);
+  }
 }
 
-function logSourceSuccess(
+async function logSourceSuccess(
   source: 'balldontlie' | 'espn',
   operation: string,
-  responseTime: number
+  responseTime: number,
+  params?: any
 ) {
   console.log(`[${source.toUpperCase()}] ${operation} - ${responseTime}ms`);
 
-  // TODO: Log to database via api_source_log table
+  // Log to database for monitoring
+  // Note: Temporarily disabled until types are regenerated after migration
+  try {
+    await supabase.from('api_source_log' as any).insert({
+      source,
+      operation,
+      success: true,
+      response_time_ms: responseTime,
+      params: params || {},
+      created_at: new Date().toISOString(),
+    });
+  } catch (logError) {
+    console.error('Failed to log API success:', logError);
+  }
 }
 
 // ============================================================================

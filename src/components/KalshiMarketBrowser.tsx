@@ -73,7 +73,7 @@ export const KalshiMarketBrowser: React.FC<KalshiMarketBrowserProps> = ({
       setLoading(true);
       toast({
         title: 'Syncing markets',
-        description: 'Fetching latest data from Kalshi...',
+        description: 'Fetching latest Kalshi markets. This may take 30-60 seconds...',
       });
 
       const { data, error } = await supabase.functions.invoke('fetch-kalshi-markets', {
@@ -82,9 +82,13 @@ export const KalshiMarketBrowser: React.FC<KalshiMarketBrowserProps> = ({
 
       if (error) throw error;
 
+      const successMsg = data?.stored_count 
+        ? `Successfully synced ${data.stored_count} markets` 
+        : 'Markets synced successfully';
+
       toast({
         title: 'Markets synced',
-        description: `Loaded ${data.stored_count} markets`,
+        description: successMsg,
       });
 
       // Refresh local data

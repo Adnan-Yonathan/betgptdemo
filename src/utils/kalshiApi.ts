@@ -185,44 +185,18 @@ async function getAuthToken(): Promise<string> {
 
 /**
  * Login to Kalshi and get JWT token
+ * 
+ * ⚠️ IMPORTANT: This function should ONLY be called from edge functions (server-side).
+ * Frontend code should NEVER call Kalshi API directly for security reasons.
+ * Always use supabase.functions.invoke() to call edge functions instead.
  */
 async function login(): Promise<string> {
-  // Try to get credentials from environment
-  const email = import.meta.env.VITE_KALSHI_EMAIL;
-  const password = import.meta.env.VITE_KALSHI_PASSWORD;
-
-  if (!email || !password) {
-    throw new Error('Kalshi credentials not found in environment. Please set VITE_KALSHI_EMAIL and VITE_KALSHI_PASSWORD');
-  }
-
-  console.log('[KALSHI] Logging in...');
-
-  const response = await fetch(`${BASE_URL}/login`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    },
-    body: JSON.stringify({ email, password }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Kalshi login failed: ${response.status} - ${errorText}`);
-  }
-
-  const data: KalshiLoginResponse = await response.json();
-
-  if (!data.token) {
-    throw new Error('Kalshi login response missing token');
-  }
-
-  authToken = data.token;
-  tokenExpiry = Date.now() + TOKEN_EXPIRY_DURATION;
-
-  console.log('[KALSHI] Login successful');
-
-  return data.token;
+  // ⚠️ Security: Credentials are stored as Supabase secrets, not frontend env vars
+  // This function is designed for edge function use only
+  throw new Error(
+    'Direct Kalshi API calls from frontend are not supported. ' +
+    'Use edge functions instead: supabase.functions.invoke("fetch-kalshi-markets")'
+  );
 }
 
 /**
