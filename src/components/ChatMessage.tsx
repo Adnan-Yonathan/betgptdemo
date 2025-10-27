@@ -1,11 +1,14 @@
 import { cn } from "@/lib/utils";
 import { memo, useMemo } from "react";
+import { MessageFeedback } from "./MessageFeedback";
 
 interface ChatMessageProps {
   role: "user" | "assistant";
   content: string;
   timestamp?: string;
   isStreaming?: boolean;
+  messageId?: string;
+  conversationId?: string;
 }
 
 // Memoized component to prevent unnecessary re-renders
@@ -13,7 +16,9 @@ export const ChatMessage = memo(({
   role,
   content,
   timestamp,
-  isStreaming = false
+  isStreaming = false,
+  messageId,
+  conversationId
 }: ChatMessageProps) => {
   const isUser = role === "user";
 
@@ -75,6 +80,16 @@ export const ChatMessage = memo(({
             {timestamp}
           </span>
         )}
+
+        {/* Feedback Component - Only for assistant messages that are not streaming */}
+        {!isUser && !isStreaming && messageId && (
+          <MessageFeedback
+            messageId={messageId}
+            conversationId={conversationId}
+            messageContent={content}
+            responseType="general"
+          />
+        )}
       </div>
     </div>
   );
@@ -85,6 +100,8 @@ export const ChatMessage = memo(({
     prevProps.content === nextProps.content &&
     prevProps.isStreaming === nextProps.isStreaming &&
     prevProps.timestamp === nextProps.timestamp &&
-    prevProps.role === nextProps.role
+    prevProps.role === nextProps.role &&
+    prevProps.messageId === nextProps.messageId &&
+    prevProps.conversationId === nextProps.conversationId
   );
 });
