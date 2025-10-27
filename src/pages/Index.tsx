@@ -318,7 +318,7 @@ const Index = () => {
                   Start a conversation about your bets
                 </p>
               </div> : <>
-                {messages.map(message => <ChatMessage key={message.id} {...message} isStreaming={message.id === streamingMessageId} />)}
+                {messages.map(message => <ChatMessage key={message.id} {...message} messageId={message.id} conversationId={currentConversationId || undefined} isStreaming={message.id === streamingMessageId} />)}
                 {isTyping && streamingMessageId === null && <ThinkingIndicator />}
               </>}
           </div>
