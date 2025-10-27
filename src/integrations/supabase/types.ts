@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      bankroll_transactions: {
+        Row: {
+          amount: number
+          balance_after: number
+          bet_id: string | null
+          created_at: string | null
+          id: string
+          notes: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          balance_after: number
+          bet_id?: string | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          bet_id?: string | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bankroll_transactions_bet_id_fkey"
+            columns: ["bet_id"]
+            isOneToOne: false
+            referencedRelation: "bets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bets: {
         Row: {
           actual_return: number | null
@@ -24,10 +65,12 @@ export type Database = {
           description: string
           event_id: string | null
           id: string
+          league: string | null
           odds: number
           outcome: string
           potential_return: number | null
           settled_at: string | null
+          sport: string | null
           team_bet_on: string | null
           user_id: string
         }
@@ -40,10 +83,12 @@ export type Database = {
           description: string
           event_id?: string | null
           id?: string
+          league?: string | null
           odds: number
           outcome?: string
           potential_return?: number | null
           settled_at?: string | null
+          sport?: string | null
           team_bet_on?: string | null
           user_id: string
         }
@@ -56,10 +101,12 @@ export type Database = {
           description?: string
           event_id?: string | null
           id?: string
+          league?: string | null
           odds?: number
           outcome?: string
           potential_return?: number | null
           settled_at?: string | null
+          sport?: string | null
           team_bet_on?: string | null
           user_id?: string
         }
@@ -496,6 +543,36 @@ export type Database = {
         }
         Relationships: []
       }
+      loss_limits: {
+        Row: {
+          created_at: string | null
+          daily_limit: number | null
+          id: string
+          monthly_limit: number | null
+          updated_at: string | null
+          user_id: string
+          weekly_limit: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          daily_limit?: number | null
+          id?: string
+          monthly_limit?: number | null
+          updated_at?: string | null
+          user_id: string
+          weekly_limit?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          daily_limit?: number | null
+          id?: string
+          monthly_limit?: number | null
+          updated_at?: string | null
+          user_id?: string
+          weekly_limit?: number | null
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string
@@ -677,6 +754,44 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      parlay_legs: {
+        Row: {
+          bet_id: string
+          created_at: string | null
+          event_id: string
+          id: string
+          odds: number
+          result: string | null
+          selection: string
+        }
+        Insert: {
+          bet_id: string
+          created_at?: string | null
+          event_id: string
+          id?: string
+          odds: number
+          result?: string | null
+          selection: string
+        }
+        Update: {
+          bet_id?: string
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          odds?: number
+          result?: string | null
+          selection?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parlay_legs_bet_id_fkey"
+            columns: ["bet_id"]
+            isOneToOne: false
+            referencedRelation: "bets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -912,6 +1027,33 @@ export type Database = {
           updated_at?: string
           user_id?: string
           value_bet_alerts?: boolean | null
+        }
+        Relationships: []
+      }
+      user_bankroll: {
+        Row: {
+          created_at: string | null
+          current_amount: number
+          id: string
+          starting_amount: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          current_amount?: number
+          id?: string
+          starting_amount?: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          current_amount?: number
+          id?: string
+          starting_amount?: number
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }
