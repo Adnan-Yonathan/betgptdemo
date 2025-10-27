@@ -12,7 +12,6 @@ const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
 const GameInsightsDemo = lazy(() => import("./pages/GameInsightsDemo"));
 const KalshiPage = lazy(() => import("./pages/KalshiPage"));
-const Analytics = lazy(() => import("./pages/Analytics"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Loading component for Suspense fallback
@@ -63,7 +62,6 @@ const App = () => (
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/game-insights" element={<GameInsightsDemo />} />
                 <Route path="/kalshi" element={<KalshiPage />} />
-                <Route path="/analytics" element={<Analytics />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
