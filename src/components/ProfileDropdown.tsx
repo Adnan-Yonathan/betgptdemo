@@ -1,4 +1,4 @@
-import { User, Settings, LogOut, BarChart3 } from "lucide-react";
+import { Settings, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -74,10 +74,6 @@ export const ProfileDropdown = ({ onOpenProfile }: ProfileDropdownProps) => {
         <DropdownMenuItem onClick={onOpenProfile}>
           <Settings className="mr-2 h-4 w-4" />
           Betting Profile
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => navigate("/analytics")}>
-          <BarChart3 className="mr-2 h-4 w-4" />
-          Analytics & Bankroll
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut}>

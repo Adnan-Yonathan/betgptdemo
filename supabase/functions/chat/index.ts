@@ -1273,7 +1273,64 @@ serve(async (req) => {
         }
       }
     }
-    
+
+    // BANKROLL TRACKING: Fetch user's bankroll status for conversational context
+    let bankrollContext = '';
+    if (userId) {
+      try {
+        const supabaseClient = getSupabaseClient();
+        const { data: bankrollData, error: bankrollError } = await supabaseClient
+          .rpc('get_user_bankroll_status', { p_user_id: userId });
+
+        if (!bankrollError && bankrollData && bankrollData.length > 0) {
+          const status = bankrollData[0];
+          const { data: statsData } = await supabaseClient
+            .rpc('get_betting_stats', {
+              p_user_id: userId,
+              p_time_period: 'all',
+              p_sport: null,
+              p_status: 'settled'
+            });
+
+          const stats = statsData?.[0];
+
+          if (stats) {
+            bankrollContext = `
+CURRENT BANKROLL STATUS (provide if user asks):
+- Current Balance: $${status.current_balance?.toFixed(2) || '1000.00'}
+- Available: $${status.available_balance?.toFixed(2) || '1000.00'}
+- Profit/Loss: ${status.profit_loss >= 0 ? '+' : ''}$${status.profit_loss?.toFixed(2) || '0.00'} (${status.profit_loss_pct >= 0 ? '+' : ''}${status.profit_loss_pct?.toFixed(1) || '0.0'}%)
+- Record: ${stats.wins}-${stats.losses}${stats.pushes > 0 ? `-${stats.pushes}` : ''} (${stats.win_rate?.toFixed(1) || '0.0'}% win rate)
+- Pending Bets: ${status.pending_bets_amount > 0 ? `$${status.pending_bets_amount.toFixed(2)} at risk` : 'None'}
+
+Use this information when user asks about:
+- "How am I doing?"
+- "What's my record?"
+- "What's my bankroll?"
+- "Am I up or down?"
+- "Show me my stats"
+- Or any variation asking about their betting performance
+
+CONVERSATIONAL BET LOGGING:
+When user says things like "Bet $100 on Titans +14.5" or "I'm betting 50 on Chiefs ML":
+1. Acknowledge and confirm the bet details
+2. Mention it will be tracked automatically
+3. The system will log it in the background
+4. When bets settle, proactively report results in future messages
+
+RESPONSIBLE GAMBLING:
+- Current streak: ${stats.current_streak > 0 ? `${stats.streak_type === 'win' ? 'W' : 'L'}${stats.current_streak}` : 'None'}
+- If user is on a losing streak (3+), suggest taking a break
+- Recommend bet sizing: 1-5% of bankroll based on confidence
+`;
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching bankroll context:', error);
+        // Continue without bankroll context if fetch fails
+      }
+    }
+
     // Patterns for score requests
     const scoreKeywords = [
       'score', 'final score', 'current score', 'what is the score', 'whats the score',
@@ -1814,6 +1871,8 @@ Keep your response CONCISE (2-3 sentences max) but include the key numbers.`;
     const systemPrompt = dataContext
       ? `${basePrompt}
 
+${bankrollContext}
+
 ${isAskingForScore ? 'LIVE SCORE DATA RETRIEVED:' : 'LIVE BETTING DATA RETRIEVED:'}
 ${dataContext}
 
@@ -1821,11 +1880,15 @@ INSTRUCTIONS:
 ${isAskingForScore
   ? '- Provide clear, concise score updates based on the data above\n- Include game status and any relevant context\n- Only provide betting analysis if specifically requested along with the score'
   : '- Use this live data to provide specific, concrete analysis\n- Reference actual odds, spreads, and totals from the data provided\n- Identify specific edges based on matchup analysis, injury impacts, and situational factors\n- Compare odds across different bookmakers when available\n- Provide reasoning based on the actual data, not generic principles\n- Recommend bet sizing based on your confidence level\n- Be direct and actionable with your recommendations'}`
-      : betOutcomeContext 
+      : betOutcomeContext
         ? `${basePrompt}
+
+${bankrollContext}
 
 ${betOutcomeContext}`
         : `${basePrompt}
+
+${bankrollContext}
 
 If the user asks about a specific game, matchup, or betting opportunity, you will automatically receive live data. Use that data to provide concrete, quantified analysis.`;
 
