@@ -60,6 +60,7 @@ export type Database = {
           actual_return: number | null
           amount: number
           bet_type: string | null
+          confidence_score: number | null
           conversation_id: string | null
           created_at: string
           description: string
@@ -78,6 +79,7 @@ export type Database = {
           actual_return?: number | null
           amount: number
           bet_type?: string | null
+          confidence_score?: number | null
           conversation_id?: string | null
           created_at?: string
           description: string
@@ -96,6 +98,7 @@ export type Database = {
           actual_return?: number | null
           amount?: number
           bet_type?: string | null
+          confidence_score?: number | null
           conversation_id?: string | null
           created_at?: string
           description?: string
@@ -546,6 +549,9 @@ export type Database = {
       loss_limits: {
         Row: {
           created_at: string | null
+          current_daily_loss: number | null
+          current_monthly_loss: number | null
+          current_weekly_loss: number | null
           daily_limit: number | null
           id: string
           monthly_limit: number | null
@@ -555,6 +561,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          current_daily_loss?: number | null
+          current_monthly_loss?: number | null
+          current_weekly_loss?: number | null
           daily_limit?: number | null
           id?: string
           monthly_limit?: number | null
@@ -564,6 +573,9 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          current_daily_loss?: number | null
+          current_monthly_loss?: number | null
+          current_weekly_loss?: number | null
           daily_limit?: number | null
           id?: string
           monthly_limit?: number | null
@@ -799,6 +811,7 @@ export type Database = {
           average_bet_size: number | null
           bankroll: number | null
           baseline_bankroll: number | null
+          cool_off_end: string | null
           created_at: string
           current_streak: number | null
           default_bet_size: number | null
@@ -825,6 +838,7 @@ export type Database = {
           average_bet_size?: number | null
           bankroll?: number | null
           baseline_bankroll?: number | null
+          cool_off_end?: string | null
           created_at?: string
           current_streak?: number | null
           default_bet_size?: number | null
@@ -851,6 +865,7 @@ export type Database = {
           average_bet_size?: number | null
           bankroll?: number | null
           baseline_bankroll?: number | null
+          cool_off_end?: string | null
           created_at?: string
           current_streak?: number | null
           default_bet_size?: number | null

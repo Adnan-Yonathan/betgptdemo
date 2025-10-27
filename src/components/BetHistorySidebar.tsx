@@ -33,16 +33,18 @@ export const BetHistorySidebar = ({
   const [bets, setBets] = useState<Bet[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSettling, setIsSettling] = useState(false);
-  useEffect(() => {
+
+  const fetchBets = async () => {
     if (!user) return;
-    const fetchBets = async () => {
-      const {
-        data
-      } = await supabase.from("bets").select("*").eq("user_id", user.id).order("created_at", {
-        ascending: false
-      });
-      if (data) setBets(data);
-    };
+    const { data } = await supabase
+      .from("bets")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+    if (data) setBets(data);
+  };
+
+  useEffect(() => {
     fetchBets();
 
     // Subscribe to bet changes

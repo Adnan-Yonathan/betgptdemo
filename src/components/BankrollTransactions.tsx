@@ -30,7 +30,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 interface Transaction {
   id: string;
   user_id: string;
-  type: "deposit" | "withdrawal";
+  type: "deposit" | "withdrawal" | "bet" | "win" | "loss" | "refund";
   amount: number;
   balance_after: number;
   notes: string | null;
@@ -92,7 +92,7 @@ export const BankrollTransactions = () => {
         throw error;
       }
 
-      setTransactions(transactionsData || []);
+      setTransactions((transactionsData || []) as Transaction[]);
     } catch (error) {
       console.error("Error loading data:", error);
       toast({
