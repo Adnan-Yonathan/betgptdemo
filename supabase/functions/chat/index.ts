@@ -1065,6 +1065,99 @@ async function logBetViaFunction(
   }
 }
 
+/**
+ * Detects and updates user's bankroll and unit size from conversational input
+ * Patterns: "my bankroll is $5000", "I have $2000 to bet with", "my unit size is $50"
+ */
+async function detectAndUpdateBankroll(messageContent: string, userId: string): Promise<any> {
+  const supabase = getSupabaseClient();
+
+  // Patterns for bankroll initialization
+  const bankrollPatterns = [
+    /(?:my\s+)?bankroll\s+is\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)/i,
+    /(?:i\s+have|i'?ve\s+got)\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)\s+(?:to\s+bet|for\s+betting|bankroll)/i,
+    /starting\s+(?:with|bankroll)\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)/i,
+    /\$?(\d+(?:,\d{3})*(?:\.\d{2})?)\s+bankroll/i,
+  ];
+
+  // Patterns for unit size
+  const unitSizePatterns = [
+    /(?:my\s+)?unit\s+(?:size\s+)?is\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)/i,
+    /betting\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)\s+(?:per\s+)?unit/i,
+    /(?:each\s+)?unit\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)/i,
+  ];
+
+  let bankrollAmount = null;
+  let unitSizeAmount = null;
+
+  // Check for bankroll
+  for (const pattern of bankrollPatterns) {
+    const match = messageContent.match(pattern);
+    if (match && match[1]) {
+      bankrollAmount = parseFloat(match[1].replace(/,/g, ''));
+      console.log('💰 Detected bankroll initialization:', bankrollAmount);
+      break;
+    }
+  }
+
+  // Check for unit size
+  for (const pattern of unitSizePatterns) {
+    const match = messageContent.match(pattern);
+    if (match && match[1]) {
+      unitSizeAmount = parseFloat(match[1].replace(/,/g, ''));
+      console.log('📊 Detected unit size:', unitSizeAmount);
+      break;
+    }
+  }
+
+  // Update profile if bankroll or unit size detected
+  if (bankrollAmount || unitSizeAmount) {
+    try {
+      const updateData: any = {};
+
+      if (bankrollAmount) {
+        updateData.bankroll = bankrollAmount;
+        updateData.baseline_bankroll = bankrollAmount;
+      }
+
+      if (unitSizeAmount) {
+        updateData.unit_size = unitSizeAmount;
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .update(updateData)
+        .eq('id', userId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating bankroll/unit size:', error);
+        return { error: true, message: 'Failed to update bankroll settings' };
+      }
+
+      console.log('✅ Updated user profile:', updateData);
+
+      // Return confirmation message
+      return {
+        success: true,
+        bankroll: bankrollAmount,
+        unitSize: unitSizeAmount,
+        message: bankrollAmount && unitSizeAmount
+          ? `Bankroll set to $${bankrollAmount.toFixed(2)} with unit size of $${unitSizeAmount.toFixed(2)}`
+          : bankrollAmount
+          ? `Bankroll set to $${bankrollAmount.toFixed(2)}`
+          : `Unit size set to $${unitSizeAmount.toFixed(2)}`
+      };
+    } catch (error) {
+      console.error('Error in detectAndUpdateBankroll:', error);
+      return { error: true, message: 'Unexpected error updating bankroll' };
+    }
+  }
+
+  return null; // No bankroll/unit size detected
+}
+
 // Function to update bet outcome when user reports win/loss
 // PHASE 1: Uses atomic settlement and handles multiple pending bets
 async function updateBetOutcome(
@@ -1205,7 +1298,16 @@ serve(async (req) => {
     // Check if user is asking for scores or betting odds
     const lastMessage = messages[messages.length - 1];
     const messageContent = lastMessage?.content?.toLowerCase() || '';
-    
+
+    // CONVERSATIONAL BANKROLL TRACKING: Detect and update bankroll/unit size
+    let bankrollUpdateResult = null;
+    if (userId) {
+      bankrollUpdateResult = await detectAndUpdateBankroll(messageContent, userId);
+      if (bankrollUpdateResult && bankrollUpdateResult.success) {
+        console.log('✅ Bankroll updated conversationally:', bankrollUpdateResult.message);
+      }
+    }
+
     // PHASE 1.2: Improved specific bet win/loss detection patterns
     // Matches: "my bet on the raptors won", "my raptors bet won", "won my bet on lakers"
     const winPatterns = [
@@ -1295,12 +1397,18 @@ serve(async (req) => {
           const stats = statsData?.[0];
 
           if (stats) {
+            const unitSizeInfo = status.unit_size
+              ? `- Unit Size: $${status.unit_size.toFixed(2)} (${(status.unit_size / status.current_balance * 100).toFixed(1)}% of bankroll)`
+              : '';
+
             bankrollContext = `
 CURRENT BANKROLL STATUS (provide if user asks):
 - Current Balance: $${status.current_balance?.toFixed(2) || '1000.00'}
+- Starting Balance: $${status.starting_balance?.toFixed(2) || '1000.00'}
+- **PROFIT/LOSS: ${status.profit_loss >= 0 ? '+' : ''}$${status.profit_loss?.toFixed(2) || '0.00'} (${status.profit_loss_pct >= 0 ? '+' : ''}${status.profit_loss_pct?.toFixed(1) || '0.0'}%)**
+${unitSizeInfo}
 - Available: $${status.available_balance?.toFixed(2) || '1000.00'}
-- Profit/Loss: ${status.profit_loss >= 0 ? '+' : ''}$${status.profit_loss?.toFixed(2) || '0.00'} (${status.profit_loss_pct >= 0 ? '+' : ''}${status.profit_loss_pct?.toFixed(1) || '0.0'}%)
-- Record: ${stats.wins}-${stats.losses}${stats.pushes > 0 ? `-${stats.pushes}` : ''} (${stats.win_rate?.toFixed(1) || '0.0'}% win rate)
+- Record: ${stats.wins}W-${stats.losses}L${stats.pushes > 0 ? `-${stats.pushes}P` : ''} (${stats.win_rate?.toFixed(1) || '0.0'}% win rate)
 - Pending Bets: ${status.pending_bets_amount > 0 ? `$${status.pending_bets_amount.toFixed(2)} at risk` : 'None'}
 
 Use this information when user asks about:
@@ -1310,6 +1418,20 @@ Use this information when user asks about:
 - "Am I up or down?"
 - "Show me my stats"
 - Or any variation asking about their betting performance
+
+CONVERSATIONAL BANKROLL SETUP:
+If user mentions setting their bankroll or unit size:
+- Acknowledge the update warmly
+- Confirm the amounts
+- Suggest a recommended unit size if they only provide bankroll (1-2% for conservative, 3-5% for aggressive)
+- Example: "Got it! Your bankroll is set to $5,000 with a $50 unit size."
+
+CONVERSATIONAL BET TRACKING:
+When user reports bet outcomes ("my Lakers bet won", "lost my Titans bet"):
+- System automatically updates bankroll
+- ALWAYS show updated P/L percentage after settlement
+- Be enthusiastic for wins, supportive for losses
+- Format example: "Nice win! That brings you to +$150 (+15% from your starting bankroll)"
 
 CONVERSATIONAL BET LOGGING:
 When user says things like "Bet $100 on Titans +14.5" or "I'm betting 50 on Chiefs ML":
@@ -1786,6 +1908,24 @@ Today's date: ${currentDate}`;
     const basePrompt = coachPrompt;
 
     // PHASE 1.3: Add comprehensive bet outcome context with stats
+    // Build context for bankroll update if detected
+    let bankrollUpdateContext = '';
+    if (bankrollUpdateResult && bankrollUpdateResult.success) {
+      bankrollUpdateContext = `
+USER JUST UPDATED THEIR BANKROLL SETTINGS:
+${bankrollUpdateResult.message}
+
+RESPONSE INSTRUCTIONS:
+- Warmly acknowledge the bankroll setup
+- Confirm the exact amounts they provided
+- If they only set bankroll (no unit size), suggest setting a unit size (recommend 1-5% of bankroll based on risk tolerance)
+- If they only set unit size, confirm it
+- If they set both, confirm both amounts
+- Keep response brief and friendly (2-3 sentences)
+- Example: "Perfect! I've got your bankroll set at $5,000. Since you mentioned a $50 unit size, that's a conservative 1% approach - great for managing risk!"
+`;
+    }
+
     let betOutcomeContext = '';
     if (betOutcomeResult) {
       // Handle error cases (NOT_FOUND, MULTIPLE_BETS, etc.)
@@ -1830,6 +1970,15 @@ Apologize and inform the user that there was an issue settling their bet. Ask th
         const outcomeEmoji = detectedOutcome === 'win' ? '🎉' : detectedOutcome === 'loss' ? '😔' : '↔️';
         const profitSign = settlement.profit >= 0 ? '+' : '';
 
+        // Fetch updated bankroll status after settlement
+        const supabaseClient = getSupabaseClient();
+        const { data: updatedBankrollData } = await supabaseClient
+          .rpc('get_user_bankroll_status', { p_user_id: userId });
+
+        const updatedStatus = updatedBankrollData?.[0];
+        const plSign = updatedStatus?.profit_loss >= 0 ? '+' : '';
+        const plPct = updatedStatus?.profit_loss_pct || 0;
+
         betOutcomeContext = `
 ${outcomeEmoji} BET SETTLED SUCCESSFULLY:
 
@@ -1842,6 +1991,8 @@ Bet Details:
 Financial Impact:
 - Profit/Loss from this bet: ${profitSign}$${settlement.profit.toFixed(2)}
 - Return: $${settlement.actual_return.toFixed(2)}
+- **UPDATED TOTAL P/L: ${plSign}$${updatedStatus?.profit_loss?.toFixed(2) || '0.00'} (${plSign}${plPct.toFixed(1)}% from starting bankroll)**
+- New Balance: $${updatedStatus?.current_balance?.toFixed(2) || '0.00'}
 
 RESPONSE INSTRUCTIONS:
 Respond to the user with enthusiasm and empathy appropriate to the outcome:
@@ -1849,22 +2000,25 @@ Respond to the user with enthusiasm and empathy appropriate to the outcome:
 ${detectedOutcome === 'win' ? `
 ✅ FOR A WIN:
 1. Congratulate them warmly on the win
-2. Highlight the profit: "${profitSign}$${settlement.profit.toFixed(2)}"
-3. Keep it concise and celebratory
+2. Highlight the profit from this bet: "${profitSign}$${settlement.profit.toFixed(2)}"
+3. **ALWAYS mention their updated total P/L percentage: "That brings you to ${plSign}${plPct.toFixed(1)}% overall!"**
+4. Keep it concise and celebratory (2-3 sentences)
 ` : detectedOutcome === 'loss' ? `
 ❌ FOR A LOSS:
 1. Be empathetic and encouraging
 2. Acknowledge the loss: "$${Math.abs(settlement.profit).toFixed(2)}"
-3. Focus on the long game and learning
-4. Be supportive, not discouraging
+3. **ALWAYS mention their updated total P/L percentage: "You're now at ${plSign}${plPct.toFixed(1)}% overall"**
+4. Focus on the long game and staying disciplined
+5. Be supportive, not discouraging (2-3 sentences)
 ` : `
 ↔️ FOR A PUSH:
 1. Explain that the bet pushed (tie/voided)
 2. Confirm their stake was returned: "$${bet.amount.toFixed(2)}"
-3. Keep it brief and neutral
+3. Mention their P/L remains at ${plSign}${plPct.toFixed(1)}%
+4. Keep it brief and neutral (1-2 sentences)
 `}
 
-Keep your response CONCISE (2-3 sentences max) but include the key numbers.`;
+Keep your response CONCISE but ALWAYS include the updated P/L percentage.`;
       }
     }
 
@@ -1880,6 +2034,12 @@ INSTRUCTIONS:
 ${isAskingForScore
   ? '- Provide clear, concise score updates based on the data above\n- Include game status and any relevant context\n- Only provide betting analysis if specifically requested along with the score'
   : '- Use this live data to provide specific, concrete analysis\n- Reference actual odds, spreads, and totals from the data provided\n- Identify specific edges based on matchup analysis, injury impacts, and situational factors\n- Compare odds across different bookmakers when available\n- Provide reasoning based on the actual data, not generic principles\n- Recommend bet sizing based on your confidence level\n- Be direct and actionable with your recommendations'}`
+      : bankrollUpdateContext
+        ? `${basePrompt}
+
+${bankrollContext}
+
+${bankrollUpdateContext}`
       : betOutcomeContext
         ? `${basePrompt}
 
