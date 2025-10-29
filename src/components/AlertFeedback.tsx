@@ -65,12 +65,12 @@ export const AlertFeedback = ({
       const feedbackData = {
         user_id: user.id,
         notification_id: notificationId,
+        alert_id: notificationId,
         alert_type: alertType || null,
         priority_level: priorityLevel || null,
         was_useful: useful,
         user_action: useful ? "investigated" : "dismissed"
       };
-
       const { data: existing } = await supabase
         .from("alert_feedback")
         .select("id")

@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      alert_feedback: {
+        Row: {
+          alert_id: string
+          alert_type: string | null
+          created_at: string
+          false_positive: boolean | null
+          id: string
+          led_to_bet: boolean | null
+          notification_id: string | null
+          priority_level: string | null
+          relevance_rating: number | null
+          time_to_action_seconds: number | null
+          user_action: string | null
+          user_id: string
+          was_accurate: boolean | null
+          was_timely: boolean | null
+          was_useful: boolean
+        }
+        Insert: {
+          alert_id: string
+          alert_type?: string | null
+          created_at?: string
+          false_positive?: boolean | null
+          id?: string
+          led_to_bet?: boolean | null
+          notification_id?: string | null
+          priority_level?: string | null
+          relevance_rating?: number | null
+          time_to_action_seconds?: number | null
+          user_action?: string | null
+          user_id: string
+          was_accurate?: boolean | null
+          was_timely?: boolean | null
+          was_useful: boolean
+        }
+        Update: {
+          alert_id?: string
+          alert_type?: string | null
+          created_at?: string
+          false_positive?: boolean | null
+          id?: string
+          led_to_bet?: boolean | null
+          notification_id?: string | null
+          priority_level?: string | null
+          relevance_rating?: number | null
+          time_to_action_seconds?: number | null
+          user_action?: string | null
+          user_id?: string
+          was_accurate?: boolean | null
+          was_timely?: boolean | null
+          was_useful?: boolean
+        }
+        Relationships: []
+      }
       bankroll_transactions: {
         Row: {
           amount: number
@@ -585,6 +639,53 @@ export type Database = {
         }
         Relationships: []
       }
+      message_feedback: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          feedback_type: string
+          id: string
+          is_helpful: boolean | null
+          message_content_preview: string | null
+          message_id: string
+          rating: number | null
+          response_type: string | null
+          user_id: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          feedback_type: string
+          id?: string
+          is_helpful?: boolean | null
+          message_content_preview?: string | null
+          message_id: string
+          rating?: number | null
+          response_type?: string | null
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          feedback_type?: string
+          id?: string
+          is_helpful?: boolean | null
+          message_content_preview?: string | null
+          message_id?: string
+          rating?: number | null
+          response_type?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_feedback_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           content: string
@@ -804,6 +905,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      prediction_feedback: {
+        Row: {
+          confidence_rating: number | null
+          created_at: string
+          id: string
+          prediction_id: string
+          sport: string | null
+          user_action: string | null
+          user_id: string
+          user_profit_loss: number | null
+          value_rating: number | null
+          was_accurate: boolean | null
+          was_helpful: boolean
+        }
+        Insert: {
+          confidence_rating?: number | null
+          created_at?: string
+          id?: string
+          prediction_id: string
+          sport?: string | null
+          user_action?: string | null
+          user_id: string
+          user_profit_loss?: number | null
+          value_rating?: number | null
+          was_accurate?: boolean | null
+          was_helpful: boolean
+        }
+        Update: {
+          confidence_rating?: number | null
+          created_at?: string
+          id?: string
+          prediction_id?: string
+          sport?: string | null
+          user_action?: string | null
+          user_id?: string
+          user_profit_loss?: number | null
+          value_rating?: number | null
+          was_accurate?: boolean | null
+          was_helpful?: boolean
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
