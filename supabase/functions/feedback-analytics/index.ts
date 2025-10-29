@@ -60,7 +60,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in feedback-analytics function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -239,9 +239,9 @@ async function getOverallFeedbackAnalytics(supabaseClient: any, userId: string, 
     summary: {
       totalFeedbackItems: messageStats.total + predictionStats.total + alertStats.total,
       overallSatisfaction: (
-        (parseFloat(messageStats.positiveRate) +
-         parseFloat(predictionStats.helpfulRate) +
-         parseFloat(alertStats.usefulRate)) / 3
+        (parseFloat(String(messageStats.positiveRate)) +
+         parseFloat(String(predictionStats.helpfulRate)) +
+         parseFloat(String(alertStats.usefulRate))) / 3
       ).toFixed(1)
     }
   };

@@ -1156,7 +1156,7 @@ async function detectAndUpdateBankroll(messageContent: string, userId: string): 
           currentBankroll = profile?.bankroll || 1000;
         }
 
-        if (unitSizeAmount > currentBankroll) {
+        if (currentBankroll && unitSizeAmount > currentBankroll) {
           console.log('❌ Unit size validation failed: exceeds bankroll');
           return {
             error: true,
@@ -1166,7 +1166,7 @@ async function detectAndUpdateBankroll(messageContent: string, userId: string): 
         }
 
         // Warning for large unit sizes (>10% of bankroll)
-        if (unitSizeAmount > currentBankroll * 0.1) {
+        if (currentBankroll && unitSizeAmount > currentBankroll * 0.1) {
           console.log('⚠️ Unit size warning: >10% of bankroll');
           // Don't reject, but the AI will see this in the message
           return {
@@ -1213,7 +1213,9 @@ async function detectAndUpdateBankroll(messageContent: string, userId: string): 
           ? `Bankroll set to $${bankrollAmount.toFixed(2)} with unit size of $${unitSizeAmount.toFixed(2)}`
           : bankrollAmount
           ? `Bankroll set to $${bankrollAmount.toFixed(2)}`
-          : `Unit size set to $${unitSizeAmount.toFixed(2)}`
+          : unitSizeAmount
+          ? `Unit size set to $${unitSizeAmount.toFixed(2)}`
+          : 'Bankroll updated'
       };
     } catch (error) {
       console.error('Error in detectAndUpdateBankroll:', error);

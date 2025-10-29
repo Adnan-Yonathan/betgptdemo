@@ -141,7 +141,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error in bankroll-query:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
@@ -255,7 +255,7 @@ async function generateConversationalResponse(params: any): Promise<string> {
     // Sport breakdown
     if (sportStats.length > 0) {
       response += `**📊 BY SPORT**\n`;
-      sportStats.forEach((sport) => {
+      sportStats.forEach((sport: any) => {
         response += `${sport.sport}: ${sport.record} (${sport.winRate}%) | ${formatCurrency(sport.profitLoss)}\n`;
       });
       response += `\n`;
