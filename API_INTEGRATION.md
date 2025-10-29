@@ -20,7 +20,7 @@ BetGPT uses premium APIs to provide accurate, real-time sports betting data and 
 
 **Cache Duration**: 30 minutes (configurable)
 
-**API Key Required**: Yes - Set `THE_ODDS_API_KEY` in environment variables
+**API Key Required**: Yes - Set `THE_RUNDOWN_API` in environment variables
 
 **Supported Sports**:
 - NFL (`americanfootball_nfl`)
@@ -123,8 +123,8 @@ AI analysis with real-time data
 # OpenAI API Key
 OPENAI_API_KEY=sk-...
 
-# The Odds API Key
-THE_ODDS_API_KEY=...
+# The Rundown API Key
+THE_RUNDOWN_API=...
 
 # Supabase (already configured)
 SUPABASE_URL=...

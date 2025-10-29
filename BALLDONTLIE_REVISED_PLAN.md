@@ -633,7 +633,7 @@ export async function getComprehensiveOdds(gameId: string) {
     bestSpread: bestLines.spread,
     bestTotal: bestLines.total,
     bookmakerCount: allOdds.length,
-    sources: ['odds-api', 'balldontlie']
+    sources: ['rundown-api', 'balldontlie']
   };
 }
 ```

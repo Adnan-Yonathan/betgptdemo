@@ -425,7 +425,7 @@ CREATE INDEX idx_player_perf_source ON player_performance_history(data_source);
 ```sql
 CREATE TABLE api_source_log (
   id UUID PRIMARY KEY,
-  source TEXT NOT NULL, -- 'balldontlie', 'espn', 'odds-api', 'openai'
+  source TEXT NOT NULL, -- 'balldontlie', 'espn', 'rundown-api', 'openai'
   endpoint TEXT NOT NULL,
   success BOOLEAN NOT NULL,
   response_time_ms INTEGER,
@@ -494,8 +494,8 @@ BALLDONTLIE_API_KEY=your_api_key_here        # ✅ Already configured
 VITE_ENABLE_BALLDONTLIE=true                  # Feature flag
 VITE_BALLDONTLIE_ROLLOUT=100                  # Rollout percentage (0-100)
 
-# The Odds API (EXISTING)
-THE_ODDS_API_KEY=your_odds_api_key            # ✅ Already configured
+# The Rundown API (EXISTING)
+THE_RUNDOWN_API=your_rundown_api_key          # ✅ Already configured
 
 # OpenAI (EXISTING)
 OPENAI_API_KEY=sk-...                         # ✅ Already configured
