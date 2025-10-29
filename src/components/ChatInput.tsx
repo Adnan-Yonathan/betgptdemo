@@ -103,7 +103,7 @@ export const ChatInput = ({
       }
     }
   };
-  return <div className="border-t border-border bg-background p-3 sm:p-4">
+  return <div className="fixed md:relative bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto z-50 md:z-auto border-t border-border bg-background p-3 sm:p-4">
       <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
         {/* Attached Files Display */}
         {attachedFiles.length > 0 && (
