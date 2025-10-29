@@ -7,11 +7,13 @@ import { ProfileDropdown } from "@/components/ProfileDropdown";
 import { ProfileSettings } from "@/components/ProfileSettings";
 import { ThinkingIndicator } from "@/components/ThinkingIndicator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { playAudioFromBase64 } from "@/utils/voiceUtils";
-import { Volume2, VolumeX, BookOpen, LineChart } from "lucide-react";
+import { BookOpen, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserGuide } from "@/components/UserGuide";
 interface Message {
@@ -37,6 +39,8 @@ const Index = () => {
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isMobile = useIsMobile();
   const {
     toast
   } = useToast();
@@ -285,30 +289,65 @@ const Index = () => {
     }
   };
   return <div className="flex h-screen bg-background">
-      <ChatSidebar currentConversationId={currentConversationId} onConversationSelect={loadConversation} onNewChat={handleNewChat} />
-      
+      {/* Desktop Sidebar - Hidden on mobile */}
+      {!isMobile && (
+        <ChatSidebar
+          currentConversationId={currentConversationId}
+          onConversationSelect={loadConversation}
+          onNewChat={handleNewChat}
+        />
+      )}
+
+      {/* Mobile Drawer */}
+      <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+        <SheetContent side="left" className="p-0 w-[280px]">
+          <ChatSidebar
+            currentConversationId={currentConversationId}
+            onConversationSelect={(id) => {
+              loadConversation(id);
+              setSidebarOpen(false);
+            }}
+            onNewChat={() => {
+              handleNewChat();
+              setSidebarOpen(false);
+            }}
+          />
+        </SheetContent>
+      </Sheet>
+
       <main className="flex-1 flex flex-col">
         {/* Chat Header */}
-        <header className="border-b border-border px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <header className="border-b border-border px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2 sm:gap-4">
+            {/* Hamburger menu for mobile */}
+            {isMobile && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSidebarOpen(true)}
+                className="h-9 w-9 p-0"
+              >
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Open menu</span>
+              </Button>
+            )}
             <div>
-              <h2 className="text-lg font-semibold text-foreground">Qauntara</h2>
-              <p className="text-sm text-muted-foreground">your sports quantitative</p>
+              <h2 className="text-base sm:text-lg font-semibold text-foreground">Qauntara</h2>
+              <p className="text-xs sm:text-sm text-muted-foreground">your sports quantitative</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setGuideOpen(true)} className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setGuideOpen(true)} className="flex items-center gap-2 h-9 px-2 sm:px-3">
               <BookOpen className="w-4 h-4" />
               <span className="hidden sm:inline">Guide</span>
             </Button>
-            
 
             <ProfileDropdown onOpenProfile={() => setProfileOpen(true)} />
           </div>
         </header>
 
         {/* Messages */}
-        <ScrollArea className="flex-1 px-6 py-8">
+        <ScrollArea className="flex-1 px-3 sm:px-6 py-4 sm:py-8">
           <div className="max-w-4xl mx-auto" ref={scrollAreaRef}>
             {messages.length === 0 ? <div className="text-center py-12 animate-fade-in">
                 <h3 className="text-2xl font-semibold text-foreground mb-2">

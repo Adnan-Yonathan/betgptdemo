@@ -103,17 +103,17 @@ export const ChatInput = ({
       }
     }
   };
-  return <div className="border-t border-border bg-background p-4">
+  return <div className="border-t border-border bg-background p-3 sm:p-4">
       <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
         {/* Attached Files Display */}
         {attachedFiles.length > 0 && (
-          <div className="mb-3 flex flex-wrap gap-2">
+          <div className="mb-2 sm:mb-3 flex flex-wrap gap-2">
             {attachedFiles.map((file, index) => (
               <div
                 key={index}
-                className="flex items-center gap-2 bg-muted px-3 py-2 rounded-md text-sm"
+                className="flex items-center gap-2 bg-muted px-2 py-1.5 sm:px-3 sm:py-2 rounded-md text-xs sm:text-sm"
               >
-                <span className="truncate max-w-[200px]">{file.name}</span>
+                <span className="truncate max-w-[150px] sm:max-w-[200px]">{file.name}</span>
                 <Button
                   type="button"
                   size="icon"
@@ -128,7 +128,7 @@ export const ChatInput = ({
           </div>
         )}
 
-        <div className="relative flex items-end gap-2">
+        <div className="relative flex items-end gap-1.5 sm:gap-2">
           {/* Additional Actions */}
           <input
             ref={fileInputRef}
@@ -138,11 +138,11 @@ export const ChatInput = ({
             onChange={handleFileSelect}
             disabled={disabled}
           />
-          <Button 
-            type="button" 
-            size="icon" 
-            variant="ghost" 
-            className="flex-shrink-0 mb-1" 
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="flex-shrink-0 mb-0.5 sm:mb-1 h-10 w-10 sm:h-9 sm:w-9"
             onClick={handlePlusClick}
             disabled={disabled}
           >
@@ -151,15 +151,15 @@ export const ChatInput = ({
 
           {/* Text Input */}
           <div className="flex-1 relative">
-            <Textarea value={message} onChange={e => setMessage(e.target.value)} onKeyDown={handleKeyDown} placeholder="Ask anything" className="min-h-[52px] max-h-[200px] pr-24 resize-none bg-chat-input border-border focus:border-primary transition-colors" disabled={disabled} rows={1} />
-            
+            <Textarea value={message} onChange={e => setMessage(e.target.value)} onKeyDown={handleKeyDown} placeholder="Ask anything" className="min-h-[44px] sm:min-h-[52px] max-h-[200px] pr-20 sm:pr-24 resize-none bg-chat-input border-border focus:border-primary transition-colors text-sm sm:text-base" disabled={disabled} rows={1} />
+
             {/* Input Actions */}
             <div className="absolute right-2 bottom-2 flex items-center gap-1">
-              <Button 
-                type="button" 
-                size="icon" 
-                variant="ghost" 
-                className={cn("h-8 w-8", isRecording && "text-destructive animate-pulse")} 
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className={cn("h-9 w-9 sm:h-8 sm:w-8", isRecording && "text-destructive animate-pulse")}
                 onClick={handleMicClick}
                 disabled={disabled || isTranscribing}
               >
@@ -169,7 +169,7 @@ export const ChatInput = ({
           </div>
 
           {/* Send Button */}
-          <Button type="submit" size="icon" className={cn("flex-shrink-0 mb-1 transition-all", message.trim() ? "bg-primary hover:bg-primary/90" : "bg-muted text-muted-foreground")} disabled={!message.trim() || disabled}>
+          <Button type="submit" size="icon" className={cn("flex-shrink-0 mb-0.5 sm:mb-1 h-10 w-10 sm:h-9 sm:w-9 transition-all", message.trim() ? "bg-primary hover:bg-primary/90" : "bg-muted text-muted-foreground")} disabled={!message.trim() || disabled}>
             <Send className="w-5 h-5" />
           </Button>
         </div>

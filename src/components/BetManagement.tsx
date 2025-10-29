@@ -145,27 +145,28 @@ export const BetEditDialog = ({ bet, onUpdate }: BetEditDialogProps) => {
           Edit
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="w-[95vw] sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Edit Bet</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-lg sm:text-xl">Edit Bet</DialogTitle>
+          <DialogDescription className="text-sm">
             Update bet details. Only pending bets can be edited.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="edit-description">Description</Label>
+            <Label htmlFor="edit-description" className="text-sm">Description</Label>
             <Textarea
               id="edit-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="e.g., Titans +14.5 vs Colts"
               rows={3}
+              className="text-sm sm:text-base"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-amount">Amount ($)</Label>
+              <Label htmlFor="edit-amount" className="text-sm">Amount ($)</Label>
               <Input
                 id="edit-amount"
                 type="number"
@@ -173,25 +174,27 @@ export const BetEditDialog = ({ bet, onUpdate }: BetEditDialogProps) => {
                 onChange={(e) => setAmount(e.target.value)}
                 min="0"
                 step="0.01"
+                className="h-10 sm:h-9 text-sm sm:text-base"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-odds">Odds</Label>
+              <Label htmlFor="edit-odds" className="text-sm">Odds</Label>
               <Input
                 id="edit-odds"
                 type="number"
                 value={odds}
                 onChange={(e) => setOdds(e.target.value)}
                 placeholder="-110"
+                className="h-10 sm:h-9 text-sm sm:text-base"
               />
             </div>
           </div>
         </div>
-        <DialogFooter>
-          <Button onClick={() => setOpen(false)} variant="outline">
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button onClick={() => setOpen(false)} variant="outline" className="h-10 sm:h-9">
             Cancel
           </Button>
-          <Button onClick={handleUpdate} disabled={loading}>
+          <Button onClick={handleUpdate} disabled={loading} className="h-10 sm:h-9">
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -253,25 +256,25 @@ export const BetDeleteDialog = ({ bet, onDelete }: BetDeleteDialogProps) => {
           Delete
         </Button>
       </AlertDialogTrigger>
-      <AlertDialogContent>
+      <AlertDialogContent className="w-[95vw] sm:max-w-[425px]">
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete Bet?</AlertDialogTitle>
-          <AlertDialogDescription>
+          <AlertDialogTitle className="text-lg sm:text-xl">Delete Bet?</AlertDialogTitle>
+          <AlertDialogDescription className="text-sm">
             This action cannot be undone. This will permanently delete your bet:
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <div className="p-4 rounded-lg bg-muted">
-          <p className="font-medium">{bet.description}</p>
-          <p className="text-sm text-muted-foreground mt-1">
+        <div className="p-3 sm:p-4 rounded-lg bg-muted">
+          <p className="font-medium text-sm sm:text-base">{bet.description}</p>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             ${bet.amount.toFixed(2)} at {bet.odds > 0 ? "+" : ""}{bet.odds}
           </p>
         </div>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+        <AlertDialogFooter className="gap-2 sm:gap-0">
+          <AlertDialogCancel className="h-10 sm:h-9">Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleDelete}
             disabled={loading}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90 h-10 sm:h-9"
           >
             {loading ? (
               <>

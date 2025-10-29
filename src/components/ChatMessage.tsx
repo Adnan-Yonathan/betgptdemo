@@ -36,12 +36,12 @@ export const ChatMessage = memo(({
   
   return (
     <div className={cn(
-      "mb-6 animate-fade-in group flex gap-3",
+      "mb-4 sm:mb-6 animate-fade-in group flex gap-2 sm:gap-3",
       isUser ? "flex-row-reverse" : "flex-row"
     )}>
       {/* Avatar Badge */}
       <div className={cn(
-        "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold",
+        "flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-semibold",
         isUser
           ? "bg-[hsl(var(--chat-user-bg))] text-white"
           : "bg-[hsl(var(--chat-ai-bg))] text-foreground"
@@ -51,7 +51,7 @@ export const ChatMessage = memo(({
 
       {/* Message Bubble */}
       <div className={cn(
-        "flex flex-col max-w-[75%]",
+        "flex flex-col max-w-[90%] sm:max-w-[85%] md:max-w-[75%]",
         isUser ? "items-end" : "items-start"
       )}>
         {/* Role Label */}
@@ -63,12 +63,12 @@ export const ChatMessage = memo(({
 
         {/* Message Content */}
         <div className={cn(
-          "rounded-2xl px-4 py-3",
+          "rounded-2xl px-3 py-2 sm:px-4 sm:py-3",
           isUser
             ? "bg-[hsl(var(--chat-user-bg))] text-white rounded-tr-sm"
             : "bg-[hsl(var(--chat-ai-bg))] text-foreground rounded-tl-sm"
         )}>
-          <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">
+          <p className="text-sm sm:text-[15px] leading-relaxed whitespace-pre-wrap break-words">
             {formattedContent}
             {isStreaming && <span className="inline-block w-[2px] h-5 bg-current ml-0.5 animate-pulse align-middle" />}
           </p>
