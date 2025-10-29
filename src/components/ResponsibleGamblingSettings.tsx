@@ -554,10 +554,10 @@ export const ResponsibleGamblingSettings = () => {
 
       {/* Cool-Off Dialog */}
       <Dialog open={coolOffDialog} onOpenChange={setCoolOffDialog}>
-        <DialogContent>
+        <DialogContent className="w-[95vw] sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Start Cool-off Period</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-lg sm:text-xl">Start Cool-off Period</DialogTitle>
+            <DialogDescription className="text-sm">
               Choose how long you want to disable bet placement
             </DialogDescription>
           </DialogHeader>
@@ -565,34 +565,34 @@ export const ResponsibleGamblingSettings = () => {
             <Button
               onClick={() => startCoolOff(24)}
               variant="outline"
-              className="w-full justify-start"
+              className="w-full justify-start h-11 sm:h-10"
             >
               24 hours
             </Button>
             <Button
               onClick={() => startCoolOff(72)}
               variant="outline"
-              className="w-full justify-start"
+              className="w-full justify-start h-11 sm:h-10"
             >
               3 days
             </Button>
             <Button
               onClick={() => startCoolOff(168)}
               variant="outline"
-              className="w-full justify-start"
+              className="w-full justify-start h-11 sm:h-10"
             >
               1 week
             </Button>
             <Button
               onClick={() => startCoolOff(720)}
               variant="outline"
-              className="w-full justify-start"
+              className="w-full justify-start h-11 sm:h-10"
             >
               1 month
             </Button>
           </div>
           <DialogFooter>
-            <Button onClick={() => setCoolOffDialog(false)} variant="ghost">
+            <Button onClick={() => setCoolOffDialog(false)} variant="ghost" className="h-10 sm:h-9">
               Cancel
             </Button>
           </DialogFooter>

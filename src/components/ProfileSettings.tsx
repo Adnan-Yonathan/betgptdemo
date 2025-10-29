@@ -89,22 +89,22 @@ export const ProfileSettings = ({ open, onOpenChange }: ProfileSettingsProps) =>
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Betting Profile</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-lg sm:text-xl">Betting Profile</DialogTitle>
+          <DialogDescription className="text-sm">
             Configure your betting preferences.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="space-y-4 sm:space-y-6 py-3 sm:py-4">
           <div className="space-y-2">
-            <Label>Theme</Label>
+            <Label className="text-sm sm:text-base">Theme</Label>
             <div className="flex gap-2">
               <Button
                 variant={theme === "light" ? "default" : "outline"}
                 size="sm"
-                className="flex-1"
+                className="flex-1 h-10 sm:h-9"
                 onClick={() => setTheme("light")}
               >
                 <Sun className="h-4 w-4 mr-2" />
@@ -113,7 +113,7 @@ export const ProfileSettings = ({ open, onOpenChange }: ProfileSettingsProps) =>
               <Button
                 variant={theme === "dark" ? "default" : "outline"}
                 size="sm"
-                className="flex-1"
+                className="flex-1 h-10 sm:h-9"
                 onClick={() => setTheme("dark")}
               >
                 <Moon className="h-4 w-4 mr-2" />
@@ -123,9 +123,9 @@ export const ProfileSettings = ({ open, onOpenChange }: ProfileSettingsProps) =>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="riskTolerance">Risk Tolerance</Label>
+            <Label htmlFor="riskTolerance" className="text-sm sm:text-base">Risk Tolerance</Label>
             <Select value={riskTolerance} onValueChange={setRiskTolerance}>
-              <SelectTrigger id="riskTolerance">
+              <SelectTrigger id="riskTolerance" className="h-10 sm:h-9">
                 <SelectValue placeholder="Select risk level" />
               </SelectTrigger>
               <SelectContent>
@@ -145,11 +145,11 @@ export const ProfileSettings = ({ open, onOpenChange }: ProfileSettingsProps) =>
             </p>
           </div>
 
-          <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <div className="flex justify-end gap-2 pt-3 sm:pt-4">
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="h-10 sm:h-9 px-4">
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={loading}>
+            <Button onClick={handleSave} disabled={loading} className="h-10 sm:h-9 px-4">
               {loading ? "Saving..." : "Save Changes"}
             </Button>
           </div>

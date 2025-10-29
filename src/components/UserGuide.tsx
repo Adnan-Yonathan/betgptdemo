@@ -12,25 +12,25 @@ interface UserGuideProps {
 export const UserGuide = ({ open, onOpenChange }: UserGuideProps) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[85vh]">
+      <DialogContent className="w-[95vw] sm:w-[90vw] max-w-4xl max-h-[85vh] sm:max-h-[85vh]">
         <DialogHeader>
-          <DialogTitle className="text-2xl">Before You Start</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-xl sm:text-2xl">Before You Start</DialogTitle>
+          <DialogDescription className="text-sm">
             Essential information for using Qauntara effectively and responsibly
           </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="mindset" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6">
-            <TabsTrigger value="mindset">Mindset</TabsTrigger>
-            <TabsTrigger value="limitations">Limitations</TabsTrigger>
-            <TabsTrigger value="howto">How To Use</TabsTrigger>
-            <TabsTrigger value="practices">Best Practices</TabsTrigger>
-            <TabsTrigger value="features">Features</TabsTrigger>
-            <TabsTrigger value="responsible">Responsible Betting</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 h-auto">
+            <TabsTrigger value="mindset" className="text-xs sm:text-sm px-2 py-2">Mindset</TabsTrigger>
+            <TabsTrigger value="limitations" className="text-xs sm:text-sm px-2 py-2">Limits</TabsTrigger>
+            <TabsTrigger value="howto" className="text-xs sm:text-sm px-2 py-2">How To</TabsTrigger>
+            <TabsTrigger value="practices" className="text-xs sm:text-sm px-2 py-2">Practices</TabsTrigger>
+            <TabsTrigger value="features" className="text-xs sm:text-sm px-2 py-2">Features</TabsTrigger>
+            <TabsTrigger value="responsible" className="text-xs sm:text-sm px-2 py-2">Safety</TabsTrigger>
           </TabsList>
 
-          <ScrollArea className="h-[60vh] mt-4 pr-4">
+          <ScrollArea className="h-[50vh] sm:h-[60vh] mt-3 sm:mt-4 pr-2 sm:pr-4">
             {/* Section 1: Essential Mindset */}
             <TabsContent value="mindset" className="space-y-4">
               <Alert>
