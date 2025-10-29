@@ -1,19 +1,22 @@
-"""Utility functions for fetching NBA data using nba_api.
+"""Utility functions for fetching NBA data using ``nba_api``.
 
 This module exposes reusable helpers for working with NBA statistics via the
 ``nba_api`` package:
 
-* :func:`get_live_scores` – Fetches today's NBA scoreboard and returns a
+* :func:`get_live_scores` – Fetch today's NBA scoreboard and return a
   JSON-serialisable dictionary with details about each game.
-* :func:`get_team_statistics` – Retrieves season aggregates for a given team
+* :func:`get_team_statistics` – Retrieve season aggregates for a given team
   (wins, losses, averages, etc.).
-* :func:`get_player_statistics` – Retrieves per-mode statistics for a specific
+* :func:`get_player_statistics` – Retrieve per-mode statistics for a specific
   player (points, rebounds, assists, and more).
-* :func:`get_player_career_stats` – Fetches a player's career averages and
-  gracefully handles missing data.
+* :func:`get_player_career_stats` – Fetch a player's career averages and
+  gracefully handle missing data.
+* :func:`get_player_prop_recommendations` – Surface high-level blended prop
+  scores to power betting-style queries when no explicit identifiers exist.
 
 The helpers are designed to be imported elsewhere in the application while also
-supporting basic command-line usage for manual inspection.
+supporting basic command-line usage for manual inspection and lightweight
+natural-language interpretation.
 """
 
 from __future__ import annotations
@@ -356,10 +359,11 @@ def get_player_career_stats(player_id: int) -> Dict[str, float]:
 def handle_nba_query(query: str) -> Dict[str, Any]:
     """Interpret a natural-language style query and dispatch to a helper.
 
-    The interpreter only responds to explicit requests for live scores,
-    team statistics, player statistics, or player career averages. This keeps
-    the module from triggering on generic NBA chatter while still enabling
-    higher-level callers to translate supported phrases into API calls.
+    Any query that references the NBA will return a structured response. The
+    interpreter honours explicit requests for scores, team statistics, player
+    statistics, or player career averages while falling back to prop
+    recommendations when the input lacks the identifiers needed for a targeted
+    lookup.
 
     Parameters
     ----------
@@ -382,6 +386,14 @@ def handle_nba_query(query: str) -> Dict[str, Any]:
     if "nba" not in normalized:
         raise ValueError("Query does not appear to reference the NBA")
 
+    fallback_payload: Optional[Dict[str, Any]] = None
+
+    def _fallback() -> Dict[str, Any]:
+        nonlocal fallback_payload
+        if fallback_payload is None:
+            fallback_payload = get_player_prop_recommendations()
+        return fallback_payload
+
     if "live" in normalized and "score" in normalized:
         return get_live_scores()
 
@@ -390,7 +402,7 @@ def handle_nba_query(query: str) -> Dict[str, Any]:
         if team_id is None:
             return {
                 "message": "Team stats requested without an explicit ID.",
-                "recommendations": get_player_prop_recommendations(),
+                "recommendations": _fallback(),
             }
         return get_team_statistics(team_id)
 
@@ -399,7 +411,7 @@ def handle_nba_query(query: str) -> Dict[str, Any]:
         if player_id is None:
             return {
                 "message": "Player career stats requested without an ID.",
-                "recommendations": get_player_prop_recommendations(),
+                "recommendations": _fallback(),
             }
         averages = get_player_career_stats(player_id)
         return {"playerId": player_id, "careerAverages": averages}
@@ -409,14 +421,14 @@ def handle_nba_query(query: str) -> Dict[str, Any]:
         if player_id is None:
             return {
                 "message": "Player stats requested without an ID.",
-                "recommendations": get_player_prop_recommendations(),
+                "recommendations": _fallback(),
             }
         return get_player_statistics(player_id)
 
     if "prop" in normalized or "bet" in normalized or "odds" in normalized:
-        return get_player_prop_recommendations()
+        return _fallback()
 
-    return get_player_prop_recommendations()
+    return _fallback()
 
 
 def _extract_fields(
