@@ -1113,6 +1113,72 @@ async function detectAndUpdateBankroll(messageContent: string, userId: string): 
   // Update profile if bankroll or unit size detected
   if (bankrollAmount || unitSizeAmount) {
     try {
+      // VALIDATION: Bankroll amount
+      if (bankrollAmount !== null) {
+        if (bankrollAmount < 1) {
+          console.log('❌ Bankroll validation failed: too low');
+          return {
+            error: true,
+            message: 'Bankroll must be at least $1.00. Please set a valid bankroll amount.',
+            validation_error: 'MIN_BANKROLL'
+          };
+        }
+        if (bankrollAmount > 10000000) {
+          console.log('⚠️ Bankroll validation warning: very high amount');
+          return {
+            error: true,
+            message: 'Bankroll amount seems unusually high ($10M+). Please confirm this is correct. If yes, please contact support to increase limits.',
+            validation_error: 'MAX_BANKROLL'
+          };
+        }
+      }
+
+      // VALIDATION: Unit size
+      if (unitSizeAmount !== null) {
+        if (unitSizeAmount < 0.01) {
+          console.log('❌ Unit size validation failed: too low');
+          return {
+            error: true,
+            message: 'Unit size must be at least $0.01. Please set a valid unit size.',
+            validation_error: 'MIN_UNIT_SIZE'
+          };
+        }
+
+        // If setting both, validate unit size against new bankroll
+        // If only setting unit size, fetch current bankroll to validate
+        let currentBankroll = bankrollAmount;
+        if (!currentBankroll) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('bankroll')
+            .eq('id', userId)
+            .single();
+          currentBankroll = profile?.bankroll || 1000;
+        }
+
+        if (unitSizeAmount > currentBankroll) {
+          console.log('❌ Unit size validation failed: exceeds bankroll');
+          return {
+            error: true,
+            message: `Unit size ($${unitSizeAmount.toFixed(2)}) cannot be larger than your bankroll ($${currentBankroll.toFixed(2)}). Please set a smaller unit size.`,
+            validation_error: 'UNIT_SIZE_EXCEEDS_BANKROLL'
+          };
+        }
+
+        // Warning for large unit sizes (>10% of bankroll)
+        if (unitSizeAmount > currentBankroll * 0.1) {
+          console.log('⚠️ Unit size warning: >10% of bankroll');
+          // Don't reject, but the AI will see this in the message
+          return {
+            success: true,
+            warning: true,
+            bankroll: bankrollAmount,
+            unitSize: unitSizeAmount,
+            message: `⚠️ WARNING: Your unit size ($${unitSizeAmount.toFixed(2)}) is ${((unitSizeAmount / currentBankroll) * 100).toFixed(1)}% of your bankroll. Most experts recommend 1-5% per unit for responsible bankroll management. Please confirm this is intentional.`
+          };
+        }
+      }
+
       const updateData: any = {};
 
       if (bankrollAmount) {
@@ -1230,27 +1296,36 @@ async function updateBetOutcome(
 
     console.log(`Calculated actual return: $${actualReturn} for outcome: ${outcome}`);
 
-    // Update bet with outcome
-    const { data: updatedBet, error: updateError } = await supabaseClient
-      .from('bets')
-      .update({
-        outcome,
-        actual_return: actualReturn,
-        settled_at: new Date().toISOString(),
-      })
-      .eq('id', bet.id)
-      .select()
-      .single();
+    // CRITICAL FIX: Use settle_bet_atomic() to update bet AND bankroll atomically
+    console.log('🔄 Calling settle_bet_atomic() to update bet and bankroll...');
+    const { data: settlementResult, error: settlementError } = await supabaseClient
+      .rpc('settle_bet_atomic', {
+        p_bet_id: bet.id,
+        p_outcome: outcome,
+        p_actual_return: actualReturn,
+        p_closing_line: null,
+        p_clv: null,
+      });
 
-    if (updateError) {
-      console.error('Error updating bet:', updateError);
-      return { error: 'Failed to settle bet', code: 'SETTLEMENT_ERROR', details: updateError };
+    if (settlementError) {
+      console.error('Error settling bet atomically:', settlementError);
+      return { error: 'Failed to settle bet and update bankroll', code: 'SETTLEMENT_ERROR', details: settlementError };
     }
 
-    console.log('✅ Bet settled:', updatedBet);
+    // Check if settlement was successful
+    const result = Array.isArray(settlementResult) ? settlementResult[0] : settlementResult;
+    if (!result || !result.success) {
+      console.error('Settlement failed:', result?.message);
+      return { error: result?.message || 'Settlement failed', code: 'SETTLEMENT_ERROR', details: result };
+    }
 
-    // Calculate profit
-    const profit = actualReturn - bet.amount;
+    console.log('✅ Bet settled atomically:', result);
+    console.log('💰 Bankroll updated:', result.bankroll_data);
+
+    // Extract data from settlement result
+    const betData = result.bet_data || {};
+    const bankrollData = result.bankroll_data || {};
+    const profit = betData.profit || (actualReturn - bet.amount);
 
     // Return formatted stats for AI response
     return {
@@ -1265,6 +1340,11 @@ async function updateBetOutcome(
       settlement: {
         profit,
         actual_return: actualReturn,
+      },
+      bankroll: {
+        previous: bankrollData.previous_bankroll,
+        new: bankrollData.new_bankroll,
+        change: bankrollData.change,
       }
     };
   } catch (error) {
@@ -1910,8 +1990,37 @@ Today's date: ${currentDate}`;
     // PHASE 1.3: Add comprehensive bet outcome context with stats
     // Build context for bankroll update if detected
     let bankrollUpdateContext = '';
-    if (bankrollUpdateResult && bankrollUpdateResult.success) {
-      bankrollUpdateContext = `
+    if (bankrollUpdateResult) {
+      if (bankrollUpdateResult.error) {
+        // Validation error occurred
+        bankrollUpdateContext = `
+BANKROLL VALIDATION ERROR:
+${bankrollUpdateResult.message}
+
+RESPONSE INSTRUCTIONS:
+- Politely inform the user that their bankroll/unit size value was not accepted
+- Explain the specific validation issue in a friendly way
+- Provide the correct range or requirement
+- Ask them to try again with a valid value
+- Example: "I noticed you tried to set a bankroll of $0.50, but the minimum is $1.00. Could you provide a bankroll amount of at least $1?"
+`;
+      } else if (bankrollUpdateResult.success && bankrollUpdateResult.warning) {
+        // Warning for risky unit size
+        bankrollUpdateContext = `
+BANKROLL UPDATED WITH WARNING:
+${bankrollUpdateResult.message}
+
+RESPONSE INSTRUCTIONS:
+- Acknowledge the bankroll/unit size was set
+- Gently warn them about the high unit size relative to bankroll
+- Explain that most experts recommend 1-5% per unit
+- Ask if they want to reconsider or if this is intentional
+- Be supportive, not judgmental
+- Example: "I've set your unit size to $500, but I want to check - that's 10% of your $5,000 bankroll. Most professionals recommend 1-5% to minimize risk. Would you like to adjust that, or is this intentional for your strategy?"
+`;
+      } else if (bankrollUpdateResult.success) {
+        // Normal success case
+        bankrollUpdateContext = `
 USER JUST UPDATED THEIR BANKROLL SETTINGS:
 ${bankrollUpdateResult.message}
 
@@ -1924,6 +2033,7 @@ RESPONSE INSTRUCTIONS:
 - Keep response brief and friendly (2-3 sentences)
 - Example: "Perfect! I've got your bankroll set at $5,000. Since you mentioned a $50 unit size, that's a conservative 1% approach - great for managing risk!"
 `;
+      }
     }
 
     let betOutcomeContext = '';
@@ -1966,11 +2076,11 @@ Apologize and inform the user that there was an issue settling their bet. Ask th
         }
       } else {
         // Success case - formatted response
-        const { bet, settlement } = betOutcomeResult;
+        const { bet, settlement, bankroll } = betOutcomeResult;
         const outcomeEmoji = detectedOutcome === 'win' ? '🎉' : detectedOutcome === 'loss' ? '😔' : '↔️';
         const profitSign = settlement.profit >= 0 ? '+' : '';
 
-        // Fetch updated bankroll status after settlement
+        // Fetch updated bankroll status after settlement to get P/L percentage
         const supabaseClient = getSupabaseClient();
         const { data: updatedBankrollData } = await supabaseClient
           .rpc('get_user_bankroll_status', { p_user_id: userId });
@@ -1978,6 +2088,10 @@ Apologize and inform the user that there was an issue settling their bet. Ask th
         const updatedStatus = updatedBankrollData?.[0];
         const plSign = updatedStatus?.profit_loss >= 0 ? '+' : '';
         const plPct = updatedStatus?.profit_loss_pct || 0;
+
+        // Use bankroll data from settlement result (more efficient and guaranteed fresh)
+        const newBalance = bankroll?.new || updatedStatus?.current_balance;
+        const bankrollChange = bankroll?.change || settlement.profit;
 
         betOutcomeContext = `
 ${outcomeEmoji} BET SETTLED SUCCESSFULLY:
@@ -1991,8 +2105,9 @@ Bet Details:
 Financial Impact:
 - Profit/Loss from this bet: ${profitSign}$${settlement.profit.toFixed(2)}
 - Return: $${settlement.actual_return.toFixed(2)}
+- **BANKROLL CHANGE: ${profitSign}$${Math.abs(bankrollChange).toFixed(2)} (${bankroll?.previous?.toFixed(2) || 'N/A'} → $${newBalance?.toFixed(2) || 'N/A'})**
 - **UPDATED TOTAL P/L: ${plSign}$${updatedStatus?.profit_loss?.toFixed(2) || '0.00'} (${plSign}${plPct.toFixed(1)}% from starting bankroll)**
-- New Balance: $${updatedStatus?.current_balance?.toFixed(2) || '0.00'}
+- New Balance: $${newBalance?.toFixed(2) || '0.00'}
 
 RESPONSE INSTRUCTIONS:
 Respond to the user with enthusiasm and empathy appropriate to the outcome:
