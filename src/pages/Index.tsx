@@ -26,7 +26,7 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 const initialMessages: Message[] = [{
   id: "1",
   role: "assistant",
-  content: "Welcome to Qauntara - your AI-powered sports betting assistant.\n\nI'm here to help you make smarter betting decisions through conversation. Here's what I can do:\n\n• Analyze games and matchups across NFL, NBA, MLB, NHL, and College Football\n• Provide real-time odds comparison and expected value (EV) calculations\n• Help you log and track your bets with detailed performance analytics\n• Offer betting recommendations based on your risk tolerance\n• Answer questions about betting strategy, bankroll management, and odds\n• Compare lines across multiple sportsbooks to find the best value\n\nImportant notes:\n• This is a demo application - some data may be stale or inaccurate\n• Analysis improves as game time approaches\n• Team-level data is most reliable; player-specific data may be limited\n• I can help you track wins, losses, ROI, and betting trends over time\n\nJust ask me about any game, betting strategy, or your betting performance to get started!",
+  content: "Welcome to DeltaEdge. How can I help you with sports betting today?",
   timestamp: "Just now"
 }];
 const Index = () => {
@@ -393,8 +393,8 @@ const Index = () => {
               </Button>
             )}
             <div>
-              <h2 className="text-base sm:text-lg font-semibold text-foreground">Qauntara</h2>
-              <p className="text-xs sm:text-sm text-muted-foreground">your sports quantitative</p>
+              <h2 className="text-base sm:text-lg font-semibold text-foreground">DeltaEdge</h2>
+              <p className="text-xs sm:text-sm text-muted-foreground">Premium Sports Intelligence</p>
             </div>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
