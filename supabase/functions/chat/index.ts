@@ -1947,6 +1947,11 @@ RESPONSIBLE GAMBLING:
     let dataContext = "";
     let contextType = "";
 
+    // PHASE 2: Extract team names and league for injury/trends data
+    const teamNames = extractTeamNames(messageContent);
+    const league = detectLeague(messageContent);
+    console.log(`[PHASE2] Extracted teams: ${teamNames.join(', ')}, League: ${league}`);
+
     if (isAskingForScore) {
       try {
         console.log("User is asking for scores, fetching live scores...");
@@ -1963,22 +1968,28 @@ RESPONSIBLE GAMBLING:
 
         // PERFORMANCE FIX: Parallelize data fetching if betting data is also needed
         if (isAskingForBettingData) {
-          console.log("[PERF] Parallelizing lineup, matchup, and odds fetches...");
+          console.log("[PERF] Parallelizing lineup, matchup, odds, injuries, and trends fetches...");
           const parallelStart = Date.now();
 
-          const [lineupData, matchupData, oddsData] = await Promise.all([
+          const [lineupData, matchupData, oddsData, injuryData, trendsData] = await Promise.all([
             fetchLineupData(lastMessage.content),
             fetchMatchupData(lastMessage.content),
-            fetchLiveOdds(lastMessage.content)
+            fetchLiveOdds(lastMessage.content),
+            fetchInjuryData(lastMessage.content, teamNames),
+            fetchTeamTrends(teamNames, league)
           ]);
 
           console.log(`[PERF] Parallel fetches completed in ${Date.now() - parallelStart}ms`);
 
-          dataContext = lineupData + "\n\n" + matchupData + "\n\n" + oddsData;
+          dataContext = lineupData + "\n\n" + matchupData + "\n\n" + oddsData + injuryData + trendsData;
           contextType = "comprehensive";
         } else {
-          const lineupData = await fetchLineupData(lastMessage.content);
-          dataContext = lineupData;
+          const [lineupData, injuryData, trendsData] = await Promise.all([
+            fetchLineupData(lastMessage.content),
+            fetchInjuryData(lastMessage.content, teamNames),
+            fetchTeamTrends(teamNames, league)
+          ]);
+          dataContext = lineupData + injuryData + trendsData;
           contextType = "lineup";
           console.log("Lineup data fetch result:", dataContext);
         }
@@ -1992,21 +2003,27 @@ RESPONSIBLE GAMBLING:
 
         // PERFORMANCE FIX: Parallelize matchup and odds fetching
         if (isAskingForBettingData) {
-          console.log("[PERF] Parallelizing matchup and odds fetches...");
+          console.log("[PERF] Parallelizing matchup, odds, injuries, and trends fetches...");
           const parallelStart = Date.now();
 
-          const [matchupData, oddsData] = await Promise.all([
+          const [matchupData, oddsData, injuryData, trendsData] = await Promise.all([
             fetchMatchupData(lastMessage.content),
-            fetchLiveOdds(lastMessage.content)
+            fetchLiveOdds(lastMessage.content),
+            fetchInjuryData(lastMessage.content, teamNames),
+            fetchTeamTrends(teamNames, league)
           ]);
 
           console.log(`[PERF] Parallel fetches completed in ${Date.now() - parallelStart}ms`);
 
-          dataContext = matchupData + "\n\n" + oddsData;
+          dataContext = matchupData + "\n\n" + oddsData + injuryData + trendsData;
           contextType = "comprehensive";
         } else {
-          const matchupData = await fetchMatchupData(lastMessage.content);
-          dataContext = matchupData;
+          const [matchupData, injuryData, trendsData] = await Promise.all([
+            fetchMatchupData(lastMessage.content),
+            fetchInjuryData(lastMessage.content, teamNames),
+            fetchTeamTrends(teamNames, league)
+          ]);
+          dataContext = matchupData + injuryData + trendsData;
           contextType = "matchup";
           console.log("Matchup data fetch result:", dataContext);
         }
@@ -2017,7 +2034,14 @@ RESPONSIBLE GAMBLING:
     } else if (isAskingForBettingData) {
       try {
         console.log("User is asking for game data, fetching live odds...");
-        dataContext = await fetchLiveOdds(lastMessage.content);
+
+        const [oddsData, injuryData, trendsData] = await Promise.all([
+          fetchLiveOdds(lastMessage.content),
+          fetchInjuryData(lastMessage.content, teamNames),
+          fetchTeamTrends(teamNames, league)
+        ]);
+
+        dataContext = oddsData + injuryData + trendsData;
         contextType = "betting";
         console.log("Odds data fetch result:", dataContext);
       } catch (error) {
