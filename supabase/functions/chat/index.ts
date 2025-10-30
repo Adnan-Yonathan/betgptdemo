@@ -1351,6 +1351,320 @@ async function updateBetOutcome(
   }
 }
 
+/**
+ * Handles bankroll deposits and withdrawals
+ * Patterns: "I deposited $500", "withdrew $200"
+ */
+async function handleDepositWithdrawal(
+  userId: string,
+  messageContent: string
+): Promise<any> {
+  const supabase = getSupabaseClient();
+
+  // Patterns for deposits
+  const depositPatterns = [
+    /(?:i\s+)?deposit(?:ed)?\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)/i,
+    /(?:i\s+)?added?\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)\s+(?:to\s+)?(?:my\s+)?bankroll/i,
+    /put\s+(?:in\s+)?\$?(\d+(?:,\d{3})*(?:\.\d{2})?)\s+(?:into\s+)?(?:my\s+)?bankroll/i,
+  ];
+
+  // Patterns for withdrawals
+  const withdrawalPatterns = [
+    /(?:i\s+)?with(?:draw|drew)\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)/i,
+    /(?:i\s+)?took\s+out\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)/i,
+    /(?:i\s+)?removed?\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)\s+(?:from\s+)?(?:my\s+)?bankroll/i,
+    /cash(?:ed)?\s+out\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)/i,
+  ];
+
+  let amount: number | null = null;
+  let transactionType: 'deposit' | 'withdrawal' | null = null;
+
+  // Check for deposit
+  for (const pattern of depositPatterns) {
+    const match = messageContent.match(pattern);
+    if (match && match[1]) {
+      amount = parseFloat(match[1].replace(/,/g, ''));
+      transactionType = 'deposit';
+      console.log(`💵 Detected deposit: $${amount}`);
+      break;
+    }
+  }
+
+  // Check for withdrawal if no deposit found
+  if (!transactionType) {
+    for (const pattern of withdrawalPatterns) {
+      const match = messageContent.match(pattern);
+      if (match && match[1]) {
+        amount = parseFloat(match[1].replace(/,/g, ''));
+        transactionType = 'withdrawal';
+        console.log(`💸 Detected withdrawal: $${amount}`);
+        break;
+      }
+    }
+  }
+
+  if (!transactionType || !amount) {
+    return null; // No deposit/withdrawal detected
+  }
+
+  // Validate amount
+  if (amount <= 0) {
+    return {
+      error: true,
+      message: 'Amount must be greater than $0.',
+      code: 'INVALID_AMOUNT'
+    };
+  }
+
+  try {
+    // Get current bankroll
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('bankroll, baseline_bankroll')
+      .eq('id', userId)
+      .single();
+
+    const currentBankroll = profile?.bankroll || 1000;
+    const baselineBankroll = profile?.baseline_bankroll || 1000;
+
+    // For withdrawals, check if user has enough funds
+    if (transactionType === 'withdrawal' && amount > currentBankroll) {
+      return {
+        error: true,
+        message: `Insufficient funds. Your current bankroll is $${currentBankroll.toFixed(2)}, but you tried to withdraw $${amount.toFixed(2)}.`,
+        code: 'INSUFFICIENT_FUNDS'
+      };
+    }
+
+    // Calculate new bankroll
+    const newBankroll = transactionType === 'deposit'
+      ? currentBankroll + amount
+      : currentBankroll - amount;
+
+    // Update bankroll in profiles table
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ bankroll: newBankroll })
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error('Error updating bankroll:', updateError);
+      return {
+        error: true,
+        message: 'Failed to update bankroll',
+        code: 'UPDATE_ERROR'
+      };
+    }
+
+    // Also update user_bankroll table if it exists
+    await supabase
+      .from('user_bankroll')
+      .update({
+        current_amount: newBankroll,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId);
+
+    // Log transaction
+    await supabase
+      .from('bankroll_transactions')
+      .insert({
+        user_id: userId,
+        type: transactionType,
+        amount: amount,
+        balance_after: newBankroll,
+        notes: `${transactionType === 'deposit' ? 'Deposited' : 'Withdrew'} $${amount.toFixed(2)} via chat`,
+        created_at: new Date().toISOString()
+      });
+
+    console.log(`✅ ${transactionType} processed: $${amount} (new bankroll: $${newBankroll})`);
+
+    return {
+      success: true,
+      transactionType,
+      amount,
+      previousBankroll: currentBankroll,
+      newBankroll,
+      message: `${transactionType === 'deposit' ? 'Deposit' : 'Withdrawal'} of $${amount.toFixed(2)} processed successfully`
+    };
+  } catch (error) {
+    console.error('Error processing deposit/withdrawal:', error);
+    return {
+      error: true,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      code: 'PROCESSING_ERROR'
+    };
+  }
+}
+
+/**
+ * Handles logging historical bets (bets placed elsewhere)
+ * Patterns: "I won $200 on Lakers yesterday", "I lost $100 on Celtics last night"
+ */
+async function handleHistoricalBet(
+  userId: string,
+  conversationId: string,
+  messageContent: string
+): Promise<any> {
+  const supabase = getSupabaseClient();
+
+  // Patterns for historical wins
+  const historicalWinPatterns = [
+    /(?:i\s+)?won\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)\s+on\s+(?:the\s+)?(.+?)(?:\s+yesterday|\s+last\s+(?:night|week|game)|$)/i,
+    /(?:i\s+)?hit\s+(?:a\s+)?\$?(\d+(?:,\d{3})*(?:\.\d{2})?)\s+(?:on\s+)?(?:the\s+)?(.+?)(?:\s+yesterday|\s+last\s+(?:night|week|game)|$)/i,
+    /(?:i\s+)?cashed\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)\s+on\s+(?:the\s+)?(.+?)(?:\s+yesterday|\s+last\s+(?:night|week|game)|$)/i,
+  ];
+
+  // Patterns for historical losses
+  const historicalLossPatterns = [
+    /(?:i\s+)?lost\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)\s+on\s+(?:the\s+)?(.+?)(?:\s+yesterday|\s+last\s+(?:night|week|game)|$)/i,
+    /(?:i\s+)?missed\s+(?:a\s+)?\$?(\d+(?:,\d{3})*(?:\.\d{2})?)\s+(?:on\s+)?(?:the\s+)?(.+?)(?:\s+yesterday|\s+last\s+(?:night|week|game)|$)/i,
+  ];
+
+  let amount: number | null = null;
+  let team: string | null = null;
+  let outcome: 'win' | 'loss' | null = null;
+
+  // Check for historical wins
+  for (const pattern of historicalWinPatterns) {
+    const match = messageContent.match(pattern);
+    if (match && match[1] && match[2]) {
+      amount = parseFloat(match[1].replace(/,/g, ''));
+      team = match[2].trim();
+      outcome = 'win';
+      console.log(`📊 Detected historical win: $${amount} on ${team}`);
+      break;
+    }
+  }
+
+  // Check for historical losses if no win found
+  if (!outcome) {
+    for (const pattern of historicalLossPatterns) {
+      const match = messageContent.match(pattern);
+      if (match && match[1] && match[2]) {
+        amount = parseFloat(match[1].replace(/,/g, ''));
+        team = match[2].trim();
+        outcome = 'loss';
+        console.log(`📊 Detected historical loss: $${amount} on ${team}`);
+        break;
+      }
+    }
+  }
+
+  if (!outcome || !amount || !team) {
+    return null; // No historical bet detected
+  }
+
+  try {
+    // For a win, amount is the profit; for a loss, amount is what they lost
+    // We need to calculate the bet amount and actual return
+    let betAmount: number;
+    let actualReturn: number;
+    let profitLoss: number;
+
+    if (outcome === 'win') {
+      // User said "won $X" - this is the profit
+      // Assume they bet a similar amount (could ask for clarification)
+      // For now, assume standard -110 odds, so bet ~110 to win 100
+      betAmount = amount * 1.1; // Rough estimate
+      actualReturn = betAmount + amount;
+      profitLoss = amount;
+    } else {
+      // User said "lost $X" - this is what they wagered
+      betAmount = amount;
+      actualReturn = 0;
+      profitLoss = -amount;
+    }
+
+    // Insert bet record with outcome already set
+    const { data: bet, error: betError } = await supabase
+      .from('bets')
+      .insert({
+        user_id: userId,
+        conversation_id: conversationId,
+        amount: betAmount,
+        odds: -110, // Default odds
+        description: `${team} (historical bet)`,
+        potential_return: betAmount * 1.909, // -110 odds
+        actual_return: actualReturn,
+        outcome: outcome,
+        team_bet_on: team,
+        bet_type: 'straight',
+        profit_loss: profitLoss,
+        settled_at: new Date().toISOString(),
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (betError) {
+      console.error('Error inserting historical bet:', betError);
+      return {
+        error: true,
+        message: 'Failed to log historical bet',
+        code: 'INSERT_ERROR'
+      };
+    }
+
+    // Update bankroll
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('bankroll')
+      .eq('id', userId)
+      .single();
+
+    const currentBankroll = profile?.bankroll || 1000;
+    const newBankroll = currentBankroll + profitLoss;
+
+    await supabase
+      .from('profiles')
+      .update({ bankroll: newBankroll })
+      .eq('id', userId);
+
+    await supabase
+      .from('user_bankroll')
+      .update({
+        current_amount: newBankroll,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId);
+
+    // Log transaction
+    await supabase
+      .from('bankroll_transactions')
+      .insert({
+        user_id: userId,
+        type: outcome === 'win' ? 'bet_won' : 'bet_lost',
+        amount: Math.abs(profitLoss),
+        balance_after: newBankroll,
+        bet_id: bet.id,
+        notes: `Historical ${outcome} on ${team}`,
+        created_at: new Date().toISOString()
+      });
+
+    console.log(`✅ Historical bet logged: ${outcome} $${amount} on ${team}`);
+
+    return {
+      success: true,
+      outcome,
+      amount,
+      team,
+      betAmount,
+      profitLoss,
+      previousBankroll: currentBankroll,
+      newBankroll,
+      bet
+    };
+  } catch (error) {
+    console.error('Error logging historical bet:', error);
+    return {
+      error: true,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      code: 'PROCESSING_ERROR'
+    };
+  }
+}
+
 serve(async (req) => {
   const requestStartTime = Date.now();
   console.log("[PERF] ========== NEW REQUEST ==========");
@@ -1451,6 +1765,24 @@ serve(async (req) => {
           detectedOutcome = 'push';
           break;
         }
+      }
+    }
+
+    // PHASE 1.5: Check for deposit/withdrawal
+    let depositWithdrawalResult = null;
+    if (userId) {
+      depositWithdrawalResult = await handleDepositWithdrawal(userId, messageContent);
+      if (depositWithdrawalResult && depositWithdrawalResult.success) {
+        console.log(`✅ Deposit/withdrawal processed: ${depositWithdrawalResult.transactionType} $${depositWithdrawalResult.amount}`);
+      }
+    }
+
+    // PHASE 1.5: Check for historical bet entry
+    let historicalBetResult = null;
+    if (userId && conversationId) {
+      historicalBetResult = await handleHistoricalBet(userId, conversationId, messageContent);
+      if (historicalBetResult && historicalBetResult.success) {
+        console.log(`✅ Historical bet logged: ${historicalBetResult.outcome} $${historicalBetResult.amount}`);
       }
     }
 
@@ -2110,6 +2442,75 @@ RESPONSE INSTRUCTIONS:
       }
     }
 
+    // PHASE 1.5: Format deposit/withdrawal context
+    let depositWithdrawalContext = '';
+    if (depositWithdrawalResult) {
+      if (depositWithdrawalResult.error) {
+        depositWithdrawalContext = `
+DEPOSIT/WITHDRAWAL ERROR:
+${depositWithdrawalResult.message}
+
+RESPONSE INSTRUCTIONS:
+Politely inform the user about the error and suggest how to fix it. Be helpful and understanding.`;
+      } else if (depositWithdrawalResult.success) {
+        const { transactionType, amount, previousBankroll, newBankroll } = depositWithdrawalResult;
+        const emoji = transactionType === 'deposit' ? '💵' : '💸';
+        const sign = transactionType === 'deposit' ? '+' : '-';
+
+        depositWithdrawalContext = `
+${emoji} ${transactionType.toUpperCase()} PROCESSED:
+
+Transaction Details:
+- Type: ${transactionType === 'deposit' ? 'Deposit' : 'Withdrawal'}
+- Amount: $${amount.toFixed(2)}
+- Previous Bankroll: $${previousBankroll.toFixed(2)}
+- New Bankroll: $${newBankroll.toFixed(2)}
+- Change: ${sign}$${amount.toFixed(2)}
+
+RESPONSE INSTRUCTIONS:
+Confirm the ${transactionType} and acknowledge the new bankroll amount. Keep it brief and friendly (1-2 sentences).
+Example: "Got it! I've ${transactionType === 'deposit' ? 'added' : 'withdrawn'} $${amount.toFixed(2)} ${transactionType === 'deposit' ? 'to' : 'from'} your bankroll. Your new balance is $${newBankroll.toFixed(2)}."`;
+      }
+    }
+
+    // PHASE 1.5: Format historical bet context
+    let historicalBetContext = '';
+    if (historicalBetResult) {
+      if (historicalBetResult.error) {
+        historicalBetContext = `
+HISTORICAL BET ENTRY ERROR:
+${historicalBetResult.message}
+
+RESPONSE INSTRUCTIONS:
+Politely inform the user about the error and ask them to provide more details if needed.`;
+      } else if (historicalBetResult.success) {
+        const { outcome, amount, team, betAmount, profitLoss, previousBankroll, newBankroll } = historicalBetResult;
+        const emoji = outcome === 'win' ? '🎉' : '😔';
+        const sign = profitLoss >= 0 ? '+' : '';
+
+        historicalBetContext = `
+${emoji} HISTORICAL BET LOGGED:
+
+Bet Details:
+- Team: ${team}
+- Outcome: ${outcome.toUpperCase()}
+- ${outcome === 'win' ? 'Profit' : 'Loss'}: ${sign}$${Math.abs(profitLoss).toFixed(2)}
+- Bet Amount: $${betAmount.toFixed(2)}
+
+Bankroll Update:
+- Previous: $${previousBankroll.toFixed(2)}
+- New: $${newBankroll.toFixed(2)}
+- Change: ${sign}$${profitLoss.toFixed(2)}
+
+RESPONSE INSTRUCTIONS:
+Acknowledge the historical bet entry and confirm it's been added to their tracking. Keep it brief and empathetic based on the outcome.
+${outcome === 'win' ?
+  `Example: "Nice! I've logged that $${amount.toFixed(2)} win on ${team}. Your bankroll is now at $${newBankroll.toFixed(2)}."` :
+  `Example: "Got it, I've logged that $${amount.toFixed(2)} loss on ${team}. Your bankroll is now at $${newBankroll.toFixed(2)}."`
+}`;
+      }
+    }
+
     let betOutcomeContext = '';
     if (betOutcomeResult) {
       // Handle error cases (NOT_FOUND, MULTIPLE_BETS, etc.)
@@ -2229,6 +2630,18 @@ ${isAskingForScore
 ${bankrollContext}
 
 ${bankrollUpdateContext}`
+      : depositWithdrawalContext
+        ? `${basePrompt}
+
+${bankrollContext}
+
+${depositWithdrawalContext}`
+      : historicalBetContext
+        ? `${basePrompt}
+
+${bankrollContext}
+
+${historicalBetContext}`
       : betOutcomeContext
         ? `${basePrompt}
 
