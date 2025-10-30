@@ -26,7 +26,7 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 const initialMessages: Message[] = [{
   id: "1",
   role: "assistant",
-  content: "Welcome to DeltaEdge. How can I help you with sports betting today?",
+  content: "Welcome to DeltaEdge. I can:\n- give you up to date betting lines\n- find you inefficiencies in the market\n- help you manage your bankroll\n\nHow can I help you today?",
   timestamp: "Just now"
 }];
 const Index = () => {
