@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChatSidebar } from "@/components/ChatSidebar";
 import { ChatMessage } from "@/components/ChatMessage";
@@ -48,14 +48,19 @@ const Index = () => {
     user
   } = useAuth();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll with different behavior for streaming vs complete messages
   useEffect(() => {
     if (scrollAreaRef.current) {
+      const isStreaming = streamingMessageId !== null;
       scrollAreaRef.current.scrollTo({
         top: scrollAreaRef.current.scrollHeight,
-        behavior: 'smooth'
+        // Use instant scroll during streaming for better responsiveness
+        // Use smooth scroll for complete messages
+        behavior: isStreaming ? 'auto' : 'smooth'
       });
     }
-  }, [messages, isTyping]);
+  }, [messages, isTyping, streamingMessageId]);
   const saveMessageToDb = async (conversationId: string, role: "user" | "assistant", content: string) => {
     if (!user) return;
     const {
@@ -174,6 +179,33 @@ const Index = () => {
     }
     let assistantContent = "";
     const assistantId = (Date.now() + 1).toString();
+    let rafId: number | null = null;
+    let pendingUpdate = false;
+
+    // RAF-based batching for smooth streaming updates
+    const scheduleUpdate = () => {
+      if (pendingUpdate) return;
+      pendingUpdate = true;
+      rafId = requestAnimationFrame(() => {
+        setMessages(prev => {
+          const last = prev[prev.length - 1];
+          if (last?.id === assistantId) {
+            return prev.map(m => m.id === assistantId ? {
+              ...m,
+              content: assistantContent
+            } : m);
+          }
+          return [...prev, {
+            id: assistantId,
+            role: "assistant",
+            content: assistantContent,
+            timestamp: "Just now"
+          }];
+        });
+        pendingUpdate = false;
+      });
+    };
+
     try {
       const resp = await fetch(CHAT_URL, {
         method: "POST",
@@ -212,59 +244,88 @@ const Index = () => {
       if (!resp.body) {
         throw new Error("No response body");
       }
+
+      console.log("[STREAMING] Starting stream processing...");
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let textBuffer = "";
       let streamDone = false;
+      let chunkCount = 0;
+      let tokenCount = 0;
+
       while (!streamDone) {
         const {
           done,
           value
         } = await reader.read();
-        if (done) break;
-        textBuffer += decoder.decode(value, {
-          stream: true
-        });
+        if (done) {
+          console.log("[STREAMING] Stream complete. Total chunks:", chunkCount, "Total tokens:", tokenCount);
+          break;
+        }
+
+        chunkCount++;
+        const chunkText = decoder.decode(value, { stream: true });
+        textBuffer += chunkText;
+        console.log(`[STREAMING] Chunk ${chunkCount} received (${value.byteLength} bytes)`);
+
         let newlineIndex: number;
         while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
           let line = textBuffer.slice(0, newlineIndex);
           textBuffer = textBuffer.slice(newlineIndex + 1);
           if (line.endsWith("\r")) line = line.slice(0, -1);
           if (line.startsWith(":") || line.trim() === "") continue;
-          if (!line.startsWith("data: ")) continue;
+          if (!line.startsWith("data: ")) {
+            console.warn("[STREAMING] Unexpected line format:", line.substring(0, 50));
+            continue;
+          }
+
           const jsonStr = line.slice(6).trim();
           if (jsonStr === "[DONE]") {
+            console.log("[STREAMING] Received [DONE] signal");
             streamDone = true;
             break;
           }
+
           try {
             const parsed = JSON.parse(jsonStr);
             const deltaContent = parsed.choices?.[0]?.delta?.content as string | undefined;
             if (deltaContent) {
+              tokenCount++;
               assistantContent += deltaContent;
+              console.log(`[STREAMING] Token ${tokenCount}: "${deltaContent}" (Total length: ${assistantContent.length})`);
               setStreamingMessageId(assistantId);
-              setMessages(prev => {
-                const last = prev[prev.length - 1];
-                if (last?.id === assistantId) {
-                  return prev.map(m => m.id === assistantId ? {
-                    ...m,
-                    content: assistantContent
-                  } : m);
-                }
-                return [...prev, {
-                  id: assistantId,
-                  role: "assistant",
-                  content: assistantContent,
-                  timestamp: "Just now"
-                }];
-              });
+              // Use RAF-based batching for smooth updates
+              scheduleUpdate();
             }
-          } catch {
+          } catch (error) {
+            console.error("[STREAMING] JSON parse error:", error, "Line:", line.substring(0, 100));
             textBuffer = line + "\n" + textBuffer;
             break;
           }
         }
       }
+
+      // Cancel any pending RAF and do final update
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+      // Final update with complete content
+      setMessages(prev => {
+        const last = prev[prev.length - 1];
+        if (last?.id === assistantId) {
+          return prev.map(m => m.id === assistantId ? {
+            ...m,
+            content: assistantContent
+          } : m);
+        }
+        return [...prev, {
+          id: assistantId,
+          role: "assistant",
+          content: assistantContent,
+          timestamp: "Just now"
+        }];
+      });
+
       setIsTyping(false);
       setStreamingMessageId(null);
 

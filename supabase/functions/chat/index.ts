@@ -2226,19 +2226,27 @@ If the user asks about a specific game, matchup, or betting opportunity, you wil
 
     // Parse the streamed response to extract and log bets
     if (conversationId && userId) {
+      console.log('[STREAM-BACKEND] Setting up streaming with conversationId:', conversationId);
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let fullResponse = '';
-      
+      let chunkCount = 0;
+
       const stream = new ReadableStream({
         async start(controller) {
           try {
+            console.log('[STREAM-BACKEND] Starting to read from AI gateway...');
             while (true) {
               const { done, value } = await reader!.read();
-              if (done) break;
-              
+              if (done) {
+                console.log('[STREAM-BACKEND] Stream complete. Total chunks:', chunkCount);
+                break;
+              }
+
+              chunkCount++;
               const chunk = decoder.decode(value, { stream: true });
               fullResponse += chunk;
+              console.log(`[STREAM-BACKEND] Chunk ${chunkCount} - Size: ${value.byteLength} bytes, forwarding to client`);
               controller.enqueue(value);
             }
             
@@ -2316,21 +2324,34 @@ If the user asks about a specific game, matchup, or betting opportunity, you wil
               console.log('❌ No bet pattern matched in response');
             }
             
+            console.log('[STREAM-BACKEND] Closing stream controller');
             controller.close();
           } catch (error) {
-            console.error('Stream error:', error);
+            console.error('[STREAM-BACKEND] Stream error:', error);
             controller.error(error);
           }
         }
       });
 
+      console.log('[STREAM-BACKEND] Returning streaming response with SSE headers');
       return new Response(stream, {
-        headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+        },
       });
     }
 
+    console.log('[STREAM-BACKEND] No conversationId/userId, passing through direct stream');
     return new Response(response.body, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
     });
   } catch (error) {
     console.error("chat error:", error);
