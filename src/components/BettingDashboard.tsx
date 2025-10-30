@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { TrendingUp, TrendingDown, Target, Flame, DollarSign, BarChart3 } from "lucide-react";
@@ -29,55 +29,7 @@ export const BettingDashboard = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (user) {
-      loadDashboardStats();
-
-      // Set up real-time subscriptions for automatic dashboard updates
-      const betsChannel = supabase
-        .channel('betting-dashboard-bets')
-        .on(
-          'postgres_changes',
-          {
-            event: '*', // Listen to INSERT, UPDATE, DELETE
-            schema: 'public',
-            table: 'bets',
-            filter: `user_id=eq.${user.id}`,
-          },
-          (payload) => {
-            console.log('Bet change detected:', payload);
-            loadDashboardStats();
-          }
-        )
-        .subscribe();
-
-      // Also listen to profile changes for bankroll updates
-      const profileChannel = supabase
-        .channel('betting-dashboard-profile')
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'profiles',
-            filter: `id=eq.${user.id}`,
-          },
-          (payload) => {
-            console.log('Profile/bankroll change detected:', payload);
-            loadDashboardStats();
-          }
-        )
-        .subscribe();
-
-      // Cleanup subscriptions on unmount
-      return () => {
-        supabase.removeChannel(betsChannel);
-        supabase.removeChannel(profileChannel);
-      };
-    }
-  }, [user]);
-
-  const loadDashboardStats = async () => {
+  const loadDashboardStats = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -190,7 +142,55 @@ export const BettingDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      loadDashboardStats();
+
+      // Set up real-time subscriptions for automatic dashboard updates
+      const betsChannel = supabase
+        .channel('betting-dashboard-bets')
+        .on(
+          'postgres_changes',
+          {
+            event: '*', // Listen to INSERT, UPDATE, DELETE
+            schema: 'public',
+            table: 'bets',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            console.log('Bet change detected:', payload);
+            loadDashboardStats();
+          }
+        )
+        .subscribe();
+
+      // Also listen to profile changes for bankroll updates
+      const profileChannel = supabase
+        .channel('betting-dashboard-profile')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'profiles',
+            filter: `id=eq.${user.id}`,
+          },
+          (payload) => {
+            console.log('Profile/bankroll change detected:', payload);
+            loadDashboardStats();
+          }
+        )
+        .subscribe();
+
+      // Cleanup subscriptions on unmount
+      return () => {
+        supabase.removeChannel(betsChannel);
+        supabase.removeChannel(profileChannel);
+      };
+    }
+  }, [user, loadDashboardStats]);
 
   if (loading) {
     return (
