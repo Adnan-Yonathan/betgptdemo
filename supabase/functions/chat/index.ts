@@ -192,6 +192,187 @@ function detectBettingMode(messages: any[]): 'basic' | 'advanced' {
   return 'advanced';
 }
 
+/**
+ * Extract team names from query
+ */
+function extractTeamNames(query: string): string[] {
+  const lowerQuery = query.toLowerCase();
+  const teams: string[] = [];
+
+  // NBA teams
+  const nbaTeams = [
+    'Lakers', 'Celtics', 'Warriors', 'Heat', 'Bucks', 'Nets', 'Suns', 'Clippers',
+    'Nuggets', 'Mavericks', 'Grizzlies', '76ers', 'Bulls', 'Cavaliers', 'Hawks',
+    'Raptors', 'Knicks', 'Pacers', 'Wizards', 'Hornets', 'Pistons', 'Magic',
+    'Thunder', 'Rockets', 'Spurs', 'Kings', 'Pelicans', 'Trail Blazers', 'Timberwolves', 'Jazz'
+  ];
+
+  // NFL teams
+  const nflTeams = [
+    'Chiefs', 'Bills', 'Eagles', 'Cowboys', '49ers', 'Ravens', 'Bengals', 'Dolphins',
+    'Chargers', 'Jaguars', 'Vikings', 'Giants', 'Jets', 'Packers', 'Seahawks',
+    'Lions', 'Browns', 'Steelers', 'Commanders', 'Raiders', 'Broncos', 'Saints',
+    'Buccaneers', 'Panthers', 'Falcons', 'Titans', 'Colts', 'Patriots', 'Rams', 'Cardinals', 'Texans', 'Bears'
+  ];
+
+  const allTeams = [...nbaTeams, ...nflTeams];
+
+  for (const team of allTeams) {
+    if (lowerQuery.includes(team.toLowerCase())) {
+      teams.push(team);
+    }
+  }
+
+  return teams;
+}
+
+/**
+ * Detect league from query
+ */
+function detectLeague(query: string): string {
+  const lowerQuery = query.toLowerCase();
+
+  if (lowerQuery.includes('nfl') || lowerQuery.includes('football')) {
+    return 'NFL';
+  }
+
+  if (lowerQuery.includes('nba') || lowerQuery.includes('basketball')) {
+    return 'NBA';
+  }
+
+  if (lowerQuery.includes('mlb') || lowerQuery.includes('baseball')) {
+    return 'MLB';
+  }
+
+  if (lowerQuery.includes('nhl') || lowerQuery.includes('hockey')) {
+    return 'NHL';
+  }
+
+  // Default to NBA
+  return 'NBA';
+}
+
+/**
+ * Fetch injury reports for teams mentioned in the query
+ */
+async function fetchInjuryData(query: string, teams: string[]): Promise<string> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  if (teams.length === 0) return '';
+
+  try {
+    // Fetch injury reports for the mentioned teams
+    const { data: injuries, error } = await supabase
+      .from('injury_reports')
+      .select('*')
+      .in('team', teams)
+      .in('injury_status', ['Out', 'Doubtful', 'Questionable'])
+      .order('impact_level', { ascending: false })
+      .limit(20);
+
+    if (error || !injuries || injuries.length === 0) {
+      return '';
+    }
+
+    let injuryText = '\n\n🏥 INJURY REPORTS:\n';
+
+    for (const team of teams) {
+      const teamInjuries = injuries.filter(i => i.team === team);
+
+      if (teamInjuries.length > 0) {
+        injuryText += `\n${team}:\n`;
+
+        const highImpact = teamInjuries.filter(i => i.impact_level === 'High');
+        const mediumImpact = teamInjuries.filter(i => i.impact_level === 'Medium');
+        const lowImpact = teamInjuries.filter(i => i.impact_level === 'Low');
+
+        if (highImpact.length > 0) {
+          injuryText += `  ⚠️ KEY INJURIES (High Impact):\n`;
+          for (const inj of highImpact) {
+            injuryText += `    - ${inj.player_name} (${inj.position || 'N/A'}): ${inj.injury_status}`;
+            if (inj.injury_type) injuryText += ` - ${inj.injury_type}`;
+            injuryText += '\n';
+          }
+        }
+
+        if (mediumImpact.length > 0) {
+          injuryText += `  ⚡ MODERATE IMPACT:\n`;
+          for (const inj of mediumImpact) {
+            injuryText += `    - ${inj.player_name}: ${inj.injury_status}\n`;
+          }
+        }
+
+        if (lowImpact.length > 0 && lowImpact.length <= 3) {
+          injuryText += `  ℹ️ Minor: ${lowImpact.map(i => i.player_name).join(', ')}\n`;
+        }
+      }
+    }
+
+    return injuryText;
+  } catch (error) {
+    console.error('[INJURY_FETCH] Error:', error);
+    return '';
+  }
+}
+
+/**
+ * Fetch team trends (last 10 games, ATS record, etc.)
+ */
+async function fetchTeamTrends(teams: string[], league: string = 'NBA'): Promise<string> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+  if (teams.length === 0) return '';
+
+  try {
+    let trendsText = '\n\n📊 TEAM TRENDS & RECENT PERFORMANCE:\n';
+
+    for (const team of teams) {
+      // Call the calculate-team-trends function
+      const response = await fetch(`${supabaseUrl}/functions/v1/calculate-team-trends`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({ team, league }),
+      });
+
+      if (!response.ok) {
+        console.error(`[TRENDS_FETCH] Failed to fetch trends for ${team}`);
+        continue;
+      }
+
+      const result = await response.json();
+      const trends = result.trends;
+
+      if (trends) {
+        trendsText += `\n${team}:\n`;
+        trendsText += `  Last 10 Games: ${trends.last10Record}\n`;
+        trendsText += `  Last 5 Games: ${trends.last5Record} (${trends.recentForm.join('-')})\n`;
+        trendsText += `  Home Record: ${trends.homeRecord}\n`;
+        trendsText += `  Away Record: ${trends.awayRecord}\n`;
+        trendsText += `  ATS Record: ${trends.atsRecord}\n`;
+        trendsText += `  O/U Record: ${trends.ouRecord}\n`;
+        trendsText += `  Avg Points Scored: ${trends.avgPointsFor}\n`;
+        trendsText += `  Avg Points Allowed: ${trends.avgPointsAgainst}\n`;
+        trendsText += `  Point Differential: ${trends.avgPointDifferential > 0 ? '+' : ''}${trends.avgPointDifferential}\n`;
+
+        if (trends.currentStreak.type !== 'none') {
+          trendsText += `  Current Streak: ${trends.currentStreak.count} ${trends.currentStreak.type}${trends.currentStreak.count > 1 ? 's' : ''}\n`;
+        }
+      }
+    }
+
+    return trendsText;
+  } catch (error) {
+    console.error('[TRENDS_FETCH] Error:', error);
+    return '';
+  }
+}
+
 async function fetchLineupData(query: string): Promise<string> {
   const startTime = Date.now();
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
