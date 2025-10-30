@@ -70,7 +70,14 @@ export const ChatMessage = memo(({
         )}>
           <p className="text-sm sm:text-[15px] leading-relaxed whitespace-pre-wrap break-words">
             {formattedContent}
-            {isStreaming && <span className="inline-block w-[2px] h-5 bg-current ml-0.5 animate-pulse align-middle" />}
+            {isStreaming && (
+              <span
+                className="inline-block w-[3px] h-5 bg-current ml-1 align-middle"
+                style={{
+                  animation: "blink 0.8s ease-in-out infinite",
+                }}
+              />
+            )}
           </p>
         </div>
 
