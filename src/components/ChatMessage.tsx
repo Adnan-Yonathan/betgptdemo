@@ -39,27 +39,19 @@ export const ChatMessage = memo(({
       "mb-4 sm:mb-6 animate-fade-in group flex gap-2 sm:gap-3",
       isUser ? "flex-row-reverse" : "flex-row"
     )}>
-      {/* Avatar Badge */}
-      <div className={cn(
-        "flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-semibold",
-        isUser
-          ? "bg-[hsl(var(--chat-user-bg))] text-white"
-          : "bg-[hsl(var(--chat-ai-bg))] text-foreground"
-      )}>
-        {isUser ? "You" : "AI"}
-      </div>
-
       {/* Message Bubble */}
       <div className={cn(
         "flex flex-col max-w-[90%] sm:max-w-[85%] md:max-w-[75%]",
         isUser ? "items-end" : "items-start"
       )}>
-        {/* Role Label */}
-        <div className="mb-1 px-1">
-          <span className="text-xs font-medium text-muted-foreground">
-            {isUser ? "You" : "Qauntara"}
-          </span>
-        </div>
+        {/* Role Label - Only show for user */}
+        {isUser && (
+          <div className="mb-1 px-1">
+            <span className="text-xs font-medium text-muted-foreground">
+              You
+            </span>
+          </div>
+        )}
 
         {/* Message Content */}
         <div className={cn(
