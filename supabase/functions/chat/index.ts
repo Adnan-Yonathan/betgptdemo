@@ -1484,7 +1484,10 @@ serve(async (req) => {
               : '';
 
             bankrollContext = `
-CURRENT BANKROLL STATUS (provide if user asks):
+===== USER'S HISTORICAL BANKROLL DATA (FROM DATABASE) =====
+IMPORTANT: This is the user's ACTUAL betting history stored in our database. This data persists across ALL conversations and represents their complete betting record with DeltaEdge.
+
+CURRENT BANKROLL STATUS:
 - Current Balance: $${status.current_balance?.toFixed(2) || '1000.00'}
 - Starting Balance: $${status.starting_balance?.toFixed(2) || '1000.00'}
 - **PROFIT/LOSS: ${status.profit_loss >= 0 ? '+' : ''}$${status.profit_loss?.toFixed(2) || '0.00'} (${status.profit_loss_pct >= 0 ? '+' : ''}${status.profit_loss_pct?.toFixed(1) || '0.0'}%)**
@@ -1493,7 +1496,7 @@ ${unitSizeInfo}
 - Record: ${stats.wins}W-${stats.losses}L${stats.pushes > 0 ? `-${stats.pushes}P` : ''} (${stats.win_rate?.toFixed(1) || '0.0'}% win rate)
 - Pending Bets: ${status.pending_bets_amount > 0 ? `$${status.pending_bets_amount.toFixed(2)} at risk` : 'None'}
 
-Use this information when user asks about:
+You MUST use this information when user asks about:
 - "How am I doing?"
 - "What's my record?"
 - "What's my bankroll?"
@@ -1687,6 +1690,7 @@ You have access to:
 - Real-time betting lines from multiple bookmakers
 - Starting lineups and injury reports
 - Recent team performance and head-to-head history
+- **USER'S BANKROLL DATA**: Real-time access to the user's complete betting history stored in our database, including current balance, profit/loss, win/loss record, and all historical bets. This data persists across all conversations.
 
 SPORTS COVERAGE:
 You specialize in these sports with full live data access:
@@ -1756,6 +1760,7 @@ You have access to professional-grade betting tools:
 - Advanced statistical models (pace adjustments, matchup data, situational trends)
 - Kelly Criterion calculators for optimal bet sizing
 - Injury impact assessments and replacement player quality analysis
+- **USER'S BANKROLL DATABASE**: Complete access to the user's betting history, including current balance, total profit/loss, win rate, ROI, all historical bets, and betting statistics. This data is stored in our database and persists across all conversations - you can always reference their past performance.
 
 ADVANCED FEATURES YOU SHOULD USE:
 1. **Expected Value Calculations**: Calculate and display EV for every bet recommendation
