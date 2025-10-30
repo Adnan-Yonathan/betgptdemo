@@ -31,7 +31,7 @@ COMMENT ON COLUMN player_performance_history.data_source IS
 
 CREATE TABLE IF NOT EXISTS api_source_log (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  source TEXT NOT NULL CHECK (source IN ('balldontlie', 'espn', 'odds-api', 'openai')),
+  source TEXT NOT NULL CHECK (source IN ('balldontlie', 'espn', 'rundown', 'openai')),
   endpoint TEXT NOT NULL,
   success BOOLEAN NOT NULL,
   response_time_ms INTEGER,
