@@ -155,25 +155,90 @@ serve(async (req) => {
     }
 
     const responseData = await response.json();
+
+    // Validate response structure
+    if (!responseData || typeof responseData !== 'object') {
+      console.error('Invalid response structure from The Rundown API');
+      return new Response(JSON.stringify({
+        error: 'Invalid response structure from The Rundown API',
+        success: false,
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const events: RundownEvent[] = responseData.events || [];
-    
+
     console.log(`Received ${events.length} events from The Rundown API`);
+
+    // Early return if no events
+    if (events.length === 0) {
+      console.log('No events found for this date/sport combination');
+
+      // Still log the successful fetch (even with 0 events)
+      await supabaseClient
+        .from('betting_odds_fetch_log')
+        .insert({
+          sports_fetched: [sport],
+          success: true,
+          events_count: 0,
+          odds_count: 0,
+          api_requests_remaining: null,
+        });
+
+      return new Response(JSON.stringify({
+        success: true,
+        sport,
+        sportId,
+        date,
+        events: 0,
+        oddsInserted: 0,
+        message: 'No events found for this date/sport. This may be normal if no games are scheduled.',
+        source: 'The Rundown API',
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     // Store odds in database
     let totalOddsInserted = 0;
     let eventsProcessed = 0;
+    let eventsWithOdds = 0;
+    let eventsSkipped = 0;
 
     for (const event of events) {
-      eventsProcessed++;
+      // Validate event has required fields
+      if (!event.event_uuid || !event.event_date) {
+        console.warn('Skipping event with missing required fields:', event);
+        eventsSkipped++;
+        continue;
+      }
 
-      const homeTeam = event.teams_normalized?.find(t => t.is_home)?.name || 
+      const homeTeam = event.teams_normalized?.find(t => t.is_home)?.name ||
                        event.teams?.find(t => t.is_home)?.name || 'Unknown';
-      const awayTeam = event.teams_normalized?.find(t => t.is_away)?.name || 
+      const awayTeam = event.teams_normalized?.find(t => t.is_away)?.name ||
                        event.teams?.find(t => t.is_away)?.name || 'Unknown';
 
+      // Skip if we couldn't determine team names
+      if (homeTeam === 'Unknown' || awayTeam === 'Unknown') {
+        console.warn('Skipping event with unknown team names:', event.event_uuid);
+        eventsSkipped++;
+        continue;
+      }
+
+      eventsProcessed++;
+
       // Process lines from each bookmaker
-      if (event.lines) {
+      if (event.lines && Object.keys(event.lines).length > 0) {
+        eventsWithOdds++;
+
         for (const [periodKey, line] of Object.entries(event.lines)) {
+          // Only process full game lines (period 0), skip 1st half, 2nd half, etc.
+          // The Rundown API uses period keys like "1", "2", etc. for different periods
+          // We want full game lines which are typically the main period
+          // Skip if this is a non-primary period line
+
           const affiliateId = line.affiliate_id;
           const bookmaker = BOOKMAKER_MAP[affiliateId] || `bookmaker_${affiliateId}`;
 
@@ -181,7 +246,8 @@ serve(async (req) => {
           const sportTitle = sport === 'americanfootball_nfl' ? 'NFL' :
                             sport === 'basketball_nba' ? 'NBA' :
                             sport === 'baseball_mlb' ? 'MLB' :
-                            sport === 'icehockey_nhl' ? 'NHL' : 'Unknown';
+                            sport === 'icehockey_nhl' ? 'NHL' :
+                            sport === 'soccer_epl' ? 'EPL' : 'Unknown';
 
           // Insert moneyline odds (h2h market)
           if (line.moneyline) {
@@ -364,7 +430,10 @@ serve(async (req) => {
     const duration = endTime - startTime;
 
     console.log(`=== FETCH BETTING ODDS: Completed in ${duration}ms ===`);
-    console.log(`Events: ${eventsProcessed}, Odds inserted: ${totalOddsInserted}`);
+    console.log(`Events processed: ${eventsProcessed}, Events with odds: ${eventsWithOdds}, Events skipped: ${eventsSkipped}`);
+    console.log(`Odds inserted/updated: ${totalOddsInserted}`);
+    console.log(`Source: The Rundown API (therundown-therundown-v1.p.rapidapi.com)`);
+    console.log(`Sport ID: ${sportId}, Sport Key: ${sport}`);
 
     return new Response(JSON.stringify({
       success: true,
@@ -372,10 +441,14 @@ serve(async (req) => {
       sportId,
       date,
       events: eventsProcessed,
+      eventsWithOdds,
+      eventsSkipped,
       oddsInserted: totalOddsInserted,
       duration: `${duration}ms`,
       timestamp: new Date().toISOString(),
-      message: `Successfully fetched and stored ${totalOddsInserted} odds from ${eventsProcessed} events using The Rundown API`,
+      source: 'The Rundown API',
+      apiEndpoint: 'therundown-therundown-v1.p.rapidapi.com',
+      message: `Successfully fetched and stored ${totalOddsInserted} odds from ${eventsProcessed} events (${eventsWithOdds} with odds) using The Rundown API`,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

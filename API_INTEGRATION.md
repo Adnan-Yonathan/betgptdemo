@@ -6,29 +6,34 @@ BetGPT uses premium APIs to provide accurate, real-time sports betting data and 
 
 ## Data Sources
 
-### 1. The Odds API
-**Purpose**: Real-time betting lines and odds
+### 1. The Rundown API
+**Purpose**: Real-time betting lines and odds from 15+ sportsbooks
 
 **What we fetch**:
 - Moneyline odds (h2h markets)
 - Point spreads
 - Totals (over/under)
-- Multiple bookmaker prices for comparison
+- Multiple bookmaker prices for comparison (DraftKings, FanDuel, BetMGM, Pinnacle, Bovada, etc.)
 - Live line movement data
 
 **Implementation**: `supabase/functions/fetch-betting-odds/index.ts`
 
-**Cache Duration**: 30 minutes (configurable)
+**API Endpoint**: The Rundown API via RapidAPI (`therundown-therundown-v1.p.rapidapi.com`)
 
-**API Key Required**: Yes - Set `THE_RUNDOWN_API` in environment variables
+**Cache Duration**: 30 minutes (configurable via cron job)
+
+**API Key Required**: Yes - Set `THE_RUNDOWN_API` in Supabase edge function secrets
 
 **Supported Sports**:
-- NFL (`americanfootball_nfl`)
-- NBA (`basketball_nba`)
-- MLB (`baseball_mlb`)
-- NHL (`icehockey_nhl`)
-- Soccer/MLS (`soccer_usa_mls`)
-- And more...
+- NFL (`americanfootball_nfl`, sport_id: 2)
+- NBA (`basketball_nba`, sport_id: 4)
+- MLB (`baseball_mlb`, sport_id: 3)
+- NHL (`icehockey_nhl`, sport_id: 1)
+- Soccer/EPL (`soccer_epl`, sport_id: 6)
+
+**Supported Bookmakers** (via affiliate_id):
+- DraftKings (5), FanDuel (6), BetMGM (4), Pinnacle (3), Bovada (2)
+- PointsBet (7), BetOnline (8), Unibet (10), and 7 more
 
 **Usage**:
 ```typescript
@@ -77,7 +82,7 @@ Chat Function (chat/index.ts)
 Determines query type (score vs betting)
     ↓
     ├─→ Score Query → fetch-openai-scores → OpenAI API → Database
-    └─→ Betting Query → fetch-betting-odds → The Odds API → Database
+    └─→ Betting Query → fetch-betting-odds → The Rundown API → Database
     ↓
 Data formatted and returned to user
     ↓
@@ -133,10 +138,14 @@ SUPABASE_SERVICE_ROLE_KEY=...
 
 ## Cache Strategy
 
-### The Odds API
+### The Rundown API (Betting Odds)
 - **Cache Duration**: 30 minutes
 - **Reason**: Betting lines change frequently but API has rate limits
 - **Strategy**: Check database first, fetch if stale
+- **Smart Caching**:
+  - Fresh (<5 min): Use immediately
+  - Recent (5-30 min): Use with staleness note
+  - Stale (>30 min): Trigger fresh fetch with timeout fallback
 
 ### OpenAI Scores
 - **Cache Duration**: 2 hours
@@ -154,10 +163,11 @@ SUPABASE_SERVICE_ROLE_KEY=...
 
 ## API Cost Considerations
 
-### The Odds API
-- Free tier: 500 requests/month
-- Paid tiers available for higher volume
-- Each fetch counts as 1 request per sport
+### The Rundown API (via RapidAPI)
+- Pricing based on RapidAPI subscription tier
+- Automated fetching: Every 30 minutes for active sports
+- Estimated usage: ~720 requests/month (if all 5 sports active)
+- Season-aware: Only fetches sports currently in season to minimize costs
 
 ### OpenAI API
 - Pay per token usage
