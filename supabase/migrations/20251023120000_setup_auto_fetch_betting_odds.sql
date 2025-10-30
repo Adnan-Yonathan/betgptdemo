@@ -2,7 +2,7 @@
 -- AUTOMATED BETTING ODDS FETCHING WITH SMART SCHEDULING
 -- ============================================================================
 -- This migration sets up automated betting odds fetching that runs periodically
--- to ensure the Games dashboard always has fresh data from The Odds API.
+-- to ensure the Games dashboard always has fresh data from The Rundown API.
 -- ============================================================================
 
 -- Enable pg_cron extension for scheduled jobs (if not already enabled)
@@ -337,7 +337,7 @@ BEGIN
   RAISE NOTICE '  %', array_to_string(get_active_sports_by_season(), ', ');
   RAISE NOTICE '';
   RAISE NOTICE 'The system will now automatically:';
-  RAISE NOTICE '1. Fetch betting odds from The Odds API every 30 minutes';
+  RAISE NOTICE '1. Fetch betting odds from The Rundown API every 30 minutes';
   RAISE NOTICE '2. Only fetch sports that are currently in season';
   RAISE NOTICE '3. Populate betting_odds table for Games dashboard';
   RAISE NOTICE '4. Track line movements and odds changes';
