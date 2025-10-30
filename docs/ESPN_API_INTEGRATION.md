@@ -1,6 +1,6 @@
 # Sports API Integration for Player Statistics
 
-This document describes the sports API integration for enhanced player statistics analysis in the Quantara betting platform.
+This document describes the sports API integration for enhanced player statistics analysis in the DeltaEdge betting platform.
 
 ## Overview
 
