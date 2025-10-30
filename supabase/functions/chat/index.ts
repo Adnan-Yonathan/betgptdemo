@@ -1352,153 +1352,7 @@ async function updateBetOutcome(
 }
 
 /**
- * Handles bankroll deposits and withdrawals
- * Patterns: "I deposited $500", "withdrew $200"
- */
-async function handleDepositWithdrawal(
-  userId: string,
-  messageContent: string
-): Promise<any> {
-  const supabase = getSupabaseClient();
-
-  // Patterns for deposits
-  const depositPatterns = [
-    /(?:i\s+)?deposit(?:ed)?\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)/i,
-    /(?:i\s+)?added?\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)\s+(?:to\s+)?(?:my\s+)?bankroll/i,
-    /put\s+(?:in\s+)?\$?(\d+(?:,\d{3})*(?:\.\d{2})?)\s+(?:into\s+)?(?:my\s+)?bankroll/i,
-  ];
-
-  // Patterns for withdrawals
-  const withdrawalPatterns = [
-    /(?:i\s+)?with(?:draw|drew)\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)/i,
-    /(?:i\s+)?took\s+out\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)/i,
-    /(?:i\s+)?removed?\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)\s+(?:from\s+)?(?:my\s+)?bankroll/i,
-    /cash(?:ed)?\s+out\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)/i,
-  ];
-
-  let amount: number | null = null;
-  let transactionType: 'deposit' | 'withdrawal' | null = null;
-
-  // Check for deposit
-  for (const pattern of depositPatterns) {
-    const match = messageContent.match(pattern);
-    if (match && match[1]) {
-      amount = parseFloat(match[1].replace(/,/g, ''));
-      transactionType = 'deposit';
-      console.log(`💵 Detected deposit: $${amount}`);
-      break;
-    }
-  }
-
-  // Check for withdrawal if no deposit found
-  if (!transactionType) {
-    for (const pattern of withdrawalPatterns) {
-      const match = messageContent.match(pattern);
-      if (match && match[1]) {
-        amount = parseFloat(match[1].replace(/,/g, ''));
-        transactionType = 'withdrawal';
-        console.log(`💸 Detected withdrawal: $${amount}`);
-        break;
-      }
-    }
-  }
-
-  if (!transactionType || !amount) {
-    return null; // No deposit/withdrawal detected
-  }
-
-  // Validate amount
-  if (amount <= 0) {
-    return {
-      error: true,
-      message: 'Amount must be greater than $0.',
-      code: 'INVALID_AMOUNT'
-    };
-  }
-
-  try {
-    // Get current bankroll
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('bankroll, baseline_bankroll')
-      .eq('id', userId)
-      .single();
-
-    const currentBankroll = profile?.bankroll || 1000;
-    const baselineBankroll = profile?.baseline_bankroll || 1000;
-
-    // For withdrawals, check if user has enough funds
-    if (transactionType === 'withdrawal' && amount > currentBankroll) {
-      return {
-        error: true,
-        message: `Insufficient funds. Your current bankroll is $${currentBankroll.toFixed(2)}, but you tried to withdraw $${amount.toFixed(2)}.`,
-        code: 'INSUFFICIENT_FUNDS'
-      };
-    }
-
-    // Calculate new bankroll
-    const newBankroll = transactionType === 'deposit'
-      ? currentBankroll + amount
-      : currentBankroll - amount;
-
-    // Update bankroll in profiles table
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ bankroll: newBankroll })
-      .eq('id', userId);
-
-    if (updateError) {
-      console.error('Error updating bankroll:', updateError);
-      return {
-        error: true,
-        message: 'Failed to update bankroll',
-        code: 'UPDATE_ERROR'
-      };
-    }
-
-    // Also update user_bankroll table if it exists
-    await supabase
-      .from('user_bankroll')
-      .update({
-        current_amount: newBankroll,
-        updated_at: new Date().toISOString()
-      })
-      .eq('user_id', userId);
-
-    // Log transaction
-    await supabase
-      .from('bankroll_transactions')
-      .insert({
-        user_id: userId,
-        type: transactionType,
-        amount: amount,
-        balance_after: newBankroll,
-        notes: `${transactionType === 'deposit' ? 'Deposited' : 'Withdrew'} $${amount.toFixed(2)} via chat`,
-        created_at: new Date().toISOString()
-      });
-
-    console.log(`✅ ${transactionType} processed: $${amount} (new bankroll: $${newBankroll})`);
-
-    return {
-      success: true,
-      transactionType,
-      amount,
-      previousBankroll: currentBankroll,
-      newBankroll,
-      message: `${transactionType === 'deposit' ? 'Deposit' : 'Withdrawal'} of $${amount.toFixed(2)} processed successfully`
-    };
-  } catch (error) {
-    console.error('Error processing deposit/withdrawal:', error);
-    return {
-      error: true,
-      message: error instanceof Error ? error.message : 'Unknown error',
-      code: 'PROCESSING_ERROR'
-    };
-  }
-}
-
-/**
- * Handles logging historical bets (bets placed elsewhere)
+ * Handles logging historical bets (bets placed at external sportsbooks)
  * Patterns: "I won $200 on Lakers yesterday", "I lost $100 on Celtics last night"
  */
 async function handleHistoricalBet(
@@ -1765,15 +1619,6 @@ serve(async (req) => {
           detectedOutcome = 'push';
           break;
         }
-      }
-    }
-
-    // PHASE 1.5: Check for deposit/withdrawal
-    let depositWithdrawalResult = null;
-    if (userId) {
-      depositWithdrawalResult = await handleDepositWithdrawal(userId, messageContent);
-      if (depositWithdrawalResult && depositWithdrawalResult.success) {
-        console.log(`✅ Deposit/withdrawal processed: ${depositWithdrawalResult.transactionType} $${depositWithdrawalResult.amount}`);
       }
     }
 
@@ -2442,37 +2287,6 @@ RESPONSE INSTRUCTIONS:
       }
     }
 
-    // PHASE 1.5: Format deposit/withdrawal context
-    let depositWithdrawalContext = '';
-    if (depositWithdrawalResult) {
-      if (depositWithdrawalResult.error) {
-        depositWithdrawalContext = `
-DEPOSIT/WITHDRAWAL ERROR:
-${depositWithdrawalResult.message}
-
-RESPONSE INSTRUCTIONS:
-Politely inform the user about the error and suggest how to fix it. Be helpful and understanding.`;
-      } else if (depositWithdrawalResult.success) {
-        const { transactionType, amount, previousBankroll, newBankroll } = depositWithdrawalResult;
-        const emoji = transactionType === 'deposit' ? '💵' : '💸';
-        const sign = transactionType === 'deposit' ? '+' : '-';
-
-        depositWithdrawalContext = `
-${emoji} ${transactionType.toUpperCase()} PROCESSED:
-
-Transaction Details:
-- Type: ${transactionType === 'deposit' ? 'Deposit' : 'Withdrawal'}
-- Amount: $${amount.toFixed(2)}
-- Previous Bankroll: $${previousBankroll.toFixed(2)}
-- New Bankroll: $${newBankroll.toFixed(2)}
-- Change: ${sign}$${amount.toFixed(2)}
-
-RESPONSE INSTRUCTIONS:
-Confirm the ${transactionType} and acknowledge the new bankroll amount. Keep it brief and friendly (1-2 sentences).
-Example: "Got it! I've ${transactionType === 'deposit' ? 'added' : 'withdrawn'} $${amount.toFixed(2)} ${transactionType === 'deposit' ? 'to' : 'from'} your bankroll. Your new balance is $${newBankroll.toFixed(2)}."`;
-      }
-    }
-
     // PHASE 1.5: Format historical bet context
     let historicalBetContext = '';
     if (historicalBetResult) {
@@ -2630,12 +2444,6 @@ ${isAskingForScore
 ${bankrollContext}
 
 ${bankrollUpdateContext}`
-      : depositWithdrawalContext
-        ? `${basePrompt}
-
-${bankrollContext}
-
-${depositWithdrawalContext}`
       : historicalBetContext
         ? `${basePrompt}
 
