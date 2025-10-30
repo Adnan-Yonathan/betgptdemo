@@ -6,7 +6,32 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface ESPNGame {
+const RUNDOWN_HOST = 'therundown-therundown-v1.p.rapidapi.com';
+const BASE_URL = `https://${RUNDOWN_HOST}`;
+
+interface RundownTeam {
+  team_id: number;
+  name?: string;
+  mascot?: string;
+  abbreviation?: string;
+  is_home: boolean;
+  is_away: boolean;
+}
+
+interface RundownEvent {
+  event_id: string;
+  event_uuid: string;
+  event_date: string;
+  teams?: RundownTeam[];
+  teams_normalized?: RundownTeam[];
+  score?: {
+    event_status: string;
+    score_home?: number;
+    score_away?: number;
+  };
+}
+
+interface GameSummary {
   id: string;
   date: string;
   name: string;
@@ -18,55 +43,55 @@ interface ESPNGame {
   awayScore: number;
 }
 
-/**
- * Fetches today's NBA games from NBA.com live scoreboard
- */
-async function fetchESPNScoreboard(): Promise<ESPNGame[]> {
-  const scoreboard_url = 'https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json';
-
-  const response = await fetch(scoreboard_url, {
+async function fetchRundownSchedule(
+  rundownApiKey: string,
+  sportId: number,
+  date: string
+): Promise<GameSummary[]> {
+  const url = `${BASE_URL}/sports/${sportId}/events/${date}`;
+  const response = await fetch(url, {
     headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'X-RapidAPI-Key': rundownApiKey,
+      'X-RapidAPI-Host': RUNDOWN_HOST,
       'Accept': 'application/json',
     },
   });
 
   if (!response.ok) {
-    throw new Error(`NBA Scoreboard API error: ${response.status}`);
+    const errorText = await response.text();
+    throw new Error(`The Rundown API error (${response.status}): ${errorText}`);
   }
 
   const data = await response.json();
-  const games: ESPNGame[] = [];
+  const events: RundownEvent[] = data.events || [];
 
-  if (data.scoreboard?.games) {
-    data.scoreboard.games.forEach((game: any) => {
-      const homeTeam = game.homeTeam?.teamName || '';
-      const awayTeam = game.awayTeam?.teamName || '';
-      const homeScore = parseInt(game.homeTeam?.score) || 0;
-      const awayScore = parseInt(game.awayTeam?.score) || 0;
-      const status = game.gameStatusText || 'Unknown';
+  return events.map(event => {
+    const teams = event.teams_normalized || event.teams || [];
+    const home = teams.find(team => team.is_home);
+    const away = teams.find(team => team.is_away);
+    const score = event.score || {};
 
-      games.push({
-        id: game.gameId || '',
-        date: game.gameTimeUTC || new Date().toISOString(),
-        name: `${awayTeam} @ ${homeTeam}`,
-        shortName: `${awayTeam} @ ${homeTeam}`,
-        status,
-        homeTeam,
-        awayTeam,
-        homeScore,
-        awayScore,
-      });
-    });
-  }
+    const homeName = home?.name || home?.mascot || home?.abbreviation || 'Home Team';
+    const awayName = away?.name || away?.mascot || away?.abbreviation || 'Away Team';
 
-  return games;
+    return {
+      id: event.event_id || event.event_uuid,
+      date: event.event_date,
+      name: `${awayName} @ ${homeName}`,
+      shortName: `${awayName} @ ${homeName}`,
+      status: score.event_status || 'STATUS_SCHEDULED',
+      homeTeam: homeName,
+      awayTeam: awayName,
+      homeScore: score.score_home ?? 0,
+      awayScore: score.score_away ?? 0,
+    };
+  });
 }
 
-/**
- * Fetches player stats for a specific game
- */
-async function fetchGameStats(supabaseUrl: string, eventId: string): Promise<any> {
+async function fetchGameStats(
+  supabaseUrl: string,
+  eventId: string
+): Promise<any> {
   const fetchStatsUrl = `${supabaseUrl}/functions/v1/fetch-espn-stats`;
 
   const response = await fetch(fetchStatsUrl, {
@@ -90,7 +115,6 @@ async function fetchGameStats(supabaseUrl: string, eventId: string): Promise<any
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -98,21 +122,32 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const rundownApiKey = Deno.env.get('THE_RUNDOWN_API');
+
+    if (!rundownApiKey) {
+      throw new Error('THE_RUNDOWN_API key is not configured');
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Parse request body
     const {
       sync_completed_only = false,
-      specific_event_ids = null
-    } = await req.json().catch(() => ({}));
+      specific_event_ids = null,
+      league = 'NBA',
+    } = await req.json().catch(() => ({
+      sync_completed_only: false,
+      specific_event_ids: null,
+      league: 'NBA',
+    }));
 
-    console.log('Starting ESPN player stats sync...');
+    const leagueKey = league.toString().toUpperCase();
+    const sportId = leagueKey === 'NBA' ? 4 : leagueKey === 'WNBA' ? 12 : 4;
 
-    let gamesToSync: ESPNGame[] = [];
+    console.log(`Starting Rundown player stats sync for ${leagueKey}...`);
 
-    // If specific event IDs provided, use those
+    let gamesToSync: GameSummary[] = [];
+
     if (specific_event_ids && Array.isArray(specific_event_ids)) {
-      console.log(`Syncing specific events: ${specific_event_ids.join(', ')}`);
       gamesToSync = specific_event_ids.map(id => ({
         id,
         date: new Date().toISOString(),
@@ -125,23 +160,15 @@ Deno.serve(async (req) => {
         awayScore: 0,
       }));
     } else {
-      // Fetch today's games from scoreboard
-      const allGames = await fetchESPNScoreboard();
-      console.log(`Found ${allGames.length} games on ESPN scoreboard`);
+      const targetDate = new Date().toISOString().split('T')[0];
+      const schedule = await fetchRundownSchedule(rundownApiKey!, sportId, targetDate);
+      console.log(`Found ${schedule.length} events on The Rundown schedule`);
 
-      // Filter games based on sync_completed_only flag
-      if (sync_completed_only) {
-        gamesToSync = allGames.filter(game =>
-          game.status.toLowerCase().includes('final') ||
-          game.status.toLowerCase().includes('completed')
-        );
-        console.log(`Filtered to ${gamesToSync.length} completed games`);
-      } else {
-        gamesToSync = allGames;
-      }
+      gamesToSync = sync_completed_only
+        ? schedule.filter(game => game.status.toLowerCase().includes('final'))
+        : schedule;
     }
 
-    // Sync stats for each game
     const results = [];
     let successCount = 0;
     let failureCount = 0;
@@ -182,8 +209,6 @@ Deno.serve(async (req) => {
           error: errorMessage,
         });
       }
-
-      // Rate limiting removed for faster syncing
     }
 
     console.log(`Sync complete: ${successCount} successful, ${failureCount} failed`);
@@ -195,6 +220,7 @@ Deno.serve(async (req) => {
         successful_syncs: successCount,
         failed_syncs: failureCount,
         results,
+        source: 'The Rundown API',
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -202,12 +228,11 @@ Deno.serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error('Error syncing ESPN player stats:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    console.error('Error syncing Rundown stats:', error);
     return new Response(
       JSON.stringify({
-        error: errorMessage,
         success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

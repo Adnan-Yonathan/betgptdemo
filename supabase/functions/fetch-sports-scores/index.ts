@@ -6,108 +6,145 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface ESPNCompetitor {
-  team: {
-    displayName: string;
-    abbreviation?: string;
-  };
-  score: string;
-  homeAway: string;
-}
-
-interface ESPNCompetition {
-  id: string;
-  date: string;
-  status: {
-    type: {
-      name: string;
-      description?: string;
-    };
-  };
-  competitors: ESPNCompetitor[];
-}
-
-interface ESPNEvent {
-  id: string;
+interface RundownTeam {
+  team_id: number;
+  team_normalized_id?: number;
   name: string;
-  shortName: string;
-  competitions: ESPNCompetition[];
+  mascot?: string;
+  abbreviation?: string;
+  is_home: boolean;
+  is_away: boolean;
 }
 
-interface ESPNResponse {
-  events: ESPNEvent[];
+interface RundownScore {
+  event_status: string;
+  event_status_detail?: string;
+  score_home?: number;
+  score_away?: number;
+  period?: string;
+  clock?: string;
+  team_stats?: any[];
+  player_stats?: any[];
+}
+
+interface RundownEvent {
+  event_id: string;
+  event_uuid: string;
+  sport_id: number;
+  sport_name?: string;
+  event_date: string;
+  teams_normalized?: RundownTeam[];
+  teams?: RundownTeam[];
+  score?: RundownScore;
 }
 
 interface SportConfig {
   key: string;
-  espnPath: string;
+  sportId: number;
   sportType: string;
   league: string;
 }
 
-// Configuration for all supported sports
+const RUNDOWN_HOST = 'therundown-therundown-v1.p.rapidapi.com';
+const BASE_URL = `https://${RUNDOWN_HOST}`;
+
+// Configuration for all supported sports (The Rundown API sport IDs)
 const SPORTS_CONFIG: SportConfig[] = [
-  { key: 'nfl', espnPath: 'football/nfl', sportType: 'football', league: 'NFL' },
-  { key: 'ncaaf', espnPath: 'football/college-football', sportType: 'football', league: 'NCAAF' },
-  { key: 'nba', espnPath: 'basketball/nba', sportType: 'basketball', league: 'NBA' },
-  { key: 'mlb', espnPath: 'baseball/mlb', sportType: 'baseball', league: 'MLB' },
-  { key: 'nhl', espnPath: 'hockey/nhl', sportType: 'hockey', league: 'NHL' },
-  { key: 'wnba', espnPath: 'basketball/wnba', sportType: 'basketball', league: 'WNBA' },
-  { key: 'mls', espnPath: 'soccer/usa.1', sportType: 'soccer', league: 'MLS' },
+  { key: 'nfl', sportId: 2, sportType: 'football', league: 'NFL' },
+  { key: 'ncaaf', sportId: 9, sportType: 'football', league: 'NCAAF' },
+  { key: 'nba', sportId: 4, sportType: 'basketball', league: 'NBA' },
+  { key: 'mlb', sportId: 3, sportType: 'baseball', league: 'MLB' },
+  { key: 'nhl', sportId: 1, sportType: 'hockey', league: 'NHL' },
+  { key: 'wnba', sportId: 12, sportType: 'basketball', league: 'WNBA' },
+  { key: 'mls', sportId: 10, sportType: 'soccer', league: 'MLS' },
 ];
 
-// Helper function to fetch and update scores for a sport
+function mapTeams(event: RundownEvent): { home: string; away: string } {
+  const teams = event.teams_normalized || event.teams || [];
+  const homeTeam = teams.find(team => team.is_home);
+  const awayTeam = teams.find(team => team.is_away);
+
+  return {
+    home: homeTeam?.name || homeTeam?.mascot || 'Home Team',
+    away: awayTeam?.name || awayTeam?.mascot || 'Away Team',
+  };
+}
+
+function extractAdvancedStats(score?: RundownScore): Record<string, unknown> | null {
+  if (!score) return null;
+
+  const stats: Record<string, unknown> = {};
+
+  if (score.team_stats && Array.isArray(score.team_stats) && score.team_stats.length > 0) {
+    stats.team_stats = score.team_stats;
+  }
+
+  if (score.player_stats && Array.isArray(score.player_stats) && score.player_stats.length > 0) {
+    stats.player_stats = score.player_stats;
+  }
+
+  if (score.period) {
+    stats.period = score.period;
+  }
+
+  if (score.clock) {
+    stats.clock = score.clock;
+  }
+
+  return Object.keys(stats).length > 0 ? stats : null;
+}
+
+// Helper function to fetch and update scores for a sport using The Rundown API
 async function fetchScoresForSport(
   supabaseClient: any,
-  config: SportConfig
+  config: SportConfig,
+  rundownApiKey: string,
+  targetDate: string
 ): Promise<{ sport: string; count: number; error?: string }> {
   try {
-    const espnUrl = `https://site.api.espn.com/apis/site/v2/sports/${config.espnPath}/scoreboard`;
-    console.log(`Fetching scores for ${config.league} from: ${espnUrl}`);
+    const rundownUrl = `${BASE_URL}/sports/${config.sportId}/events/${targetDate}`;
+    console.log(`Fetching scores for ${config.league} from The Rundown API: ${rundownUrl}`);
 
-    const response = await fetch(espnUrl, {
+    const response = await fetch(rundownUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'X-RapidAPI-Key': rundownApiKey,
+        'X-RapidAPI-Host': RUNDOWN_HOST,
         'Accept': 'application/json',
       },
     });
 
     if (!response.ok) {
-      console.error(`ESPN API error for ${config.league}: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`The Rundown API error for ${config.league}: ${response.status} - ${errorText}`);
       return { sport: config.league, count: 0, error: `HTTP ${response.status}` };
     }
 
-    const data: ESPNResponse = await response.json();
-    const events = data.events || [];
+    const data = await response.json();
+    const events: RundownEvent[] = data.events || [];
 
     console.log(`Found ${events.length} events for ${config.league}`);
 
     let updatedCount = 0;
     for (const event of events) {
       try {
-        const competition = event.competitions[0];
-        const homeTeam = competition.competitors.find(c => c.homeAway === 'home');
-        const awayTeam = competition.competitors.find(c => c.homeAway === 'away');
-
-        if (!homeTeam || !awayTeam) {
-          console.warn(`Missing team data for event ${event.id}`);
-          continue;
-        }
+        const { home, away } = mapTeams(event);
+        const score = event.score || {};
 
         const scoreData = {
-          event_id: `espn_${competition.id}`,
+          event_id: event.event_uuid || event.event_id,
           sport: config.sportType,
           league: config.league,
-          event_name: event.name,
-          short_name: event.shortName,
-          home_team: homeTeam.team.displayName,
-          away_team: awayTeam.team.displayName,
-          home_score: parseInt(homeTeam.score) || 0,
-          away_score: parseInt(awayTeam.score) || 0,
-          game_status: competition.status.type.name,
-          status_description: competition.status.type.description || competition.status.type.name,
-          game_date: new Date(competition.date).toISOString(),
+          event_name: `${away} @ ${home}`,
+          short_name: `${away} @ ${home}`,
+          home_team: home,
+          away_team: away,
+          home_score: score.score_home ?? 0,
+          away_score: score.score_away ?? 0,
+          game_status: score.event_status || 'STATUS_SCHEDULED',
+          status_description: score.event_status_detail || score.event_status || 'Scheduled',
+          game_date: event.event_date,
           last_updated: new Date().toISOString(),
+          advanced_stats: extractAdvancedStats(score),
         };
 
         const { error } = await supabaseClient
@@ -115,12 +152,12 @@ async function fetchScoresForSport(
           .upsert(scoreData, { onConflict: 'event_id' });
 
         if (error) {
-          console.error(`Error upserting event ${event.id}:`, error);
+          console.error(`Error upserting event ${event.event_id}:`, error);
         } else {
           updatedCount++;
         }
       } catch (eventError) {
-        console.error(`Error processing event ${event.id}:`, eventError);
+        console.error(`Error processing event ${event.event_id}:`, eventError);
       }
     }
 
@@ -131,7 +168,7 @@ async function fetchScoresForSport(
     return {
       sport: config.league,
       count: 0,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
 }
@@ -146,6 +183,12 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
+
+    const rundownApiKey = Deno.env.get('THE_RUNDOWN_API');
+
+    if (!rundownApiKey) {
+      throw new Error('THE_RUNDOWN_API key not configured');
+    }
 
     console.log('=== FETCH SPORTS SCORES: Starting data refresh ===');
     const startTime = Date.now();
@@ -166,12 +209,14 @@ serve(async (req) => {
       ? SPORTS_CONFIG.filter(s => requestedSports.includes(s.key))
       : SPORTS_CONFIG;
 
+    const targetDate = new Date().toISOString().split('T')[0];
+
     console.log(`Fetching scores for: ${sportsToFetch.map(s => s.league).join(', ')}`);
 
     // Fetch scores for all sports
     const results = [];
     for (const sportConfig of sportsToFetch) {
-      const result = await fetchScoresForSport(supabaseClient, sportConfig);
+      const result = await fetchScoresForSport(supabaseClient, sportConfig, rundownApiKey, targetDate);
       results.push(result);
     }
 

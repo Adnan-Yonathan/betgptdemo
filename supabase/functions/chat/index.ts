@@ -280,7 +280,7 @@ async function fetchLineupData(query: string): Promise<string> {
       }
 
       const result = await response.json();
-      console.log(`[FETCH] Fetched ${result.count} fresh lineups`);
+      console.log(`[FETCH] Fetched ${result.count} fresh lineups via The Rundown API`);
       return result.lineups || [];
     };
 
@@ -678,7 +678,7 @@ async function fetchLiveScores(query: string): Promise<string> {
       }
 
       const result = await response.json();
-      console.log(`[FETCH] Fetched ${result.count} fresh scores via OpenAI`);
+      console.log(`[FETCH] Fetched ${result.count} fresh scores via The Rundown API`);
 
       // Query database again for fresh data
       const { data: freshScores, error: freshError } = await supabase
@@ -1027,7 +1027,7 @@ function formatOddsData(odds: any[], query: string): string {
     result += '---\n\n';
   }
 
-  result += `\nData Source: The Odds API (Live)\n`;
+  result += `\nData Source: The Rundown API (Live)\n`;
   result += `Total Events: ${eventMap.size}\n`;
   
   return result;
@@ -1751,9 +1751,7 @@ Every recommendation MUST include:
 
 DATA SOURCES & ANALYTICS:
 You have access to professional-grade betting tools:
-- OpenAI for live scores, game statistics, and advanced analytics
-- The Odds API for real-time betting lines from multiple bookmakers
-- **Starting Lineup Scraper** - Real-time confirmed lineups, injury reports, and player availability
+- The Rundown API for live scores, game statistics, advanced analytics, real-time betting lines, and confirmed starting lineups (including injury reports and player availability)
 - **Matchup Analysis Engine** - Comprehensive H2H history, recent form, tactical breakdowns, and betting trends
 - Advanced statistical models (pace adjustments, matchup data, situational trends)
 - Kelly Criterion calculators for optimal bet sizing
@@ -1786,7 +1784,7 @@ LIMITED COVERAGE:
 - Hockey: NHL (historical data available, live odds may be limited)
 - Other sports: General betting principles only
 
-IMPORTANT: For NFL, NCAAF, and NBA you have real-time betting odds from The Odds API. For other sports, you may have limited or historical data only. Always be transparent about data availability.
+IMPORTANT: For NFL, NCAAF, and NBA you have real-time betting odds from The Rundown API. For other sports, you may have limited or historical data only. Always be transparent about data availability.
 
 SCORE REPORTING:
 When users ask for scores ("What is the score?", "Who won?", "Current score?"), provide:
@@ -1809,7 +1807,7 @@ When analyzing ANY game or match, you MUST provide:
 1. RECOMMENDED BET (be specific)
    - Bet type: spread/moneyline/total/prop
    - The actual pick (e.g., "Lakers -4.5" or "Over 218.5")
-   - Current odds from The Odds API
+   - Current odds from The Rundown API
 
 2. STATISTICAL REASONING (REQUIRED - THIS IS NON-NEGOTIABLE)
    - **Win Probability**: Your model's estimated probability with confidence interval
@@ -1883,8 +1881,8 @@ ANALYSIS APPROACH (ALWAYS FOLLOW THIS METHODOLOGY):
    - Provide confidence intervals for win probability
 
 2. **Use Real-Time Data**:
-   - ALWAYS use The Odds API for current betting lines
-   - ALWAYS use OpenAI scores and advanced statistics
+   - ALWAYS use The Rundown API for current betting lines
+   - ALWAYS use The Rundown API for scores and advanced statistics
    - Compare odds across bookmakers for best value
    - Track line movement when available
 
