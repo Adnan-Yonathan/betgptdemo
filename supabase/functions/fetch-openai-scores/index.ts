@@ -6,18 +6,157 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface ScoreData {
+interface RundownTeam {
+  name: string;
+  mascot?: string;
+  abbreviation?: string;
+  is_home: boolean;
+  is_away: boolean;
+}
+
+interface RundownEvent {
   event_id: string;
-  sport: string;
+  event_uuid: string;
+  event_date: string;
+  sport_id: number;
+  teams_normalized?: RundownTeam[];
+  teams?: RundownTeam[];
+  score?: {
+    event_status: string;
+    event_status_detail?: string;
+    score_home?: number;
+    score_away?: number;
+  };
+}
+
+interface RundownBoxScoreTeam {
+  team_id: number;
+  is_home: boolean;
+  statistics?: Record<string, unknown>;
+}
+
+interface RundownBoxScorePlayer {
+  player_id: number;
+  first_name?: string;
+  last_name?: string;
+  full_name?: string;
+  team_id?: number;
+  position?: string;
+  starter?: boolean;
+  statistics?: Record<string, unknown>;
+}
+
+interface LeagueConfig {
   league: string;
-  home_team: string;
-  away_team: string;
-  home_score: number;
-  away_score: number;
-  game_status: string;
-  game_date: string;
-  last_updated: string;
-  advanced_stats?: any;
+  sport: string;
+  sportId: number;
+}
+
+const RUNDOWN_HOST = 'therundown-therundown-v1.p.rapidapi.com';
+const BASE_URL = `https://${RUNDOWN_HOST}`;
+
+const LEAGUE_CONFIG_MAP: Record<string, LeagueConfig> = {
+  'NFL': { league: 'NFL', sport: 'football', sportId: 2 },
+  'NCAAF': { league: 'NCAAF', sport: 'football', sportId: 9 },
+  'NBA': { league: 'NBA', sport: 'basketball', sportId: 4 },
+  'MLB': { league: 'MLB', sport: 'baseball', sportId: 3 },
+  'NHL': { league: 'NHL', sport: 'hockey', sportId: 1 },
+  'WNBA': { league: 'WNBA', sport: 'basketball', sportId: 12 },
+  'MLS': { league: 'MLS', sport: 'soccer', sportId: 10 },
+};
+
+function normalizeTeamName(team?: RundownTeam): string {
+  if (!team) return '';
+  return team.name || team.mascot || team.abbreviation || '';
+}
+
+function resolveTeams(event: RundownEvent): { home: string; away: string } {
+  const teams = event.teams_normalized || event.teams || [];
+  const homeTeam = teams.find(team => team.is_home);
+  const awayTeam = teams.find(team => team.is_away);
+
+  return {
+    home: normalizeTeamName(homeTeam) || 'Home Team',
+    away: normalizeTeamName(awayTeam) || 'Away Team',
+  };
+}
+
+function extractAdvancedStats(
+  teams: RundownBoxScoreTeam[] | undefined,
+  players: RundownBoxScorePlayer[] | undefined,
+  teamMap: Map<number, string>
+): Record<string, unknown> | null {
+  const advanced: Record<string, unknown> = {};
+
+  if (teams && teams.length > 0) {
+    advanced.team_statistics = teams.map(team => ({
+      team: teamMap.get(team.team_id) || team.team_id,
+      statistics: team.statistics || {},
+    }));
+  }
+
+  if (players && players.length > 0) {
+    advanced.player_statistics = players.map(player => ({
+      player: player.full_name || `${player.first_name ?? ''} ${player.last_name ?? ''}`.trim(),
+      team: player.team_id ? teamMap.get(player.team_id) || player.team_id : undefined,
+      position: player.position,
+      starter: player.starter,
+      statistics: player.statistics || {},
+    }));
+  }
+
+  return Object.keys(advanced).length > 0 ? advanced : null;
+}
+
+async function fetchRundownEvents(
+  sportId: number,
+  rundownApiKey: string,
+  targetDate: string
+): Promise<RundownEvent[]> {
+  const url = `${BASE_URL}/sports/${sportId}/events/${targetDate}`;
+  const response = await fetch(url, {
+    headers: {
+      'X-RapidAPI-Key': rundownApiKey,
+      'X-RapidAPI-Host': RUNDOWN_HOST,
+      'Accept': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`The Rundown API returned ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data.events || [];
+}
+
+async function fetchRundownBoxScore(
+  eventId: string,
+  rundownApiKey: string
+): Promise<{ teams?: RundownBoxScoreTeam[]; players?: RundownBoxScorePlayer[] }> {
+  if (!eventId) {
+    throw new Error('Missing eventId for Rundown boxscore request');
+  }
+  const url = `${BASE_URL}/events/${eventId}/boxscore`;
+  const response = await fetch(url, {
+    headers: {
+      'X-RapidAPI-Key': rundownApiKey,
+      'X-RapidAPI-Host': RUNDOWN_HOST,
+      'Accept': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`The Rundown boxscore error ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  return {
+    teams: data.team_stats || data.teams,
+    players: data.player_stats || data.players,
+  };
 }
 
 Deno.serve(async (req) => {
@@ -29,12 +168,13 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const rundownApiKey = Deno.env.get('THE_RUNDOWN_API');
 
-    if (!openaiApiKey) {
-      throw new Error('OPENAI_API_KEY is not configured');
+    if (!rundownApiKey) {
+      throw new Error('THE_RUNDOWN_API key is not configured');
     }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Parse request body to get league and query details
     const { league = 'NFL', query = '' } = await req.json().catch(() => ({
@@ -42,151 +182,100 @@ Deno.serve(async (req) => {
       query: ''
     }));
 
-    const currentDate = new Date().toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    const normalizedLeague = league.toUpperCase();
+    const leagueConfig = LEAGUE_CONFIG_MAP[normalizedLeague] || LEAGUE_CONFIG_MAP['NFL'];
 
-    console.log(`Fetching scores for ${league} via OpenAI...`);
+    const targetDate = new Date().toISOString().split('T')[0];
+    console.log(`Fetching Rundown scores for ${leagueConfig.league} on ${targetDate}`);
 
-    // Use OpenAI to fetch and analyze live scores with web browsing
-    const prompt = `You are a sports data expert with access to real-time sports information.
+    const events = await fetchRundownEvents(leagueConfig.sportId, rundownApiKey, targetDate);
 
-Today's date is ${currentDate}.
+    // Optionally filter events by query context if provided
+    const filteredEvents = query
+      ? events.filter(event => {
+          const { home, away } = resolveTeams(event);
+          const combined = `${home} ${away}`.toLowerCase();
+          return combined.includes(query.toLowerCase());
+        })
+      : events;
 
-Task: Fetch the latest ${league} scores and game information. Include:
-1. All games from today and yesterday
-2. Current scores (live or final)
-3. Game status (scheduled, in progress, final, etc.)
-4. Game start times
-5. Advanced statistics if available (team stats, key player performances, etc.)
+    console.log(`Processing ${filteredEvents.length} events for ${leagueConfig.league}`);
 
-For each game, structure the response as JSON with this format:
-{
-  "games": [
-    {
-      "event_id": "unique_game_id",
-      "home_team": "Team Name",
-      "away_team": "Team Name",
-      "home_score": 0,
-      "away_score": 0,
-      "game_status": "STATUS_FINAL|STATUS_IN_PROGRESS|STATUS_SCHEDULED",
-      "game_date": "ISO 8601 datetime",
-      "quarter_or_period": "Q4|3rd Period|9th Inning|etc",
-      "time_remaining": "2:45|Final|etc",
-      "advanced_stats": {
-        "home_total_yards": 0,
-        "away_total_yards": 0,
-        "home_turnovers": 0,
-        "away_turnovers": 0,
-        "key_performances": ["Player stats or highlights"]
-      }
-    }
-  ]
-}
+    const processedResults = [];
+    for (const event of filteredEvents) {
+      try {
+        const { home, away } = resolveTeams(event);
+        const score = event.score || {};
 
-${query ? `Additional context: ${query}` : ''}
-
-Provide accurate, real-time data. If no games are available, return an empty games array.`;
-
-    const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a sports data API that provides accurate, real-time sports scores and statistics. Always return valid JSON.'
-          },
-          {
-            role: 'user',
-            content: prompt
+        const teamMap = new Map<number, string>();
+        const teams = event.teams_normalized || event.teams || [];
+        teams.forEach(team => {
+          if (typeof team.team_id === 'number') {
+            teamMap.set(team.team_id, normalizeTeamName(team));
           }
-        ],
-        temperature: 0.1,
-        response_format: { type: 'json_object' }
-      }),
-    });
+        });
 
-    if (!openaiResponse.ok) {
-      const errorText = await openaiResponse.text();
-      throw new Error(`OpenAI API error: ${openaiResponse.status} - ${errorText}`);
-    }
+        let advancedStats: Record<string, unknown> | null = null;
+        try {
+          const boxScore = await fetchRundownBoxScore(event.event_id || event.event_uuid, rundownApiKey);
+          advancedStats = extractAdvancedStats(boxScore.teams, boxScore.players, teamMap);
+        } catch (boxScoreError) {
+          console.warn(`Unable to fetch boxscore for ${event.event_id}:`, boxScoreError);
+        }
 
-    const openaiData = await openaiResponse.json();
-    const content = openaiData.choices[0].message.content;
-    const parsedData = JSON.parse(content);
+        const scoreData = {
+          event_id: event.event_uuid || event.event_id,
+          sport: leagueConfig.sport,
+          league: leagueConfig.league,
+          home_team: home,
+          away_team: away,
+          home_score: score.score_home ?? 0,
+          away_score: score.score_away ?? 0,
+          game_status: score.event_status || 'STATUS_SCHEDULED',
+          game_date: event.event_date,
+          last_updated: new Date().toISOString(),
+          advanced_stats: advancedStats,
+        };
 
-    console.log(`OpenAI returned ${parsedData.games?.length || 0} games`);
+        const { data: upsertData, error } = await supabase
+          .from('sports_scores')
+          .upsert(scoreData, { onConflict: 'event_id' })
+          .select()
+          .single();
 
-    // Process and store each game
-    const results = [];
-    const games = parsedData.games || [];
-
-    for (const game of games) {
-      const scoreData: ScoreData = {
-        event_id: game.event_id || `${league}-${game.home_team}-${game.away_team}-${new Date().getTime()}`,
-        sport: league.toLowerCase().includes('nfl') || league.toLowerCase().includes('football') ? 'football' :
-               league.toLowerCase().includes('nba') || league.toLowerCase().includes('basketball') ? 'basketball' :
-               league.toLowerCase().includes('mlb') || league.toLowerCase().includes('baseball') ? 'baseball' :
-               league.toLowerCase().includes('nhl') || league.toLowerCase().includes('hockey') ? 'hockey' : 'other',
-        league: league.toUpperCase(),
-        home_team: game.home_team,
-        away_team: game.away_team,
-        home_score: game.home_score || 0,
-        away_score: game.away_score || 0,
-        game_status: game.game_status || 'STATUS_SCHEDULED',
-        game_date: game.game_date || new Date().toISOString(),
-        last_updated: new Date().toISOString(),
-        advanced_stats: game.advanced_stats || null,
-      };
-
-      // Upsert the score (update if exists, insert if new)
-      const { data: upsertData, error } = await supabase
-        .from('sports_scores')
-        .upsert(scoreData, { onConflict: 'event_id' })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error upserting score:', error);
-      } else {
-        results.push(upsertData);
+        if (error) {
+          console.error('Error upserting score:', error);
+        } else if (upsertData) {
+          processedResults.push(upsertData);
+        }
+      } catch (eventError) {
+        console.error(`Error processing event ${event.event_id}:`, eventError);
       }
     }
-
-    console.log(`Successfully processed ${results.length} games via OpenAI`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        count: results.length,
-        scores: results,
-        source: 'OpenAI',
-        raw_response: parsedData
+        count: processedResults.length,
+        scores: processedResults,
+        source: 'The Rundown API',
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200
+        status: 200,
       }
     );
   } catch (error) {
-    console.error('Error fetching sports scores via OpenAI:', error);
+    console.error('Error fetching sports scores from The Rundown API:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return new Response(
       JSON.stringify({
         error: errorMessage,
-        success: false
+        success: false,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500
+        status: 500,
       }
     );
   }

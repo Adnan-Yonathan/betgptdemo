@@ -46,8 +46,8 @@ export interface PlayerHistory {
 }
 
 /**
- * Fetches player statistics from ESPN for a specific game
- * @param eventId - ESPN event ID (game ID)
+ * Fetches player statistics from The Rundown API for a specific game
+ * @param eventId - Rundown event ID (game ID)
  * @param storeData - Whether to store the data in the database
  * @returns Promise with game data including player statistics
  */
@@ -64,43 +64,46 @@ export async function fetchESPNGameStats(
     });
 
     if (error) {
-      console.error('Error fetching ESPN stats:', error);
+      console.error('Error fetching Rundown stats:', error);
       return null;
     }
 
     return data;
   } catch (error) {
-    console.error('Exception fetching ESPN stats:', error);
+    console.error('Exception fetching Rundown stats:', error);
     return null;
   }
 }
 
 /**
- * Syncs player stats for today's NBA games from ESPN
+ * Syncs player stats for today's games from The Rundown API
  * @param completedOnly - Only sync completed games
  * @param specificEventIds - Optionally specify specific event IDs to sync
+ * @param league - League identifier (NBA by default)
  * @returns Promise with sync results
  */
 export async function syncESPNPlayerStats(
   completedOnly: boolean = false,
-  specificEventIds?: string[]
+  specificEventIds?: string[],
+  league: string = 'NBA'
 ): Promise<any> {
   try {
     const { data, error } = await supabase.functions.invoke('sync-espn-player-stats', {
       body: {
         sync_completed_only: completedOnly,
         specific_event_ids: specificEventIds || null,
+        league,
       },
     });
 
     if (error) {
-      console.error('Error syncing ESPN stats:', error);
+      console.error('Error syncing Rundown stats:', error);
       return null;
     }
 
     return data;
   } catch (error) {
-    console.error('Exception syncing ESPN stats:', error);
+    console.error('Exception syncing Rundown stats:', error);
     return null;
   }
 }

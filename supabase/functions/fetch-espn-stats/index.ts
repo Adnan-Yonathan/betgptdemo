@@ -6,30 +6,61 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface ESPNPlayerStats {
+const RUNDOWN_HOST = 'therundown-therundown-v1.p.rapidapi.com';
+const BASE_URL = `https://${RUNDOWN_HOST}`;
+
+type JsonRecord = Record<string, unknown>;
+
+interface RundownTeamInfo {
+  team_id: number;
+  name?: string;
+  mascot?: string;
+  abbreviation?: string;
+  is_home: boolean;
+  is_away: boolean;
+}
+
+interface RundownBoxScoreTeam {
+  team_id: number;
+  is_home: boolean;
+  statistics?: JsonRecord;
+  totals?: JsonRecord;
+}
+
+interface RundownBoxScorePlayer {
+  player_id: number;
+  first_name?: string;
+  last_name?: string;
+  full_name?: string;
+  team_id?: number;
+  position?: string;
+  starter?: boolean;
+  statistics?: JsonRecord;
+  totals?: JsonRecord;
+}
+
+interface RundownBoxScoreResponse {
+  event_id: string;
+  event_date: string;
+  teams?: RundownTeamInfo[];
+  team_stats?: RundownBoxScoreTeam[];
+  player_stats?: RundownBoxScorePlayer[];
+  score?: {
+    event_status: string;
+    score_home?: number;
+    score_away?: number;
+  };
+}
+
+interface GamePlayerStats {
   name: string;
   team: string;
   position: string;
-  stats: {
-    points?: number;
-    rebounds?: number;
-    assists?: number;
-    steals?: number;
-    blocks?: number;
-    turnovers?: number;
-    fieldGoalsMade?: number;
-    fieldGoalsAttempted?: number;
-    threePointsMade?: number;
-    threePointsAttempted?: number;
-    freeThrowsMade?: number;
-    freeThrowsAttempted?: number;
-    minutes?: string;
-    plusMinus?: string;
-  };
+  stats: JsonRecord;
   starter: boolean;
 }
 
-interface ESPNGameData {
+interface GameData {
   event_id: string;
   game_date: string;
   home_team: string;
@@ -37,133 +68,82 @@ interface ESPNGameData {
   home_score: number;
   away_score: number;
   status: string;
-  players: ESPNPlayerStats[];
+  players: GamePlayerStats[];
 }
 
-/**
- * Parses ESPN API response and extracts player statistics
- */
-function parseESPNResponse(data: any): ESPNGameData {
-  const header = data.header || {};
-  const boxScore = data.boxscore || {};
-  const players: ESPNPlayerStats[] = [];
+function resolveTeamName(team?: RundownTeamInfo): string {
+  if (!team) return '';
+  return team.name || team.mascot || team.abbreviation || '';
+}
 
-  // Extract game info
-  const gameInfo = {
-    event_id: header.id || data.gameId || '',
-    game_date: header.competitions?.[0]?.date || new Date().toISOString(),
-    home_team: '',
-    away_team: '',
-    home_score: 0,
-    away_score: 0,
-    status: header.competitions?.[0]?.status?.type?.description || 'Unknown',
-  };
+function buildGameData(boxScore: RundownBoxScoreResponse): GameData {
+  const teams = boxScore.teams || [];
+  const homeTeamInfo = teams.find(team => team.is_home);
+  const awayTeamInfo = teams.find(team => team.is_away);
 
-  // Extract teams and scores
-  const competitions = header.competitions?.[0] || {};
-  const competitors = competitions.competitors || [];
-
-  competitors.forEach((team: any) => {
-    if (team.homeAway === 'home') {
-      gameInfo.home_team = team.team?.displayName || team.team?.name || '';
-      gameInfo.home_score = parseInt(team.score) || 0;
-    } else {
-      gameInfo.away_team = team.team?.displayName || team.team?.name || '';
-      gameInfo.away_score = parseInt(team.score) || 0;
-    }
+  const teamMap = new Map<number, string>();
+  teams.forEach(team => {
+    teamMap.set(team.team_id, resolveTeamName(team));
   });
 
-  // Parse box score for player statistics
-  if (boxScore.players) {
-    boxScore.players.forEach((teamData: any) => {
-      const teamName = teamData.team?.displayName || teamData.team?.name || '';
-      const statistics = teamData.statistics || [];
+  const players: GamePlayerStats[] = (boxScore.player_stats || []).map(player => {
+    const name = player.full_name || `${player.first_name ?? ''} ${player.last_name ?? ''}`.trim();
+    const teamName = player.team_id ? (teamMap.get(player.team_id) || `${player.team_id}`) : '';
+    const stats = player.statistics || player.totals || {};
 
-      // Get stat labels (e.g., MIN, FG, 3PT, FT, REB, AST, etc.)
-      const statLabels = statistics.map((stat: any) => stat.name || stat.abbreviation || '');
+    return {
+      name,
+      team: teamName,
+      position: player.position || '',
+      stats,
+      starter: Boolean(player.starter),
+    };
+  });
 
-      // Process each player
-      (teamData.statistics?.[0]?.athletes || []).forEach((athlete: any, index: number) => {
-        const playerStats: any = {};
-
-        // Map stats to our schema
-        statistics.forEach((stat: any, statIndex: number) => {
-          const label = stat.name || stat.abbreviation || '';
-          const value = stat.athletes?.[index]?.value || '0';
-
-          // Map ESPN stat names to our schema
-          switch (label.toUpperCase()) {
-            case 'MIN':
-              playerStats.minutes = value;
-              break;
-            case 'FG':
-              const fg = value.split('-');
-              playerStats.fieldGoalsMade = parseInt(fg[0]) || 0;
-              playerStats.fieldGoalsAttempted = parseInt(fg[1]) || 0;
-              break;
-            case '3PT':
-              const three = value.split('-');
-              playerStats.threePointsMade = parseInt(three[0]) || 0;
-              playerStats.threePointsAttempted = parseInt(three[1]) || 0;
-              break;
-            case 'FT':
-              const ft = value.split('-');
-              playerStats.freeThrowsMade = parseInt(ft[0]) || 0;
-              playerStats.freeThrowsAttempted = parseInt(ft[1]) || 0;
-              break;
-            case 'OREB':
-            case 'DREB':
-            case 'REB':
-              playerStats.rebounds = (playerStats.rebounds || 0) + (parseInt(value) || 0);
-              break;
-            case 'AST':
-              playerStats.assists = parseInt(value) || 0;
-              break;
-            case 'STL':
-              playerStats.steals = parseInt(value) || 0;
-              break;
-            case 'BLK':
-              playerStats.blocks = parseInt(value) || 0;
-              break;
-            case 'TO':
-              playerStats.turnovers = parseInt(value) || 0;
-              break;
-            case 'PTS':
-              playerStats.points = parseInt(value) || 0;
-              break;
-            case '+/-':
-              playerStats.plusMinus = value;
-              break;
-          }
-        });
-
-        players.push({
-          name: athlete.athlete?.displayName || athlete.athlete?.name || '',
-          team: teamName,
-          position: athlete.athlete?.position?.abbreviation || '',
-          stats: playerStats,
-          starter: athlete.starter || false,
-        });
-      });
-    });
-  }
+  const score = boxScore.score || {};
 
   return {
-    ...gameInfo,
+    event_id: boxScore.event_id,
+    game_date: boxScore.event_date || new Date().toISOString(),
+    home_team: resolveTeamName(homeTeamInfo),
+    away_team: resolveTeamName(awayTeamInfo),
+    home_score: score.score_home ?? 0,
+    away_score: score.score_away ?? 0,
+    status: score.event_status || 'Unknown',
     players,
   };
 }
 
-/**
- * Stores player statistics in the player_performance_history table
- */
+async function fetchRundownBoxScore(eventId: string, rundownApiKey: string): Promise<RundownBoxScoreResponse> {
+  if (!eventId) {
+    throw new Error('event_id is required');
+  }
+
+  const url = `${BASE_URL}/events/${eventId}/boxscore`;
+  const response = await fetch(url, {
+    headers: {
+      'X-RapidAPI-Key': rundownApiKey,
+      'X-RapidAPI-Host': RUNDOWN_HOST,
+      'Accept': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`The Rundown API error: ${response.status} - ${errorText}`);
+  }
+
+  return await response.json();
+}
+
 async function storePlayerStats(
   supabase: any,
-  gameData: ESPNGameData
+  gameData: GameData
 ): Promise<number> {
   let storedCount = 0;
 
   for (const player of gameData.players) {
+    const stats = player.stats || {};
     const performanceData = {
       player_name: player.name,
       team: player.team,
@@ -172,9 +152,9 @@ async function storePlayerStats(
       game_date: gameData.game_date,
       opponent: player.team === gameData.home_team ? gameData.away_team : gameData.home_team,
       home_away: player.team === gameData.home_team ? 'home' : 'away',
-      stats: player.stats,
-      points: player.stats.points || 0,
-      minutes_played: player.stats.minutes || '0:00',
+      stats,
+      points: Number(stats.points ?? stats.PTS ?? 0),
+      minutes_played: String(stats.minutes ?? stats.MIN ?? '0:00'),
     };
 
     const { error } = await supabase
@@ -202,84 +182,55 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const rundownApiKey = Deno.env.get('THE_RUNDOWN_API');
+
+    if (!rundownApiKey) {
+      throw new Error('THE_RUNDOWN_API key is not configured');
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Parse request body
-    const { event_id, store_data = true } = await req.json();
+    const {
+      event_id,
+      store_data = false,
+    } = await req.json();
 
     if (!event_id) {
-      return new Response(
-        JSON.stringify({
-          error: 'event_id is required',
-          success: false,
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400,
-        }
-      );
+      throw new Error('event_id is required');
     }
 
-    console.log(`Fetching ESPN data for event ${event_id}...`);
+    console.log(`Fetching The Rundown boxscore for event ${event_id}`);
 
-    // Fetch from ESPN API
-    const espnUrl = `https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/summary?region=us&lang=en&contentorigin=espn&event=${event_id}`;
+    const boxScore = await fetchRundownBoxScore(event_id, rundownApiKey);
+    const gameData = buildGameData(boxScore);
 
-    const espnResponse = await fetch(espnUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json',
-      },
-    });
+    console.log(`Parsed ${gameData.players.length} player entries`);
 
-    if (!espnResponse.ok) {
-      throw new Error(`ESPN API error: ${espnResponse.status}`);
-    }
-
-    const espnData = await espnResponse.json();
-    const parsedGameData = parseESPNResponse(espnData);
-
-    console.log(`Parsed data for ${parsedGameData.players.length} players`);
-
-    // Store player statistics if requested
     let storedCount = 0;
     if (store_data) {
-      storedCount = await storePlayerStats(supabase, parsedGameData);
-      console.log(`Stored stats for ${storedCount} players`);
+      storedCount = await storePlayerStats(supabase, gameData);
+      console.log(`Stored ${storedCount} player stats in database`);
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        event_id: parsedGameData.event_id,
-        game_date: parsedGameData.game_date,
-        home_team: parsedGameData.home_team,
-        away_team: parsedGameData.away_team,
-        home_score: parsedGameData.home_score,
-        away_score: parsedGameData.away_score,
-        status: parsedGameData.status,
-        players_count: parsedGameData.players.length,
-        stored_count: storedCount,
-        players: parsedGameData.players,
-        source: 'ESPN',
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      }
-    );
+    return new Response(JSON.stringify({
+      success: true,
+      event_id,
+      stored_count: storedCount,
+      game: gameData,
+      source: 'The Rundown API',
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    });
   } catch (error) {
-    console.error('Error fetching ESPN stats:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    return new Response(
-      JSON.stringify({
-        error: errorMessage,
-        success: false,
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      }
-    );
+    console.error('Error fetching Rundown stats:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500,
+    });
   }
 });
