@@ -6,14 +6,19 @@ import { ChatInput } from "@/components/ChatInput";
 import { ProfileDropdown } from "@/components/ProfileDropdown";
 import { ProfileSettings } from "@/components/ProfileSettings";
 import { ThinkingIndicator } from "@/components/ThinkingIndicator";
+import { LiveBetTracker } from "@/components/LiveBetTracker";
+import { BetAlerts } from "@/components/BetAlerts";
+import { AlertSettings } from "@/components/AlertSettingsCard";
+import { LiveScoreTicker } from "@/components/LiveScoreTicker";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { playAudioFromBase64 } from "@/utils/voiceUtils";
-import { BookOpen, Menu } from "lucide-react";
+import { BookOpen, Menu, Activity, Bell, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserGuide } from "@/components/UserGuide";
 interface Message {
@@ -40,6 +45,7 @@ const Index = () => {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
   const isMobile = useIsMobile();
   const {
     toast
@@ -403,9 +409,29 @@ const Index = () => {
               <span className="hidden sm:inline">Guide</span>
             </Button>
 
+            {/* Live Tracking Toggle - Mobile only */}
+            {isMobile && user && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setRightSidebarOpen(true)}
+                className="h-9 w-9 p-0"
+              >
+                <Activity className="w-4 h-4" />
+                <span className="sr-only">Live tracking</span>
+              </Button>
+            )}
+
             <ProfileDropdown onOpenProfile={() => setProfileOpen(true)} />
           </div>
         </header>
+
+        {/* Live Score Ticker */}
+        {user && (
+          <div className="border-b border-border">
+            <LiveScoreTicker />
+          </div>
+        )}
 
         {/* Messages */}
         <ScrollArea className="flex-1 px-3 sm:px-6 py-4 sm:py-8 pb-24 md:pb-8">
@@ -427,6 +453,102 @@ const Index = () => {
         {/* Input */}
         <ChatInput onSendMessage={handleSendMessage} disabled={isTyping} />
       </main>
+
+      {/* Right Sidebar - Desktop only, shown when user is logged in */}
+      {!isMobile && user && (
+        <aside className="w-[380px] border-l border-border bg-background flex flex-col">
+          <div className="p-4 border-b border-border">
+            <h3 className="font-semibold text-lg">Live Tracking</h3>
+            <p className="text-xs text-muted-foreground">Real-time updates on your bets</p>
+          </div>
+          <ScrollArea className="flex-1">
+            <Tabs defaultValue="bets" className="w-full">
+              <TabsList className="w-full justify-start border-b rounded-none h-auto p-0">
+                <TabsTrigger
+                  value="bets"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+                >
+                  <Activity className="w-4 h-4 mr-2" />
+                  Live Bets
+                </TabsTrigger>
+                <TabsTrigger
+                  value="alerts"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+                >
+                  <Bell className="w-4 h-4 mr-2" />
+                  Alerts
+                </TabsTrigger>
+                <TabsTrigger
+                  value="settings"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  Settings
+                </TabsTrigger>
+              </TabsList>
+              <div className="p-4">
+                <TabsContent value="bets" className="mt-0">
+                  <LiveBetTracker />
+                </TabsContent>
+                <TabsContent value="alerts" className="mt-0">
+                  <BetAlerts />
+                </TabsContent>
+                <TabsContent value="settings" className="mt-0">
+                  <AlertSettings />
+                </TabsContent>
+              </div>
+            </Tabs>
+          </ScrollArea>
+        </aside>
+      )}
+
+      {/* Mobile Live Tracking Sheet */}
+      <Sheet open={rightSidebarOpen} onOpenChange={setRightSidebarOpen}>
+        <SheetContent side="right" className="p-0 w-[90vw] sm:w-[380px]">
+          <div className="p-4 border-b border-border">
+            <h3 className="font-semibold text-lg">Live Tracking</h3>
+            <p className="text-xs text-muted-foreground">Real-time updates on your bets</p>
+          </div>
+          <ScrollArea className="h-[calc(100vh-80px)]">
+            <Tabs defaultValue="bets" className="w-full">
+              <TabsList className="w-full justify-start border-b rounded-none h-auto p-0">
+                <TabsTrigger
+                  value="bets"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+                >
+                  <Activity className="w-4 h-4 mr-2" />
+                  Live Bets
+                </TabsTrigger>
+                <TabsTrigger
+                  value="alerts"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+                >
+                  <Bell className="w-4 h-4 mr-2" />
+                  Alerts
+                </TabsTrigger>
+                <TabsTrigger
+                  value="settings"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  Settings
+                </TabsTrigger>
+              </TabsList>
+              <div className="p-4">
+                <TabsContent value="bets" className="mt-0">
+                  <LiveBetTracker />
+                </TabsContent>
+                <TabsContent value="alerts" className="mt-0">
+                  <BetAlerts />
+                </TabsContent>
+                <TabsContent value="settings" className="mt-0">
+                  <AlertSettings />
+                </TabsContent>
+              </div>
+            </Tabs>
+          </ScrollArea>
+        </SheetContent>
+      </Sheet>
 
       <ProfileSettings open={profileOpen} onOpenChange={setProfileOpen} />
       <UserGuide open={guideOpen} onOpenChange={setGuideOpen} />
