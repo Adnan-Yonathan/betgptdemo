@@ -1805,12 +1805,13 @@ async function buildUserContextPrompt(userId: string): Promise<string> {
 
   console.log('[PHASE3] Building user context prompt...');
 
-  // Fetch all data in parallel for performance
-  const [preferences, patterns, insights, memoryContext] = await Promise.all([
+  // Fetch all data in parallel for performance (Phase 3 + Phase 4)
+  const [preferences, patterns, insights, memoryContext, advancedMetrics] = await Promise.all([
     getUserPreferences(userId),
     getBettingPatterns(userId),
     getActiveInsights(userId),
-    getMemoryContext(userId)
+    getMemoryContext(userId),
+    getAdvancedMetrics(userId) // Phase 4: CLV and advanced stats
   ]);
 
   let contextPrompt = '\n\n═══════════════════════════════════════════════════════════════\n';
@@ -1896,6 +1897,49 @@ async function buildUserContextPrompt(userId: string): Promise<string> {
     contextPrompt += '\n';
   }
 
+  // Phase 4: Add CLV and advanced metrics
+  if (advancedMetrics) {
+    contextPrompt += '📈 PHASE 4: ADVANCED METRICS (CLV & Performance):\n';
+
+    if (advancedMetrics.avg_clv_points) {
+      const clvSign = advancedMetrics.avg_clv_points > 0 ? '+' : '';
+      contextPrompt += `- Average CLV: ${clvSign}${advancedMetrics.avg_clv_points} points (${clvSign}$${advancedMetrics.avg_clv_dollars?.toFixed(2) || '0.00'})\n`;
+      contextPrompt += `- Beats Closing Line: ${advancedMetrics.pct_beat_closing_line}% of bets\n`;
+
+      if (advancedMetrics.avg_clv_points > 1.5) {
+        contextPrompt += `- 🔥 EXCELLENT CLV: You're consistently beating the market!\n`;
+      } else if (advancedMetrics.avg_clv_points > 0.5) {
+        contextPrompt += `- ✅ POSITIVE CLV: You're finding value bets\n`;
+      } else if (advancedMetrics.avg_clv_points < -0.5) {
+        contextPrompt += `- ⚠️ NEGATIVE CLV: You're consistently getting worse than closing line\n`;
+      }
+    }
+
+    if (advancedMetrics.sharpe_ratio) {
+      contextPrompt += `- Sharpe Ratio: ${advancedMetrics.sharpe_ratio?.toFixed(2)} (risk-adjusted returns)\n`;
+    }
+
+    if (advancedMetrics.avg_kelly_efficiency) {
+      const kellyEff = advancedMetrics.avg_kelly_efficiency;
+      if (kellyEff > 1.5) {
+        contextPrompt += `- ⚠️ Kelly Efficiency: ${kellyEff?.toFixed(2)} (overbetting - too aggressive)\n`;
+      } else if (kellyEff < 0.5) {
+        contextPrompt += `- Kelly Efficiency: ${kellyEff?.toFixed(2)} (underbetting - very conservative)\n`;
+      } else {
+        contextPrompt += `- Kelly Efficiency: ${kellyEff?.toFixed(2)} (good sizing discipline)\n`;
+      }
+    }
+
+    if (advancedMetrics.spread_roi !== null && advancedMetrics.total_roi !== null && advancedMetrics.moneyline_roi !== null) {
+      contextPrompt += `\nROI by Market Type:\n`;
+      contextPrompt += `  • Spreads: ${advancedMetrics.spread_roi > 0 ? '+' : ''}${advancedMetrics.spread_roi}%\n`;
+      contextPrompt += `  • Totals: ${advancedMetrics.total_roi > 0 ? '+' : ''}${advancedMetrics.total_roi}%\n`;
+      contextPrompt += `  • Moneyline: ${advancedMetrics.moneyline_roi > 0 ? '+' : ''}${advancedMetrics.moneyline_roi}%\n`;
+    }
+
+    contextPrompt += '\n';
+  }
+
   // Add active insights
   if (insights && insights.length > 0) {
     contextPrompt += '💡 ACTIVE INSIGHTS:\n';
@@ -1934,6 +1978,208 @@ async function buildUserContextPrompt(userId: string): Promise<string> {
 
   console.log('[PHASE3] User context prompt built successfully');
   return contextPrompt;
+}
+
+/**
+ * PHASE 4: Advanced Statistical Models & EV Analysis
+ * Calculates Expected Value, Kelly sizing, and game predictions
+ */
+
+/**
+ * Fetches advanced metrics including CLV stats
+ */
+async function getAdvancedMetrics(userId: string): Promise<any> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('advanced_metrics')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      console.log('[PHASE4] No advanced metrics found');
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('[PHASE4] Error fetching advanced metrics:', error);
+    return null;
+  }
+}
+
+/**
+ * Predicts game outcome using Elo model
+ */
+async function predictGameWithElo(homeTeam: string, awayTeam: string, league: string): Promise<any> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .rpc('predict_game_with_elo', {
+        p_home_team: homeTeam,
+        p_away_team: awayTeam,
+        p_league: league,
+        p_home_advantage_points: 100
+      });
+
+    if (error) {
+      console.error('[PHASE4] Error predicting game:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('[PHASE4] Error in predictGameWithElo:', error);
+    return null;
+  }
+}
+
+/**
+ * Calculates EV and Kelly sizing for a hypothetical bet
+ */
+async function calculateEVForBet(
+  winProbability: number,
+  odds: number,
+  stake: number,
+  bankroll: number
+): Promise<any> {
+  try {
+    const supabase = getSupabaseClient();
+
+    // Calculate EV
+    const { data: evData, error: evError } = await supabase
+      .rpc('calculate_expected_value', {
+        p_win_probability: winProbability,
+        p_american_odds: odds,
+        p_stake: stake
+      });
+
+    if (evError) {
+      console.error('[PHASE4] Error calculating EV:', evError);
+      return null;
+    }
+
+    // Calculate Kelly sizing
+    const { data: kellyData, error: kellyError } = await supabase
+      .rpc('calculate_kelly_sizing', {
+        p_win_probability: winProbability,
+        p_american_odds: odds,
+        p_bankroll: bankroll,
+        p_fraction: 0.25
+      });
+
+    if (kellyError) {
+      console.error('[PHASE4] Error calculating Kelly:', kellyError);
+      return null;
+    }
+
+    return {
+      ev: evData,
+      kelly: kellyData
+    };
+  } catch (error) {
+    console.error('[PHASE4] Error in calculateEVForBet:', error);
+    return null;
+  }
+}
+
+/**
+ * Builds EV analysis context for AI
+ */
+async function buildEVAnalysisContext(
+  homeTeam: string,
+  awayTeam: string,
+  league: string,
+  odds: number,
+  stake: number,
+  bankroll: number
+): Promise<string> {
+  try {
+    console.log('[PHASE4] Building EV analysis context...');
+
+    // Get Elo prediction
+    const prediction = await predictGameWithElo(homeTeam, awayTeam, league);
+
+    if (!prediction) {
+      return '';
+    }
+
+    const winProbability = prediction.home_win_probability || 0.5;
+
+    // Calculate EV and Kelly
+    const analysis = await calculateEVForBet(winProbability, odds, stake, bankroll);
+
+    if (!analysis) {
+      return '';
+    }
+
+    let context = '\n\n═══════════════════════════════════════════════════════════════\n';
+    context += '📊 PHASE 4: EXPECTED VALUE ANALYSIS\n';
+    context += '═══════════════════════════════════════════════════════════════\n\n';
+
+    context += '🎲 ELO RATING PREDICTION:\n';
+    context += `- ${homeTeam} Elo: ${prediction.home_elo}\n`;
+    context += `- ${awayTeam} Elo: ${prediction.away_elo}\n`;
+    context += `- Elo Difference: ${prediction.elo_difference}\n`;
+    context += `- ${homeTeam} Win Probability: ${(winProbability * 100).toFixed(1)}%\n`;
+    context += `- Predicted Margin: ${homeTeam} by ${prediction.predicted_margin} points\n\n`;
+
+    context += '💰 EXPECTED VALUE CALCULATION:\n';
+    context += `- Estimated Win Probability: ${(winProbability * 100).toFixed(1)}%\n`;
+    context += `- Market Implied Probability: ${(analysis.ev.market_implied_prob * 100).toFixed(1)}% (from ${odds} odds)\n`;
+    context += `- Statistical Edge: ${analysis.ev.edge_percentage > 0 ? '+' : ''}${analysis.ev.edge_percentage}%\n`;
+    context += `- Expected Value: ${analysis.ev.expected_value_percentage > 0 ? '+' : ''}$${analysis.ev.expected_value_dollars} (${analysis.ev.expected_value_percentage > 0 ? '+' : ''}${analysis.ev.expected_value_percentage}% EV)\n`;
+    context += `- Decimal Odds: ${analysis.ev.decimal_odds}\n\n`;
+
+    const edge = analysis.ev.edge_percentage;
+    let recommendation = '';
+    if (edge < 0) {
+      recommendation = '❌ NEGATIVE EV - Do NOT bet';
+    } else if (edge < 2) {
+      recommendation = '⚠️ MARGINAL EDGE - Pass or very small bet';
+    } else if (edge < 5) {
+      recommendation = '✅ DECENT EDGE - Small to moderate bet';
+    } else if (edge < 10) {
+      recommendation = '✅✅ SOLID EDGE - Standard bet size';
+    } else {
+      recommendation = '🔥 STRONG EDGE - High confidence bet';
+    }
+
+    context += `📈 EDGE ASSESSMENT: ${recommendation}\n\n`;
+
+    context += '🎯 KELLY CRITERION BET SIZING:\n';
+    context += `- Full Kelly: ${analysis.kelly.kelly_full_percentage}% of bankroll\n`;
+    context += `- Half Kelly: ${analysis.kelly.kelly_half_percentage}% of bankroll\n`;
+    context += `- Quarter Kelly (RECOMMENDED): ${analysis.kelly.kelly_quarter_percentage}% of bankroll\n`;
+    context += `- Recommended Bet Size: $${analysis.kelly.recommended_bet_dollars}\n`;
+    context += `- User's Proposed Bet: $${stake}\n`;
+
+    const kellyEfficiency = stake / analysis.kelly.recommended_bet_dollars;
+    if (kellyEfficiency > 2) {
+      context += `- ⚠️ WARNING: Betting ${kellyEfficiency.toFixed(1)}x recommended size (OVERBET)\n`;
+    } else if (kellyEfficiency < 0.5) {
+      context += `- ℹ️ Conservative: Betting ${(kellyEfficiency * 100).toFixed(0)}% of recommended size (underbet)\n`;
+    } else {
+      context += `- ✅ Good sizing: Within recommended range\n`;
+    }
+
+    context += '\n═══════════════════════════════════════════════════════════════\n';
+    context += 'INSTRUCTIONS FOR AI:\n';
+    context += '- Lead with the EV and edge percentage in your response\n';
+    context += '- Reference the Kelly recommendation for bet sizing\n';
+    context += '- Explain the Elo prediction and why the model sees value\n';
+    context += '- Warn if the bet is negative EV or if user is overbetting\n';
+    context += '- Show confidence interval to indicate uncertainty\n';
+    context += '- Remember: Even +EV bets can lose due to variance\n';
+    context += '═══════════════════════════════════════════════════════════════\n\n';
+
+    console.log('[PHASE4] EV analysis context built successfully');
+    return context;
+  } catch (error) {
+    console.error('[PHASE4] Error building EV analysis context:', error);
+    return '';
+  }
 }
 
 serve(async (req) => {
