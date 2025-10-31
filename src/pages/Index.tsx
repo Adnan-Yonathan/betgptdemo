@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { playAudioFromBase64 } from "@/utils/voiceUtils";
-import { BookOpen, Menu, Activity, Bell, Settings } from "lucide-react";
+import { BookOpen, Menu, Activity, Bell, Settings, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserGuide } from "@/components/UserGuide";
 interface Message {
@@ -404,6 +404,19 @@ const Index = () => {
             </div>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
+            {/* Analytics Link */}
+            {user && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/analytics')}
+                className="flex items-center gap-2 h-9 px-2 sm:px-3"
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span className="hidden sm:inline">Analytics</span>
+              </Button>
+            )}
+
             <Button variant="ghost" size="sm" onClick={() => setGuideOpen(true)} className="flex items-center gap-2 h-9 px-2 sm:px-3">
               <BookOpen className="w-4 h-4" />
               <span className="hidden sm:inline">Guide</span>
