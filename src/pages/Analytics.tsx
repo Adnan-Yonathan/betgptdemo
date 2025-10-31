@@ -1,5 +1,9 @@
 import { PerformanceOverview } from "@/components/analytics/PerformanceOverview";
 import { BankrollChart } from "@/components/analytics/BankrollChart";
+import { PerformanceBreakdown } from "@/components/analytics/PerformanceBreakdown";
+import { GoalTracker } from "@/components/analytics/GoalTracker";
+import { WinLossAnalysis } from "@/components/analytics/WinLossAnalysis";
+import { TrendAnalysis } from "@/components/analytics/TrendAnalysis";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -41,28 +45,24 @@ const Analytics = () => {
           {/* Bankroll Chart */}
           <BankrollChart />
 
+          {/* Trend Analysis */}
+          <TrendAnalysis />
+
+          {/* Win/Loss Analysis */}
+          <WinLossAnalysis />
+
+          {/* Performance Breakdown */}
+          <PerformanceBreakdown />
+
+          {/* Goal Tracker */}
+          <GoalTracker />
+
           {/* Coming Soon Sections */}
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="p-6 border-2 border-dashed border-muted rounded-lg text-center">
-              <h3 className="text-lg font-semibold mb-2">Performance Breakdown</h3>
-              <p className="text-sm text-muted-foreground">
-                Analyze your performance by league, bet type, and team
-              </p>
-              <p className="text-xs text-muted-foreground mt-4">Coming soon...</p>
-            </div>
-
             <div className="p-6 border-2 border-dashed border-muted rounded-lg text-center">
               <h3 className="text-lg font-semibold mb-2">CLV Analysis</h3>
               <p className="text-sm text-muted-foreground">
                 Deep dive into your closing line value performance
-              </p>
-              <p className="text-xs text-muted-foreground mt-4">Coming soon...</p>
-            </div>
-
-            <div className="p-6 border-2 border-dashed border-muted rounded-lg text-center">
-              <h3 className="text-lg font-semibold mb-2">Goal Tracker</h3>
-              <p className="text-sm text-muted-foreground">
-                Set and track your betting goals
               </p>
               <p className="text-xs text-muted-foreground mt-4">Coming soon...</p>
             </div>
