@@ -1805,15 +1805,17 @@ async function buildUserContextPrompt(userId: string): Promise<string> {
 
   console.log('[PHASE3] Building user context prompt...');
 
-  // Fetch all data in parallel for performance (Phase 3 + Phase 4 + Phase 5)
-  const [preferences, patterns, insights, memoryContext, advancedMetrics, activeLiveBets, unreadAlerts] = await Promise.all([
+  // Fetch all data in parallel for performance (Phase 3 + Phase 4 + Phase 5 + Phase 6)
+  const [preferences, patterns, insights, memoryContext, advancedMetrics, activeLiveBets, unreadAlerts, bankrollHistory, activeGoals] = await Promise.all([
     getUserPreferences(userId),
     getBettingPatterns(userId),
     getActiveInsights(userId),
     getMemoryContext(userId),
     getAdvancedMetrics(userId), // Phase 4: CLV and advanced stats
     getActiveLiveBets(userId), // Phase 5: Live tracked bets
-    getUnreadAlerts(userId) // Phase 5: Unread alerts
+    getUnreadAlerts(userId), // Phase 5: Unread alerts
+    getRecentBankrollHistory(userId), // Phase 6: Bankroll tracking
+    getActiveGoals(userId) // Phase 6: Active goals
   ]);
 
   let contextPrompt = '\n\n═══════════════════════════════════════════════════════════════\n';
@@ -1996,6 +1998,52 @@ async function buildUserContextPrompt(userId: string): Promise<string> {
     contextPrompt += '\n';
   }
 
+  // Phase 6: Add bankroll tracking and goals
+  if (bankrollHistory && bankrollHistory.length > 0) {
+    contextPrompt += '💰 PHASE 6: BANKROLL TRACKING (Last 30 Days):\n';
+
+    // Calculate stats from history
+    const firstDay = bankrollHistory[0];
+    const lastDay = bankrollHistory[bankrollHistory.length - 1];
+    const growthAmount = lastDay.bankroll - firstDay.bankroll;
+    const growthPercent = ((growthAmount / firstDay.bankroll) * 100).toFixed(1);
+    const totalDailyPL = bankrollHistory.reduce((sum: number, day: any) => sum + (day.daily_profit_loss || 0), 0);
+    const peakBankroll = Math.max(...bankrollHistory.map((day: any) => day.bankroll));
+
+    contextPrompt += `- Current Bankroll: $${lastDay.bankroll.toFixed(2)}\n`;
+    contextPrompt += `- 30-Day Change: ${growthAmount >= 0 ? '+' : ''}$${growthAmount.toFixed(2)} (${growthAmount >= 0 ? '+' : ''}${growthPercent}%)\n`;
+    contextPrompt += `- Peak (30D): $${peakBankroll.toFixed(2)}\n`;
+    contextPrompt += `- Total Daily P/L (30D): ${totalDailyPL >= 0 ? '+' : ''}$${totalDailyPL.toFixed(2)}\n`;
+
+    if (growthAmount >= 0) {
+      contextPrompt += `- ✅ Trending upward - positive momentum!\n`;
+    } else {
+      const drawdown = ((1 - lastDay.bankroll / peakBankroll) * 100).toFixed(1);
+      contextPrompt += `- ⚠️ Down ${drawdown}% from peak - consider reviewing strategy\n`;
+    }
+
+    contextPrompt += '\n';
+  }
+
+  if (activeGoals && activeGoals.length > 0) {
+    contextPrompt += '🎯 ACTIVE BETTING GOALS:\n';
+    for (const goal of activeGoals.slice(0, 3)) { // Show top 3 goals
+      const progress = goal.progress_percentage || 0;
+      const progressBar = '█'.repeat(Math.floor(progress / 10)) + '░'.repeat(10 - Math.floor(progress / 10));
+
+      contextPrompt += `- ${goal.goal_name}: ${progress.toFixed(0)}% [${progressBar}]\n`;
+      contextPrompt += `  Target: ${goal.target_value}${goal.unit === 'percentage' ? '%' : goal.unit === 'dollars' ? ' dollars' : ''}\n`;
+      contextPrompt += `  Current: ${goal.current_value}${goal.unit === 'percentage' ? '%' : goal.unit === 'dollars' ? ' dollars' : ''}\n`;
+
+      if (goal.is_achieved) {
+        contextPrompt += `  🎉 GOAL ACHIEVED!\n`;
+      } else if (goal.days_remaining !== null) {
+        contextPrompt += `  ⏰ ${goal.days_remaining} days remaining\n`;
+      }
+    }
+    contextPrompt += '\n';
+  }
+
   // Add conversation memory
   if (memoryContext && memoryContext.trim().length > 0) {
     contextPrompt += '🗂️ RECENT CONVERSATION MEMORY:\n';
@@ -2015,6 +2063,10 @@ async function buildUserContextPrompt(userId: string): Promise<string> {
   contextPrompt += '- [PHASE 5] Proactively mention live bets in progress and unread alerts\n';
   contextPrompt += '- [PHASE 5] If user has live bets, provide context on current game state\n';
   contextPrompt += '- [PHASE 5] Alert user to critical moments or momentum shifts they should know about\n';
+  contextPrompt += '- [PHASE 6] Reference bankroll growth trends when discussing performance\n';
+  contextPrompt += '- [PHASE 6] Celebrate goal achievements and encourage progress toward active goals\n';
+  contextPrompt += '- [PHASE 6] Suggest viewing Analytics dashboard for detailed performance breakdown\n';
+  contextPrompt += '- [PHASE 6] If user asks about stats/performance, mention the /analytics page\n';
   contextPrompt += '═══════════════════════════════════════════════════════════════\n\n';
 
   console.log('[PHASE3] User context prompt built successfully');
@@ -2220,6 +2272,57 @@ async function buildEVAnalysisContext(
   } catch (error) {
     console.error('[PHASE4] Error building EV analysis context:', error);
     return '';
+  }
+}
+
+/**
+ * PHASE 6: Advanced Analytics & Performance Dashboard
+ * Provides bankroll tracking and goal management
+ */
+
+/**
+ * Fetches recent bankroll history for analytics
+ */
+async function getRecentBankrollHistory(userId: string): Promise<any> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .rpc('get_bankroll_history', {
+        p_user_id: userId,
+        p_start_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Last 30 days
+        p_end_date: new Date().toISOString().split('T')[0]
+      });
+
+    if (error) {
+      console.log('[PHASE6] Error fetching bankroll history:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('[PHASE6] Error in getRecentBankrollHistory:', error);
+    return null;
+  }
+}
+
+/**
+ * Fetches active goals for user
+ */
+async function getActiveGoals(userId: string): Promise<any[]> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .rpc('get_active_goals', { p_user_id: userId });
+
+    if (error) {
+      console.log('[PHASE6] Error fetching active goals:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('[PHASE6] Error in getActiveGoals:', error);
+    return [];
   }
 }
 
