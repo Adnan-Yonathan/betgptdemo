@@ -86,14 +86,24 @@ async function fetchInjuriesForLeague(league: string): Promise<any[]> {
     'NHL': 'nhl',
   };
 
+  // Map league to ESPN sport category
+  const espnSportMap: Record<string, string> = {
+    'NBA': 'basketball',
+    'NFL': 'football',
+    'MLB': 'baseball',
+    'NHL': 'hockey',
+  };
+
   const espnLeague = espnLeagueMap[league];
-  if (!espnLeague) return [];
+  const espnSport = espnSportMap[league];
+
+  if (!espnLeague || !espnSport) return [];
 
   try {
     // ESPN Scoreboard API includes injuries
-    const url = `https://site.api.espn.com/apis/site/v2/sports/basketball/${espnLeague}/scoreboard`;
+    const url = `https://site.api.espn.com/apis/site/v2/sports/${espnSport}/${espnLeague}/scoreboard`;
 
-    console.log(`[INJURY_SYNC] Fetching ${league} injuries from ESPN...`);
+    console.log(`[INJURY_SYNC] Fetching ${league} injuries from ESPN (${url})...`);
 
     const response = await fetch(url, {
       headers: {
