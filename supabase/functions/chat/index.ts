@@ -1805,13 +1805,15 @@ async function buildUserContextPrompt(userId: string): Promise<string> {
 
   console.log('[PHASE3] Building user context prompt...');
 
-  // Fetch all data in parallel for performance (Phase 3 + Phase 4)
-  const [preferences, patterns, insights, memoryContext, advancedMetrics] = await Promise.all([
+  // Fetch all data in parallel for performance (Phase 3 + Phase 4 + Phase 5)
+  const [preferences, patterns, insights, memoryContext, advancedMetrics, activeLiveBets, unreadAlerts] = await Promise.all([
     getUserPreferences(userId),
     getBettingPatterns(userId),
     getActiveInsights(userId),
     getMemoryContext(userId),
-    getAdvancedMetrics(userId) // Phase 4: CLV and advanced stats
+    getAdvancedMetrics(userId), // Phase 4: CLV and advanced stats
+    getActiveLiveBets(userId), // Phase 5: Live tracked bets
+    getUnreadAlerts(userId) // Phase 5: Unread alerts
   ]);
 
   let contextPrompt = '\n\n═══════════════════════════════════════════════════════════════\n';
@@ -1958,6 +1960,42 @@ async function buildUserContextPrompt(userId: string): Promise<string> {
     contextPrompt += '\n';
   }
 
+  // Phase 5: Add live bet tracking and alerts
+  if (activeLiveBets && activeLiveBets.length > 0) {
+    contextPrompt += '🔴 PHASE 5: LIVE BETS IN PROGRESS:\n';
+    for (const bet of activeLiveBets) {
+      const statusIcon = bet.bet_status === 'winning' ? '✅' :
+                        bet.bet_status === 'losing' ? '❌' :
+                        bet.bet_status === 'push' ? '🟰' : '⏳';
+      contextPrompt += `${statusIcon} ${bet.home_team} vs ${bet.away_team} - ${bet.current_score}\n`;
+      contextPrompt += `   Type: ${bet.bet_type} | Amount: $${bet.bet_amount} | Status: ${bet.bet_status.toUpperCase()}\n`;
+      if (bet.time_remaining) {
+        contextPrompt += `   Time: ${bet.time_remaining}\n`;
+      }
+      if (bet.points_needed !== null && bet.points_needed !== undefined) {
+        const needText = bet.points_needed > 0 ? `Need ${bet.points_needed} more points` : `Covering by ${Math.abs(bet.points_needed)} points`;
+        contextPrompt += `   ${needText}\n`;
+      }
+    }
+    contextPrompt += '\n';
+  }
+
+  if (unreadAlerts && unreadAlerts.length > 0) {
+    contextPrompt += '🚨 UNREAD ALERTS:\n';
+    // Sort by priority and take top 5 most urgent
+    const topAlerts = unreadAlerts
+      .sort((a, b) => (b.priority || 0) - (a.priority || 0))
+      .slice(0, 5);
+
+    for (const alert of topAlerts) {
+      const priorityIcon = alert.priority >= 3 ? '🚨' :
+                          alert.priority >= 2 ? '⚠️' :
+                          alert.priority >= 1 ? 'ℹ️' : '💬';
+      contextPrompt += `${priorityIcon} ${alert.alert_title}: ${alert.alert_message}\n`;
+    }
+    contextPrompt += '\n';
+  }
+
   // Add conversation memory
   if (memoryContext && memoryContext.trim().length > 0) {
     contextPrompt += '🗂️ RECENT CONVERSATION MEMORY:\n';
@@ -1974,6 +2012,9 @@ async function buildUserContextPrompt(userId: string): Promise<string> {
   contextPrompt += '- If tilt score is high, be extra cautious with bet sizing recommendations\n';
   contextPrompt += '- Reference past conversations and advice to maintain continuity\n';
   contextPrompt += '- Proactively mention relevant insights without being asked\n';
+  contextPrompt += '- [PHASE 5] Proactively mention live bets in progress and unread alerts\n';
+  contextPrompt += '- [PHASE 5] If user has live bets, provide context on current game state\n';
+  contextPrompt += '- [PHASE 5] Alert user to critical moments or momentum shifts they should know about\n';
   contextPrompt += '═══════════════════════════════════════════════════════════════\n\n';
 
   console.log('[PHASE3] User context prompt built successfully');
@@ -2179,6 +2220,74 @@ async function buildEVAnalysisContext(
   } catch (error) {
     console.error('[PHASE4] Error building EV analysis context:', error);
     return '';
+  }
+}
+
+/**
+ * PHASE 5: Live Bet Tracking & In-Game Alerts
+ * Monitors active bets in real-time and sends alerts for critical moments
+ */
+
+/**
+ * Fetches active live tracked bets for a user
+ */
+async function getActiveLiveBets(userId: string): Promise<any[]> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .rpc('get_user_active_bets_live', { p_user_id: userId });
+
+    if (error) {
+      console.log('[PHASE5] Error fetching live bets:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('[PHASE5] Error in getActiveLiveBets:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetches unread alerts for a user
+ */
+async function getUnreadAlerts(userId: string): Promise<any[]> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .rpc('get_user_unread_alerts', { p_user_id: userId });
+
+    if (error) {
+      console.log('[PHASE5] Error fetching unread alerts:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('[PHASE5] Error in getUnreadAlerts:', error);
+    return [];
+  }
+}
+
+/**
+ * Starts live tracking for a bet
+ */
+async function startLiveTracking(betId: string): Promise<any> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .rpc('start_live_tracking', { p_bet_id: betId });
+
+    if (error) {
+      console.error('[PHASE5] Error starting live tracking:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('[PHASE5] Error in startLiveTracking:', error);
+    return null;
   }
 }
 
