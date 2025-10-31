@@ -1700,6 +1700,242 @@ async function handleHistoricalBet(
   }
 }
 
+/**
+ * PHASE 3: Enhanced Memory and User Intelligence System
+ * Builds comprehensive user context from preferences, patterns, insights, and conversation history
+ */
+
+/**
+ * Fetches user preferences including favorite teams, leagues, and betting style
+ */
+async function getUserPreferences(userId: string): Promise<any> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('user_preferences')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      console.log('[PHASE3] No user preferences found, returning defaults');
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('[PHASE3] Error fetching user preferences:', error);
+    return null;
+  }
+}
+
+/**
+ * Fetches betting patterns analysis
+ */
+async function getBettingPatterns(userId: string): Promise<any> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('betting_patterns')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      console.log('[PHASE3] No betting patterns found');
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('[PHASE3] Error fetching betting patterns:', error);
+    return null;
+  }
+}
+
+/**
+ * Fetches active user insights
+ */
+async function getActiveInsights(userId: string): Promise<any[]> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .rpc('get_active_user_insights', { p_user_id: userId });
+
+    if (error) {
+      console.log('[PHASE3] Error fetching insights:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('[PHASE3] Error fetching active insights:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetches conversation memory context
+ */
+async function getMemoryContext(userId: string): Promise<string> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .rpc('get_user_memory_context', { p_user_id: userId, p_limit: 5 });
+
+    if (error) {
+      console.log('[PHASE3] Error fetching memory context:', error);
+      return '';
+    }
+
+    return data || '';
+  } catch (error) {
+    console.error('[PHASE3] Error fetching memory context:', error);
+    return '';
+  }
+}
+
+/**
+ * Builds comprehensive user context prompt for AI
+ */
+async function buildUserContextPrompt(userId: string): Promise<string> {
+  if (!userId) {
+    return '';
+  }
+
+  console.log('[PHASE3] Building user context prompt...');
+
+  // Fetch all data in parallel for performance
+  const [preferences, patterns, insights, memoryContext] = await Promise.all([
+    getUserPreferences(userId),
+    getBettingPatterns(userId),
+    getActiveInsights(userId),
+    getMemoryContext(userId)
+  ]);
+
+  let contextPrompt = '\n\n═══════════════════════════════════════════════════════════════\n';
+  contextPrompt += '🧠 USER PROFILE & INTELLIGENCE (Phase 3 Enhanced Memory)\n';
+  contextPrompt += '═══════════════════════════════════════════════════════════════\n\n';
+
+  // Add user preferences
+  if (preferences) {
+    contextPrompt += '👤 USER PREFERENCES:\n';
+
+    if (preferences.favorite_teams && preferences.favorite_teams.length > 0) {
+      contextPrompt += `- Favorite Teams: ${preferences.favorite_teams.join(', ')}\n`;
+    }
+
+    if (preferences.preferred_leagues && preferences.preferred_leagues.length > 0) {
+      contextPrompt += `- Preferred Leagues: ${preferences.preferred_leagues.join(', ')}\n`;
+    }
+
+    if (preferences.betting_style) {
+      contextPrompt += `- Betting Style: ${preferences.betting_style}\n`;
+    }
+
+    if (preferences.risk_tolerance) {
+      contextPrompt += `- Risk Tolerance: ${preferences.risk_tolerance}/10\n`;
+    }
+
+    if (preferences.betting_goals) {
+      contextPrompt += `- User's Goal: "${preferences.betting_goals}"\n`;
+    }
+
+    if (preferences.betting_concerns) {
+      contextPrompt += `- User's Concerns: "${preferences.betting_concerns}"\n`;
+    }
+
+    contextPrompt += '\n';
+  }
+
+  // Add betting patterns
+  if (patterns && patterns.total_bets > 0) {
+    contextPrompt += '📊 BETTING PATTERNS & PERFORMANCE:\n';
+    contextPrompt += `- Overall Record: ${patterns.total_wins}-${patterns.total_losses}-${patterns.total_pushes} (${patterns.total_bets} bets)\n`;
+    contextPrompt += `- Win Rate: ${patterns.win_rate}% | ROI: ${patterns.roi > 0 ? '+' : ''}${patterns.roi}%\n`;
+    contextPrompt += `- Total Wagered: $${patterns.total_wagered?.toFixed(2) || '0.00'} | P/L: ${patterns.total_profit_loss > 0 ? '+' : ''}$${patterns.total_profit_loss?.toFixed(2) || '0.00'}\n`;
+
+    // Current streaks
+    if (patterns.current_win_streak > 0) {
+      contextPrompt += `- 🔥 Current Streak: ${patterns.current_win_streak} wins\n`;
+    } else if (patterns.current_loss_streak > 0) {
+      contextPrompt += `- ⚠️ Current Streak: ${patterns.current_loss_streak} losses\n`;
+    }
+
+    // Tilt warning
+    if (patterns.tilt_score > 60) {
+      contextPrompt += `- ⚠️ TILT ALERT: Score ${patterns.tilt_score}/100 - User may be chasing losses or betting erratically\n`;
+    }
+
+    // Best/worst leagues
+    if (patterns.performance_by_league && Object.keys(patterns.performance_by_league).length > 0) {
+      contextPrompt += '\nPerformance by League:\n';
+      const leagues = Object.entries(patterns.performance_by_league as Record<string, any>)
+        .sort((a, b) => (b[1].roi || 0) - (a[1].roi || 0))
+        .slice(0, 3);
+
+      for (const [league, stats] of leagues) {
+        const roi = stats.roi || 0;
+        contextPrompt += `  • ${league}: ${stats.wins}-${stats.losses} (${stats.win_rate}% WR, ${roi > 0 ? '+' : ''}${roi}% ROI)\n`;
+      }
+    }
+
+    // Best/worst teams
+    if (patterns.performance_by_team && Object.keys(patterns.performance_by_team).length > 0) {
+      contextPrompt += '\nPerformance by Team (Top 3):\n';
+      const teams = Object.entries(patterns.performance_by_team as Record<string, any>)
+        .filter(([_, stats]) => stats.total_bets >= 3)
+        .sort((a, b) => (b[1].win_rate || 0) - (a[1].win_rate || 0))
+        .slice(0, 3);
+
+      for (const [team, stats] of teams) {
+        contextPrompt += `  • ${team}: ${stats.wins}-${stats.losses} (${stats.win_rate}% WR)\n`;
+      }
+    }
+
+    contextPrompt += '\n';
+  }
+
+  // Add active insights
+  if (insights && insights.length > 0) {
+    contextPrompt += '💡 ACTIVE INSIGHTS:\n';
+    // Sort by priority and take top 5
+    const topInsights = insights
+      .sort((a, b) => (b.priority || 0) - (a.priority || 0))
+      .slice(0, 5);
+
+    for (const insight of topInsights) {
+      const icon = insight.insight_type === 'strength' ? '✅' :
+                   insight.insight_type === 'weakness' ? '⚠️' :
+                   insight.insight_type === 'warning' ? '🚨' :
+                   insight.insight_type === 'milestone' ? '🎉' : '💭';
+      contextPrompt += `${icon} ${insight.insight_text}\n`;
+    }
+    contextPrompt += '\n';
+  }
+
+  // Add conversation memory
+  if (memoryContext && memoryContext.trim().length > 0) {
+    contextPrompt += '🗂️ RECENT CONVERSATION MEMORY:\n';
+    contextPrompt += memoryContext;
+    contextPrompt += '\n';
+  }
+
+  contextPrompt += '═══════════════════════════════════════════════════════════════\n';
+  contextPrompt += 'INSTRUCTIONS FOR USING THIS CONTEXT:\n';
+  contextPrompt += '- Reference user\'s favorite teams and past performance when relevant\n';
+  contextPrompt += '- Consider their betting style and risk tolerance in recommendations\n';
+  contextPrompt += '- Warn them if they\'re betting on teams/leagues where they struggle\n';
+  contextPrompt += '- Praise them when betting on teams/leagues where they excel\n';
+  contextPrompt += '- If tilt score is high, be extra cautious with bet sizing recommendations\n';
+  contextPrompt += '- Reference past conversations and advice to maintain continuity\n';
+  contextPrompt += '- Proactively mention relevant insights without being asked\n';
+  contextPrompt += '═══════════════════════════════════════════════════════════════\n\n';
+
+  console.log('[PHASE3] User context prompt built successfully');
+  return contextPrompt;
+}
+
 serve(async (req) => {
   const requestStartTime = Date.now();
   console.log("[PERF] ========== NEW REQUEST ==========");
@@ -2443,6 +2679,17 @@ Today's date: ${currentDate}`;
     const coachPrompt = bettingMode === 'advanced' ? advancedModePrompt : basicModePrompt;
     const basePrompt = coachPrompt;
 
+    // PHASE 3: Build user intelligence context (preferences, patterns, insights, memory)
+    let userContextPrompt = '';
+    if (userId) {
+      try {
+        userContextPrompt = await buildUserContextPrompt(userId);
+      } catch (error) {
+        console.error('[PHASE3] Error building user context prompt:', error);
+        // Continue without user context if there's an error
+      }
+    }
+
     // PHASE 1.3: Add comprehensive bet outcome context with stats
     // Build context for bankroll update if detected
     let bankrollUpdateContext = '';
@@ -2634,6 +2881,8 @@ Keep your response CONCISE but ALWAYS include the updated P/L percentage.`;
     const systemPrompt = dataContext
       ? `${basePrompt}
 
+${userContextPrompt}
+
 ${bankrollContext}
 
 ${isAskingForScore ? 'LIVE SCORE DATA RETRIEVED:' : 'LIVE BETTING DATA RETRIEVED:'}
@@ -2646,11 +2895,15 @@ ${isAskingForScore
       : bankrollUpdateContext
         ? `${basePrompt}
 
+${userContextPrompt}
+
 ${bankrollContext}
 
 ${bankrollUpdateContext}`
       : historicalBetContext
         ? `${basePrompt}
+
+${userContextPrompt}
 
 ${bankrollContext}
 
@@ -2658,10 +2911,14 @@ ${historicalBetContext}`
       : betOutcomeContext
         ? `${basePrompt}
 
+${userContextPrompt}
+
 ${bankrollContext}
 
 ${betOutcomeContext}`
         : `${basePrompt}
+
+${userContextPrompt}
 
 ${bankrollContext}
 
