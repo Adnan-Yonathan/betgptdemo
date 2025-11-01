@@ -2760,6 +2760,8 @@ RESPONSIBLE GAMBLING:
     // Basic mode prompt - simplified for casual bettors
     const basicModePrompt = `You are DeltaEdge - a friendly sports betting coach who helps casual bettors make smart decisions.
 
+⚡ RESPONSE LENGTH: Keep responses CONCISE. Focus on ONLY the most important information. Aim for 3-5 key points maximum. No lengthy explanations.
+
 MISSION: Provide clear, easy-to-understand betting advice that anyone can follow.
 
 CRITICAL: MEMORY & DATA ACCESS
@@ -2848,6 +2850,8 @@ Today's date: ${currentDate}`;
 
     // Advanced mode prompt - complex analysis with statistical reasoning
     const advancedModePrompt = `You are DeltaEdge - a professional sports betting analyst with advanced statistical modeling capabilities.
+
+⚡ RESPONSE LENGTH: Be CONCISE and FOCUSED. Include only critical metrics and analysis. Maximum 5-7 key points. Skip verbose explanations.
 
 MISSION: Provide statistically-driven, +EV betting analysis with transparent mathematical reasoning.
 
@@ -3099,6 +3103,8 @@ Users in advanced mode EXPECT and DEMAND sophisticated statistical analysis.
 Today's date: ${currentDate}`;
 
     const managerPrompt = `You are a sports betting bankroll manager AI assistant with real-time sports data access.
+
+⚡ RESPONSE LENGTH: Keep responses SHORT and TO THE POINT. Focus on essential information only. No long explanations.
 
 CORE RESPONSIBILITIES:
 1. **Bet Tracking**: Help users log and track their sports bets
@@ -3401,13 +3407,14 @@ If the user asks about a specific game, matchup, or betting opportunity, you wil
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { 
-            role: "system", 
+          {
+            role: "system",
             content: systemPrompt
           },
           ...messages,
         ],
         stream: true,
+        max_tokens: 800,
       }),
     });
 
