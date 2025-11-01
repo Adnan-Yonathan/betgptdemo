@@ -10,6 +10,7 @@ import { LiveTrackingChat } from "@/components/LiveTrackingChat";
 import { BetAlerts } from "@/components/BetAlerts";
 import { AlertSettings } from "@/components/AlertSettingsCard";
 import { LiveScoreTicker } from "@/components/LiveScoreTicker";
+import { LiveEventsTicker } from "@/components/LiveEventsTicker";
 import { SmartAlerts } from "@/components/intelligence/SmartAlerts";
 import { AIStrategyAdvisor } from "@/components/intelligence/AIStrategyAdvisor";
 import { PatternInsights } from "@/components/intelligence/PatternInsights";
@@ -353,7 +354,11 @@ const Index = () => {
       });
     }
   };
-  return <div className="flex h-screen bg-background">
+  return <div className="flex h-screen bg-background flex-col">
+      {/* Live Events Ticker - Always visible at the top */}
+      <LiveEventsTicker />
+
+      <div className="flex flex-1 overflow-hidden">
       {/* Desktop Sidebar - Hidden on mobile */}
       {!isMobile && <ChatSidebar currentConversationId={currentConversationId} onConversationSelect={loadConversation} onNewChat={handleNewChat} />}
 
@@ -594,6 +599,7 @@ const Index = () => {
 
       <ProfileSettings open={profileOpen} onOpenChange={setProfileOpen} />
       <UserGuide open={guideOpen} onOpenChange={setGuideOpen} />
+      </div>
     </div>;
 };
 export default Index;
