@@ -1214,7 +1214,8 @@ function formatOddsData(odds: any[], query: string): string {
 async function logBetViaFunction(
   betDetails: { amount: number; odds: number; description: string; team?: string },
   conversationId: string,
-  userId: string
+  userId: string,
+  authHeader: string
 ): Promise<void> {
   try {
     console.log('=== LOGGING BET VIA FUNCTION ===');
@@ -1229,6 +1230,9 @@ async function logBetViaFunction(
       body: {
         ...betDetails,
         conversationId,
+      },
+      headers: {
+        Authorization: authHeader,
       },
     });
 
@@ -2403,6 +2407,7 @@ serve(async (req) => {
   }
 
   try {
+    const authHeader = req.headers.get('Authorization') || '';
     const { messages, conversationId, userId } = await req.json();
     console.log(`[PERF] Request parsed in ${Date.now() - requestStartTime}ms`);
 
@@ -3533,7 +3538,8 @@ If the user asks about a specific game, matchup, or betting opportunity, you wil
                   team,
                 },
                 conversationId,
-                userId
+                userId,
+                authHeader
               );
             } else {
               console.log('❌ No bet pattern matched in response');
