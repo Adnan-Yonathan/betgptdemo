@@ -1,6 +1,8 @@
 import { AIStrategyAdvisor } from "@/components/intelligence/AIStrategyAdvisor";
 import { PatternInsights } from "@/components/intelligence/PatternInsights";
 import { SmartAlerts } from "@/components/intelligence/SmartAlerts";
+import { BetSimulator } from "@/components/intelligence/BetSimulator";
+import { PredictiveAnalytics } from "@/components/intelligence/PredictiveAnalytics";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -45,23 +47,11 @@ const Intelligence = () => {
           {/* Pattern Insights */}
           <PatternInsights />
 
-          {/* Placeholder for Bet Simulator */}
-          <div className="p-6 border-2 border-dashed border-muted rounded-lg text-center">
-            <h3 className="text-lg font-semibold mb-2">Bet Simulator</h3>
-            <p className="text-sm text-muted-foreground">
-              Test betting strategies without risking real money
-            </p>
-            <p className="text-xs text-muted-foreground mt-4">Coming soon...</p>
-          </div>
+          {/* Bet Simulator */}
+          <BetSimulator />
 
-          {/* Placeholder for Predictive Analytics */}
-          <div className="p-6 border-2 border-dashed border-muted rounded-lg text-center">
-            <h3 className="text-lg font-semibold mb-2">Predictive Analytics</h3>
-            <p className="text-sm text-muted-foreground">
-              Forecast your future performance and identify trends
-            </p>
-            <p className="text-xs text-muted-foreground mt-4">Coming soon...</p>
-          </div>
+          {/* Predictive Analytics */}
+          <PredictiveAnalytics />
         </div>
       </main>
     </div>
