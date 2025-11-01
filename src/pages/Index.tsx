@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
 import { ChatSidebar } from "@/components/ChatSidebar";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
@@ -10,6 +9,11 @@ import { LiveBetTracker } from "@/components/LiveBetTracker";
 import { BetAlerts } from "@/components/BetAlerts";
 import { AlertSettings } from "@/components/AlertSettingsCard";
 import { LiveScoreTicker } from "@/components/LiveScoreTicker";
+import { SmartAlerts } from "@/components/intelligence/SmartAlerts";
+import { AIStrategyAdvisor } from "@/components/intelligence/AIStrategyAdvisor";
+import { PatternInsights } from "@/components/intelligence/PatternInsights";
+import { BetSimulator } from "@/components/intelligence/BetSimulator";
+import { PredictiveAnalytics } from "@/components/intelligence/PredictiveAnalytics";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,7 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { playAudioFromBase64 } from "@/utils/voiceUtils";
-import { BookOpen, Menu, Activity, Bell, Settings, BarChart3, Lightbulb } from "lucide-react";
+import { BookOpen, Menu, Activity, Bell, Settings, Brain, TrendingUp, Target, Zap, LineChart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserGuide } from "@/components/UserGuide";
 interface Message {
@@ -35,7 +39,6 @@ const initialMessages: Message[] = [{
   timestamp: "Just now"
 }];
 const Index = () => {
-  const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [isTyping, setIsTyping] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
@@ -404,32 +407,6 @@ const Index = () => {
             </div>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
-            {/* Analytics Link */}
-            {user && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate('/analytics')}
-                className="flex items-center gap-2 h-9 px-2 sm:px-3"
-              >
-                <BarChart3 className="w-4 h-4" />
-                <span className="hidden sm:inline">Analytics</span>
-              </Button>
-            )}
-
-            {/* Intelligence Link */}
-            {user && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate('/intelligence')}
-                className="flex items-center gap-2 h-9 px-2 sm:px-3"
-              >
-                <Lightbulb className="w-4 h-4" />
-                <span className="hidden sm:inline">Intelligence</span>
-              </Button>
-            )}
-
             <Button variant="ghost" size="sm" onClick={() => setGuideOpen(true)} className="flex items-center gap-2 h-9 px-2 sm:px-3">
               <BookOpen className="w-4 h-4" />
               <span className="hidden sm:inline">Guide</span>
@@ -484,31 +461,68 @@ const Index = () => {
       {!isMobile && user && (
         <aside className="w-[380px] border-l border-border bg-background flex flex-col">
           <div className="p-4 border-b border-border">
-            <h3 className="font-semibold text-lg">Live Tracking</h3>
-            <p className="text-xs text-muted-foreground">Real-time updates on your bets</p>
+            <h3 className="font-semibold text-lg">Live Tracking & Intelligence</h3>
+            <p className="text-xs text-muted-foreground">Real-time updates and AI insights</p>
           </div>
           <ScrollArea className="flex-1">
             <Tabs defaultValue="bets" className="w-full">
-              <TabsList className="w-full justify-start border-b rounded-none h-auto p-0">
+              <TabsList className="w-full grid grid-cols-4 border-b rounded-none h-auto p-0">
                 <TabsTrigger
                   value="bets"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs"
                 >
-                  <Activity className="w-4 h-4 mr-2" />
-                  Live Bets
+                  <Activity className="w-4 h-4 mr-1" />
+                  Bets
                 </TabsTrigger>
                 <TabsTrigger
                   value="alerts"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs"
                 >
-                  <Bell className="w-4 h-4 mr-2" />
+                  <Bell className="w-4 h-4 mr-1" />
                   Alerts
                 </TabsTrigger>
                 <TabsTrigger
-                  value="settings"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+                  value="smart-alerts"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs"
                 >
-                  <Settings className="w-4 h-4 mr-2" />
+                  <Zap className="w-4 h-4 mr-1" />
+                  Smart
+                </TabsTrigger>
+                <TabsTrigger
+                  value="ai-strategy"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs"
+                >
+                  <Brain className="w-4 h-4 mr-1" />
+                  AI
+                </TabsTrigger>
+              </TabsList>
+              <TabsList className="w-full grid grid-cols-4 border-b rounded-none h-auto p-0">
+                <TabsTrigger
+                  value="patterns"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs"
+                >
+                  <TrendingUp className="w-4 h-4 mr-1" />
+                  Patterns
+                </TabsTrigger>
+                <TabsTrigger
+                  value="simulator"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs"
+                >
+                  <Target className="w-4 h-4 mr-1" />
+                  Simulator
+                </TabsTrigger>
+                <TabsTrigger
+                  value="analytics"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs"
+                >
+                  <LineChart className="w-4 h-4 mr-1" />
+                  Analytics
+                </TabsTrigger>
+                <TabsTrigger
+                  value="settings"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs"
+                >
+                  <Settings className="w-4 h-4 mr-1" />
                   Settings
                 </TabsTrigger>
               </TabsList>
@@ -518,6 +532,21 @@ const Index = () => {
                 </TabsContent>
                 <TabsContent value="alerts" className="mt-0">
                   <BetAlerts />
+                </TabsContent>
+                <TabsContent value="smart-alerts" className="mt-0">
+                  <SmartAlerts />
+                </TabsContent>
+                <TabsContent value="ai-strategy" className="mt-0">
+                  <AIStrategyAdvisor />
+                </TabsContent>
+                <TabsContent value="patterns" className="mt-0">
+                  <PatternInsights />
+                </TabsContent>
+                <TabsContent value="simulator" className="mt-0">
+                  <BetSimulator />
+                </TabsContent>
+                <TabsContent value="analytics" className="mt-0">
+                  <PredictiveAnalytics />
                 </TabsContent>
                 <TabsContent value="settings" className="mt-0">
                   <AlertSettings />
@@ -532,40 +561,94 @@ const Index = () => {
       <Sheet open={rightSidebarOpen} onOpenChange={setRightSidebarOpen}>
         <SheetContent side="right" className="p-0 w-[90vw] sm:w-[380px]">
           <div className="p-4 border-b border-border">
-            <h3 className="font-semibold text-lg">Live Tracking</h3>
-            <p className="text-xs text-muted-foreground">Real-time updates on your bets</p>
+            <h3 className="font-semibold text-lg">Live Tracking & Intelligence</h3>
+            <p className="text-xs text-muted-foreground">Real-time updates and AI insights</p>
           </div>
           <ScrollArea className="h-[calc(100vh-80px)]">
             <Tabs defaultValue="bets" className="w-full">
-              <TabsList className="w-full justify-start border-b rounded-none h-auto p-0">
-                <TabsTrigger
-                  value="bets"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
-                >
-                  <Activity className="w-4 h-4 mr-2" />
-                  Live Bets
-                </TabsTrigger>
-                <TabsTrigger
-                  value="alerts"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
-                >
-                  <Bell className="w-4 h-4 mr-2" />
-                  Alerts
-                </TabsTrigger>
-                <TabsTrigger
-                  value="settings"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
-                >
-                  <Settings className="w-4 h-4 mr-2" />
-                  Settings
-                </TabsTrigger>
-              </TabsList>
+              <div className="overflow-x-auto">
+                <TabsList className="w-full inline-flex min-w-full border-b rounded-none h-auto p-0">
+                  <TabsTrigger
+                    value="bets"
+                    className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2"
+                  >
+                    <Activity className="w-4 h-4 mr-1" />
+                    Bets
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="alerts"
+                    className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2"
+                  >
+                    <Bell className="w-4 h-4 mr-1" />
+                    Alerts
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="smart-alerts"
+                    className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2"
+                  >
+                    <Zap className="w-4 h-4 mr-1" />
+                    Smart
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="ai-strategy"
+                    className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2"
+                  >
+                    <Brain className="w-4 h-4 mr-1" />
+                    AI
+                  </TabsTrigger>
+                </TabsList>
+                <TabsList className="w-full inline-flex min-w-full border-b rounded-none h-auto p-0">
+                  <TabsTrigger
+                    value="patterns"
+                    className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2"
+                  >
+                    <TrendingUp className="w-4 h-4 mr-1" />
+                    Patterns
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="simulator"
+                    className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2"
+                  >
+                    <Target className="w-4 h-4 mr-1" />
+                    Simulator
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="analytics"
+                    className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2"
+                  >
+                    <LineChart className="w-4 h-4 mr-1" />
+                    Analytics
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="settings"
+                    className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2"
+                  >
+                    <Settings className="w-4 h-4 mr-1" />
+                    Settings
+                  </TabsTrigger>
+                </TabsList>
+              </div>
               <div className="p-4">
                 <TabsContent value="bets" className="mt-0">
                   <LiveBetTracker />
                 </TabsContent>
                 <TabsContent value="alerts" className="mt-0">
                   <BetAlerts />
+                </TabsContent>
+                <TabsContent value="smart-alerts" className="mt-0">
+                  <SmartAlerts />
+                </TabsContent>
+                <TabsContent value="ai-strategy" className="mt-0">
+                  <AIStrategyAdvisor />
+                </TabsContent>
+                <TabsContent value="patterns" className="mt-0">
+                  <PatternInsights />
+                </TabsContent>
+                <TabsContent value="simulator" className="mt-0">
+                  <BetSimulator />
+                </TabsContent>
+                <TabsContent value="analytics" className="mt-0">
+                  <PredictiveAnalytics />
                 </TabsContent>
                 <TabsContent value="settings" className="mt-0">
                   <AlertSettings />
