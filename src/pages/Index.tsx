@@ -18,9 +18,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { playAudioFromBase64 } from "@/utils/voiceUtils";
-import { BookOpen, Menu, Activity, Bell, Settings, BarChart3, Lightbulb } from "lucide-react";
+import { BookOpen, Menu, Activity, Bell, Settings, Lightbulb, Target, Eye, TrendingUp, PlayCircle, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserGuide } from "@/components/UserGuide";
+import { AIStrategyAdvisor } from "@/components/intelligence/AIStrategyAdvisor";
+import { PatternInsights } from "@/components/intelligence/PatternInsights";
+import { SmartAlerts } from "@/components/intelligence/SmartAlerts";
+import { BetSimulator } from "@/components/intelligence/BetSimulator";
+import { PredictiveAnalytics } from "@/components/intelligence/PredictiveAnalytics";
+
 interface Message {
   id: string;
   role: "user" | "assistant";
@@ -46,6 +52,7 @@ const Index = () => {
   const [guideOpen, setGuideOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
+  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(false);
   const isMobile = useIsMobile();
   const {
     toast
@@ -404,47 +411,39 @@ const Index = () => {
             </div>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
-            {/* Analytics Link */}
-            {user && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate('/analytics')}
-                className="flex items-center gap-2 h-9 px-2 sm:px-3"
-              >
-                <BarChart3 className="w-4 h-4" />
-                <span className="hidden sm:inline">Analytics</span>
-              </Button>
-            )}
-
-            {/* Intelligence Link */}
-            {user && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate('/intelligence')}
-                className="flex items-center gap-2 h-9 px-2 sm:px-3"
-              >
-                <Lightbulb className="w-4 h-4" />
-                <span className="hidden sm:inline">Intelligence</span>
-              </Button>
-            )}
-
             <Button variant="ghost" size="sm" onClick={() => setGuideOpen(true)} className="flex items-center gap-2 h-9 px-2 sm:px-3">
               <BookOpen className="w-4 h-4" />
               <span className="hidden sm:inline">Guide</span>
             </Button>
 
-            {/* Live Tracking Toggle - Mobile only */}
-            {isMobile && user && (
+            {/* Intelligence & Tracking Menu Toggle */}
+            {user && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setRightSidebarOpen(true)}
-                className="h-9 w-9 p-0"
+                onClick={() => {
+                  if (isMobile) {
+                    setRightSidebarOpen(true);
+                  } else {
+                    setRightSidebarCollapsed(!rightSidebarCollapsed);
+                  }
+                }}
+                className="h-9 px-2 sm:px-3 flex items-center gap-2"
               >
-                <Activity className="w-4 h-4" />
-                <span className="sr-only">Live tracking</span>
+                {isMobile ? (
+                  <Activity className="w-4 h-4" />
+                ) : rightSidebarCollapsed ? (
+                  <>
+                    <PanelRightOpen className="w-4 h-4" />
+                    <span className="hidden sm:inline">Show Menu</span>
+                  </>
+                ) : (
+                  <>
+                    <PanelRightClose className="w-4 h-4" />
+                    <span className="hidden sm:inline">Hide Menu</span>
+                  </>
+                )}
+                <span className="sr-only">Toggle menu</span>
               </Button>
             )}
 
@@ -480,47 +479,62 @@ const Index = () => {
         <ChatInput onSendMessage={handleSendMessage} disabled={isTyping} />
       </main>
 
-      {/* Right Sidebar - Desktop only, shown when user is logged in */}
-      {!isMobile && user && (
-        <aside className="w-[380px] border-l border-border bg-background flex flex-col">
-          <div className="p-4 border-b border-border">
-            <h3 className="font-semibold text-lg">Live Tracking</h3>
-            <p className="text-xs text-muted-foreground">Real-time updates on your bets</p>
+      {/* Right Sidebar - Desktop only, shown when user is logged in and not collapsed */}
+      {!isMobile && user && !rightSidebarCollapsed && (
+        <aside className="w-[400px] border-l border-border bg-background flex flex-col">
+          <div className="p-4 border-b border-border flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-lg">Intelligence Hub</h3>
+              <p className="text-xs text-muted-foreground">Tracking & AI insights</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setRightSidebarCollapsed(true)}
+              className="h-8 w-8"
+            >
+              <PanelRightClose className="w-4 h-4" />
+            </Button>
           </div>
           <ScrollArea className="flex-1">
-            <Tabs defaultValue="bets" className="w-full">
-              <TabsList className="w-full justify-start border-b rounded-none h-auto p-0">
+            <Tabs defaultValue="insights" className="w-full">
+              <TabsList className="w-full grid grid-cols-3 border-b rounded-none h-auto p-0">
                 <TabsTrigger
-                  value="bets"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+                  value="insights"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs"
                 >
-                  <Activity className="w-4 h-4 mr-2" />
-                  Live Bets
+                  <Lightbulb className="w-3 h-3 mr-1" />
+                  AI
                 </TabsTrigger>
                 <TabsTrigger
-                  value="alerts"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+                  value="tracking"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs"
                 >
-                  <Bell className="w-4 h-4 mr-2" />
-                  Alerts
+                  <Activity className="w-3 h-3 mr-1" />
+                  Live
                 </TabsTrigger>
                 <TabsTrigger
-                  value="settings"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+                  value="tools"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs"
                 >
-                  <Settings className="w-4 h-4 mr-2" />
-                  Settings
+                  <Target className="w-3 h-3 mr-1" />
+                  Tools
                 </TabsTrigger>
               </TabsList>
-              <div className="p-4">
-                <TabsContent value="bets" className="mt-0">
+              <div className="p-3">
+                <TabsContent value="insights" className="mt-0 space-y-4">
+                  <SmartAlerts />
+                  <AIStrategyAdvisor />
+                  <PatternInsights />
+                </TabsContent>
+                <TabsContent value="tracking" className="mt-0 space-y-4">
                   <LiveBetTracker />
-                </TabsContent>
-                <TabsContent value="alerts" className="mt-0">
                   <BetAlerts />
-                </TabsContent>
-                <TabsContent value="settings" className="mt-0">
                   <AlertSettings />
+                </TabsContent>
+                <TabsContent value="tools" className="mt-0 space-y-4">
+                  <BetSimulator />
+                  <PredictiveAnalytics />
                 </TabsContent>
               </div>
             </Tabs>
@@ -528,47 +542,52 @@ const Index = () => {
         </aside>
       )}
 
-      {/* Mobile Live Tracking Sheet */}
+      {/* Mobile Intelligence Hub Sheet */}
       <Sheet open={rightSidebarOpen} onOpenChange={setRightSidebarOpen}>
-        <SheetContent side="right" className="p-0 w-[90vw] sm:w-[380px]">
+        <SheetContent side="right" className="p-0 w-[95vw] max-w-[400px]">
           <div className="p-4 border-b border-border">
-            <h3 className="font-semibold text-lg">Live Tracking</h3>
-            <p className="text-xs text-muted-foreground">Real-time updates on your bets</p>
+            <h3 className="font-semibold text-lg">Intelligence Hub</h3>
+            <p className="text-xs text-muted-foreground">Tracking & AI insights</p>
           </div>
           <ScrollArea className="h-[calc(100vh-80px)]">
-            <Tabs defaultValue="bets" className="w-full">
-              <TabsList className="w-full justify-start border-b rounded-none h-auto p-0">
+            <Tabs defaultValue="insights" className="w-full">
+              <TabsList className="w-full grid grid-cols-3 border-b rounded-none h-auto p-0">
                 <TabsTrigger
-                  value="bets"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+                  value="insights"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs py-3"
                 >
-                  <Activity className="w-4 h-4 mr-2" />
-                  Live Bets
+                  <Lightbulb className="w-3 h-3 mr-1" />
+                  AI
                 </TabsTrigger>
                 <TabsTrigger
-                  value="alerts"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+                  value="tracking"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs py-3"
                 >
-                  <Bell className="w-4 h-4 mr-2" />
-                  Alerts
+                  <Activity className="w-3 h-3 mr-1" />
+                  Live
                 </TabsTrigger>
                 <TabsTrigger
-                  value="settings"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+                  value="tools"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs py-3"
                 >
-                  <Settings className="w-4 h-4 mr-2" />
-                  Settings
+                  <Target className="w-3 h-3 mr-1" />
+                  Tools
                 </TabsTrigger>
               </TabsList>
-              <div className="p-4">
-                <TabsContent value="bets" className="mt-0">
+              <div className="p-3">
+                <TabsContent value="insights" className="mt-0 space-y-4">
+                  <SmartAlerts />
+                  <AIStrategyAdvisor />
+                  <PatternInsights />
+                </TabsContent>
+                <TabsContent value="tracking" className="mt-0 space-y-4">
                   <LiveBetTracker />
-                </TabsContent>
-                <TabsContent value="alerts" className="mt-0">
                   <BetAlerts />
-                </TabsContent>
-                <TabsContent value="settings" className="mt-0">
                   <AlertSettings />
+                </TabsContent>
+                <TabsContent value="tools" className="mt-0 space-y-4">
+                  <BetSimulator />
+                  <PredictiveAnalytics />
                 </TabsContent>
               </div>
             </Tabs>
