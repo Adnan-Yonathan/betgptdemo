@@ -214,7 +214,6 @@ const Index = () => {
         pendingUpdate = false;
       });
     };
-
     try {
       const resp = await fetch(CHAT_URL, {
         method: "POST",
@@ -253,7 +252,6 @@ const Index = () => {
       if (!resp.body) {
         throw new Error("No response body");
       }
-
       console.log("[STREAMING] Starting stream processing...");
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
@@ -261,7 +259,6 @@ const Index = () => {
       let streamDone = false;
       let chunkCount = 0;
       let tokenCount = 0;
-
       while (!streamDone) {
         const {
           done,
@@ -271,12 +268,12 @@ const Index = () => {
           console.log("[STREAMING] Stream complete. Total chunks:", chunkCount, "Total tokens:", tokenCount);
           break;
         }
-
         chunkCount++;
-        const chunkText = decoder.decode(value, { stream: true });
+        const chunkText = decoder.decode(value, {
+          stream: true
+        });
         textBuffer += chunkText;
         console.log(`[STREAMING] Chunk ${chunkCount} received (${value.byteLength} bytes)`);
-
         let newlineIndex: number;
         while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
           let line = textBuffer.slice(0, newlineIndex);
@@ -287,14 +284,12 @@ const Index = () => {
             console.warn("[STREAMING] Unexpected line format:", line.substring(0, 50));
             continue;
           }
-
           const jsonStr = line.slice(6).trim();
           if (jsonStr === "[DONE]") {
             console.log("[STREAMING] Received [DONE] signal");
             streamDone = true;
             break;
           }
-
           try {
             const parsed = JSON.parse(jsonStr);
             const deltaContent = parsed.choices?.[0]?.delta?.content as string | undefined;
@@ -334,7 +329,6 @@ const Index = () => {
           timestamp: "Just now"
         }];
       });
-
       setIsTyping(false);
       setStreamingMessageId(null);
 
@@ -360,28 +354,18 @@ const Index = () => {
   };
   return <div className="flex h-screen bg-background">
       {/* Desktop Sidebar - Hidden on mobile */}
-      {!isMobile && (
-        <ChatSidebar
-          currentConversationId={currentConversationId}
-          onConversationSelect={loadConversation}
-          onNewChat={handleNewChat}
-        />
-      )}
+      {!isMobile && <ChatSidebar currentConversationId={currentConversationId} onConversationSelect={loadConversation} onNewChat={handleNewChat} />}
 
       {/* Mobile Drawer */}
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
         <SheetContent side="left" className="p-0 w-[280px]">
-          <ChatSidebar
-            currentConversationId={currentConversationId}
-            onConversationSelect={(id) => {
-              loadConversation(id);
-              setSidebarOpen(false);
-            }}
-            onNewChat={() => {
-              handleNewChat();
-              setSidebarOpen(false);
-            }}
-          />
+          <ChatSidebar currentConversationId={currentConversationId} onConversationSelect={id => {
+          loadConversation(id);
+          setSidebarOpen(false);
+        }} onNewChat={() => {
+          handleNewChat();
+          setSidebarOpen(false);
+        }} />
         </SheetContent>
       </Sheet>
 
@@ -390,19 +374,12 @@ const Index = () => {
         <header className="border-b border-border px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
           <div className="flex items-center gap-2 sm:gap-4">
             {/* Hamburger menu for mobile */}
-            {isMobile && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarOpen(true)}
-                className="h-9 w-9 p-0"
-              >
+            {isMobile && <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(true)} className="h-9 w-9 p-0">
                 <Menu className="h-5 w-5" />
                 <span className="sr-only">Open menu</span>
-              </Button>
-            )}
+              </Button>}
             <div>
-              <h2 className="text-base sm:text-lg font-semibold text-foreground">DeltaEdge</h2>
+              <h2 className="text-base sm:text-lg font-semibold text-foreground">Delta</h2>
               <p className="text-xs sm:text-sm text-muted-foreground">Premium Sports Intelligence</p>
             </div>
           </div>
@@ -413,28 +390,19 @@ const Index = () => {
             </Button>
 
             {/* Live Tracking Toggle - Mobile only */}
-            {isMobile && user && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setRightSidebarOpen(true)}
-                className="h-9 w-9 p-0"
-              >
+            {isMobile && user && <Button variant="ghost" size="sm" onClick={() => setRightSidebarOpen(true)} className="h-9 w-9 p-0">
                 <Activity className="w-4 h-4" />
                 <span className="sr-only">Live tracking</span>
-              </Button>
-            )}
+              </Button>}
 
             <ProfileDropdown onOpenProfile={() => setProfileOpen(true)} />
           </div>
         </header>
 
         {/* Live Score Ticker */}
-        {user && (
-          <div className="border-b border-border">
+        {user && <div className="border-b border-border">
             <LiveScoreTicker />
-          </div>
-        )}
+          </div>}
 
         {/* Messages */}
         <ScrollArea className="flex-1 px-3 sm:px-6 py-4 sm:py-8 pb-24 md:pb-8">
@@ -458,8 +426,7 @@ const Index = () => {
       </main>
 
       {/* Right Sidebar - Desktop only, shown when user is logged in */}
-      {!isMobile && user && (
-        <aside className="w-[380px] border-l border-border bg-background flex flex-col">
+      {!isMobile && user && <aside className="w-[380px] border-l border-border bg-background flex flex-col">
           <div className="p-4 border-b border-border">
             <h3 className="font-semibold text-lg">Live Tracking & Intelligence</h3>
             <p className="text-xs text-muted-foreground">Real-time updates and AI insights</p>
@@ -467,61 +434,37 @@ const Index = () => {
           <ScrollArea className="flex-1">
             <Tabs defaultValue="bets" className="w-full">
               <TabsList className="w-full grid grid-cols-4 border-b rounded-none h-auto p-0">
-                <TabsTrigger
-                  value="bets"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs"
-                >
+                <TabsTrigger value="bets" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs">
                   <Activity className="w-4 h-4 mr-1" />
                   Bets
                 </TabsTrigger>
-                <TabsTrigger
-                  value="alerts"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs"
-                >
+                <TabsTrigger value="alerts" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs">
                   <Bell className="w-4 h-4 mr-1" />
                   Alerts
                 </TabsTrigger>
-                <TabsTrigger
-                  value="smart-alerts"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs"
-                >
+                <TabsTrigger value="smart-alerts" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs">
                   <Zap className="w-4 h-4 mr-1" />
                   Smart
                 </TabsTrigger>
-                <TabsTrigger
-                  value="ai-strategy"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs"
-                >
+                <TabsTrigger value="ai-strategy" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs">
                   <Brain className="w-4 h-4 mr-1" />
                   AI
                 </TabsTrigger>
               </TabsList>
               <TabsList className="w-full grid grid-cols-4 border-b rounded-none h-auto p-0">
-                <TabsTrigger
-                  value="patterns"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs"
-                >
+                <TabsTrigger value="patterns" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs">
                   <TrendingUp className="w-4 h-4 mr-1" />
                   Patterns
                 </TabsTrigger>
-                <TabsTrigger
-                  value="simulator"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs"
-                >
+                <TabsTrigger value="simulator" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs">
                   <Target className="w-4 h-4 mr-1" />
                   Simulator
                 </TabsTrigger>
-                <TabsTrigger
-                  value="analytics"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs"
-                >
+                <TabsTrigger value="analytics" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs">
                   <LineChart className="w-4 h-4 mr-1" />
                   Analytics
                 </TabsTrigger>
-                <TabsTrigger
-                  value="settings"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs"
-                >
+                <TabsTrigger value="settings" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs">
                   <Settings className="w-4 h-4 mr-1" />
                   Settings
                 </TabsTrigger>
@@ -554,8 +497,7 @@ const Index = () => {
               </div>
             </Tabs>
           </ScrollArea>
-        </aside>
-      )}
+        </aside>}
 
       {/* Mobile Live Tracking Sheet */}
       <Sheet open={rightSidebarOpen} onOpenChange={setRightSidebarOpen}>
@@ -568,61 +510,37 @@ const Index = () => {
             <Tabs defaultValue="bets" className="w-full">
               <div className="overflow-x-auto">
                 <TabsList className="w-full inline-flex min-w-full border-b rounded-none h-auto p-0">
-                  <TabsTrigger
-                    value="bets"
-                    className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2"
-                  >
+                  <TabsTrigger value="bets" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2">
                     <Activity className="w-4 h-4 mr-1" />
                     Bets
                   </TabsTrigger>
-                  <TabsTrigger
-                    value="alerts"
-                    className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2"
-                  >
+                  <TabsTrigger value="alerts" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2">
                     <Bell className="w-4 h-4 mr-1" />
                     Alerts
                   </TabsTrigger>
-                  <TabsTrigger
-                    value="smart-alerts"
-                    className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2"
-                  >
+                  <TabsTrigger value="smart-alerts" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2">
                     <Zap className="w-4 h-4 mr-1" />
                     Smart
                   </TabsTrigger>
-                  <TabsTrigger
-                    value="ai-strategy"
-                    className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2"
-                  >
+                  <TabsTrigger value="ai-strategy" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2">
                     <Brain className="w-4 h-4 mr-1" />
                     AI
                   </TabsTrigger>
                 </TabsList>
                 <TabsList className="w-full inline-flex min-w-full border-b rounded-none h-auto p-0">
-                  <TabsTrigger
-                    value="patterns"
-                    className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2"
-                  >
+                  <TabsTrigger value="patterns" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2">
                     <TrendingUp className="w-4 h-4 mr-1" />
                     Patterns
                   </TabsTrigger>
-                  <TabsTrigger
-                    value="simulator"
-                    className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2"
-                  >
+                  <TabsTrigger value="simulator" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2">
                     <Target className="w-4 h-4 mr-1" />
                     Simulator
                   </TabsTrigger>
-                  <TabsTrigger
-                    value="analytics"
-                    className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2"
-                  >
+                  <TabsTrigger value="analytics" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2">
                     <LineChart className="w-4 h-4 mr-1" />
                     Analytics
                   </TabsTrigger>
-                  <TabsTrigger
-                    value="settings"
-                    className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2"
-                  >
+                  <TabsTrigger value="settings" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2">
                     <Settings className="w-4 h-4 mr-1" />
                     Settings
                   </TabsTrigger>
