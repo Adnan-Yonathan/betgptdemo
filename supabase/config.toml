@@ -38,3 +38,9 @@ verify_jwt = false
 
 [functions.monitor-kalshi-alerts]
 verify_jwt = false
+
+[functions.sync-injury-data]
+verify_jwt = false
+
+[functions.calculate-team-trends]
+verify_jwt = false

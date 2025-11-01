@@ -125,24 +125,126 @@ serve(async (req) => {
 
       console.log(`Game is final: ${game.home_team} ${game.home_score} - ${game.away_team} ${game.away_score}`);
 
-      // Determine winner
-      let didWin = false;
-      const homeWon = game.home_score > game.away_score;
-      const awayWon = game.away_score > game.home_score;
-      const tie = game.home_score === game.away_score;
+      // Determine outcome based on market type
+      let outcome: string;
+      let actualReturn: number;
 
-      if (bet.team_bet_on) {
-        const betOnHome = game.home_team.toLowerCase().includes(bet.team_bet_on.toLowerCase()) ||
-                         bet.team_bet_on.toLowerCase().includes(game.home_team.toLowerCase());
-        const betOnAway = game.away_team.toLowerCase().includes(bet.team_bet_on.toLowerCase()) ||
-                         bet.team_bet_on.toLowerCase().includes(game.away_team.toLowerCase());
+      const homeScore = game.home_score || 0;
+      const awayScore = game.away_score || 0;
+      const totalScore = homeScore + awayScore;
 
-        if (betOnHome && homeWon) didWin = true;
-        if (betOnAway && awayWon) didWin = true;
+      // Identify which team the user bet on
+      const betOnHome = bet.team_bet_on && (
+        game.home_team.toLowerCase().includes(bet.team_bet_on.toLowerCase()) ||
+        bet.team_bet_on.toLowerCase().includes(game.home_team.toLowerCase())
+      );
+      const betOnAway = bet.team_bet_on && (
+        game.away_team.toLowerCase().includes(bet.team_bet_on.toLowerCase()) ||
+        bet.team_bet_on.toLowerCase().includes(game.away_team.toLowerCase())
+      );
+
+      // Determine market type (default to moneyline if not specified)
+      const marketKey = bet.market_key || 'h2h';
+
+      if (marketKey === 'h2h') {
+        // MONEYLINE: Simple win/loss based on who won the game
+        const homeWon = homeScore > awayScore;
+        const awayWon = awayScore > homeScore;
+        const tie = homeScore === awayScore;
+
+        if (tie) {
+          outcome = 'push';
+          actualReturn = bet.amount;
+        } else if ((betOnHome && homeWon) || (betOnAway && awayWon)) {
+          outcome = 'win';
+          actualReturn = bet.potential_return;
+        } else {
+          outcome = 'loss';
+          actualReturn = 0;
+        }
+
+      } else if (marketKey === 'spreads') {
+        // SPREAD: Check if team covered the spread
+        // Spread is stored in opening_line (e.g., -7.5 means team needs to win by 8+)
+        const spread = bet.opening_line || 0;
+
+        let teamScore: number;
+        let opponentScore: number;
+
+        if (betOnHome) {
+          teamScore = homeScore;
+          opponentScore = awayScore;
+        } else if (betOnAway) {
+          teamScore = awayScore;
+          opponentScore = homeScore;
+        } else {
+          console.error(`Cannot determine which team was bet on for spread bet ${bet.id}`);
+          continue;
+        }
+
+        // Calculate if they covered
+        // If spread is -7.5, team must win by 8+ points
+        // If spread is +7.5, team can lose by up to 7 points
+        const scoreDifferential = teamScore - opponentScore;
+        const adjustedDifferential = scoreDifferential - spread;
+
+        if (Math.abs(adjustedDifferential) < 0.01) {
+          // Exact push (e.g., -7 spread and won by exactly 7)
+          outcome = 'push';
+          actualReturn = bet.amount;
+        } else if (adjustedDifferential > 0) {
+          // Covered the spread
+          outcome = 'win';
+          actualReturn = bet.potential_return;
+        } else {
+          // Did not cover
+          outcome = 'loss';
+          actualReturn = 0;
+        }
+
+      } else if (marketKey === 'totals') {
+        // TOTALS (Over/Under): Check if combined score went over or under the line
+        const line = bet.opening_line || 0;
+
+        // Determine if bet was over or under based on description
+        const isOverBet = bet.description.toLowerCase().includes('over') ||
+                         bet.description.toLowerCase().includes('o ');
+        const isUnderBet = bet.description.toLowerCase().includes('under') ||
+                          bet.description.toLowerCase().includes('u ');
+
+        if (Math.abs(totalScore - line) < 0.01) {
+          // Exact push
+          outcome = 'push';
+          actualReturn = bet.amount;
+        } else if (isOverBet && totalScore > line) {
+          outcome = 'win';
+          actualReturn = bet.potential_return;
+        } else if (isUnderBet && totalScore < line) {
+          outcome = 'win';
+          actualReturn = bet.potential_return;
+        } else {
+          outcome = 'loss';
+          actualReturn = 0;
+        }
+
+      } else {
+        // Unknown market type - fallback to moneyline logic
+        console.warn(`Unknown market type "${marketKey}" for bet ${bet.id}, using moneyline logic`);
+        const homeWon = homeScore > awayScore;
+        const awayWon = awayScore > homeScore;
+        const tie = homeScore === awayScore;
+
+        if (tie) {
+          outcome = 'push';
+          actualReturn = bet.amount;
+        } else if ((betOnHome && homeWon) || (betOnAway && awayWon)) {
+          outcome = 'win';
+          actualReturn = bet.potential_return;
+        } else {
+          outcome = 'loss';
+          actualReturn = 0;
+        }
       }
-
-      const outcome = tie ? 'push' : (didWin ? 'win' : 'loss');
-      const actualReturn = outcome === 'win' ? bet.potential_return : (outcome === 'push' ? bet.amount : 0);
 
       console.log(`Settling bet ${bet.id}: ${outcome} (actual return: ${actualReturn})`);
 

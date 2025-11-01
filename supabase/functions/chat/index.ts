@@ -192,6 +192,187 @@ function detectBettingMode(messages: any[]): 'basic' | 'advanced' {
   return 'advanced';
 }
 
+/**
+ * Extract team names from query
+ */
+function extractTeamNames(query: string): string[] {
+  const lowerQuery = query.toLowerCase();
+  const teams: string[] = [];
+
+  // NBA teams
+  const nbaTeams = [
+    'Lakers', 'Celtics', 'Warriors', 'Heat', 'Bucks', 'Nets', 'Suns', 'Clippers',
+    'Nuggets', 'Mavericks', 'Grizzlies', '76ers', 'Bulls', 'Cavaliers', 'Hawks',
+    'Raptors', 'Knicks', 'Pacers', 'Wizards', 'Hornets', 'Pistons', 'Magic',
+    'Thunder', 'Rockets', 'Spurs', 'Kings', 'Pelicans', 'Trail Blazers', 'Timberwolves', 'Jazz'
+  ];
+
+  // NFL teams
+  const nflTeams = [
+    'Chiefs', 'Bills', 'Eagles', 'Cowboys', '49ers', 'Ravens', 'Bengals', 'Dolphins',
+    'Chargers', 'Jaguars', 'Vikings', 'Giants', 'Jets', 'Packers', 'Seahawks',
+    'Lions', 'Browns', 'Steelers', 'Commanders', 'Raiders', 'Broncos', 'Saints',
+    'Buccaneers', 'Panthers', 'Falcons', 'Titans', 'Colts', 'Patriots', 'Rams', 'Cardinals', 'Texans', 'Bears'
+  ];
+
+  const allTeams = [...nbaTeams, ...nflTeams];
+
+  for (const team of allTeams) {
+    if (lowerQuery.includes(team.toLowerCase())) {
+      teams.push(team);
+    }
+  }
+
+  return teams;
+}
+
+/**
+ * Detect league from query
+ */
+function detectLeague(query: string): string {
+  const lowerQuery = query.toLowerCase();
+
+  if (lowerQuery.includes('nfl') || lowerQuery.includes('football')) {
+    return 'NFL';
+  }
+
+  if (lowerQuery.includes('nba') || lowerQuery.includes('basketball')) {
+    return 'NBA';
+  }
+
+  if (lowerQuery.includes('mlb') || lowerQuery.includes('baseball')) {
+    return 'MLB';
+  }
+
+  if (lowerQuery.includes('nhl') || lowerQuery.includes('hockey')) {
+    return 'NHL';
+  }
+
+  // Default to NBA
+  return 'NBA';
+}
+
+/**
+ * Fetch injury reports for teams mentioned in the query
+ */
+async function fetchInjuryData(query: string, teams: string[]): Promise<string> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  if (teams.length === 0) return '';
+
+  try {
+    // Fetch injury reports for the mentioned teams
+    const { data: injuries, error } = await supabase
+      .from('injury_reports')
+      .select('*')
+      .in('team', teams)
+      .in('injury_status', ['Out', 'Doubtful', 'Questionable'])
+      .order('impact_level', { ascending: false })
+      .limit(20);
+
+    if (error || !injuries || injuries.length === 0) {
+      return '';
+    }
+
+    let injuryText = '\n\n🏥 INJURY REPORTS:\n';
+
+    for (const team of teams) {
+      const teamInjuries = injuries.filter(i => i.team === team);
+
+      if (teamInjuries.length > 0) {
+        injuryText += `\n${team}:\n`;
+
+        const highImpact = teamInjuries.filter(i => i.impact_level === 'High');
+        const mediumImpact = teamInjuries.filter(i => i.impact_level === 'Medium');
+        const lowImpact = teamInjuries.filter(i => i.impact_level === 'Low');
+
+        if (highImpact.length > 0) {
+          injuryText += `  ⚠️ KEY INJURIES (High Impact):\n`;
+          for (const inj of highImpact) {
+            injuryText += `    - ${inj.player_name} (${inj.position || 'N/A'}): ${inj.injury_status}`;
+            if (inj.injury_type) injuryText += ` - ${inj.injury_type}`;
+            injuryText += '\n';
+          }
+        }
+
+        if (mediumImpact.length > 0) {
+          injuryText += `  ⚡ MODERATE IMPACT:\n`;
+          for (const inj of mediumImpact) {
+            injuryText += `    - ${inj.player_name}: ${inj.injury_status}\n`;
+          }
+        }
+
+        if (lowImpact.length > 0 && lowImpact.length <= 3) {
+          injuryText += `  ℹ️ Minor: ${lowImpact.map(i => i.player_name).join(', ')}\n`;
+        }
+      }
+    }
+
+    return injuryText;
+  } catch (error) {
+    console.error('[INJURY_FETCH] Error:', error);
+    return '';
+  }
+}
+
+/**
+ * Fetch team trends (last 10 games, ATS record, etc.)
+ */
+async function fetchTeamTrends(teams: string[], league: string = 'NBA'): Promise<string> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+  if (teams.length === 0) return '';
+
+  try {
+    let trendsText = '\n\n📊 TEAM TRENDS & RECENT PERFORMANCE:\n';
+
+    for (const team of teams) {
+      // Call the calculate-team-trends function
+      const response = await fetch(`${supabaseUrl}/functions/v1/calculate-team-trends`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({ team, league }),
+      });
+
+      if (!response.ok) {
+        console.error(`[TRENDS_FETCH] Failed to fetch trends for ${team}`);
+        continue;
+      }
+
+      const result = await response.json();
+      const trends = result.trends;
+
+      if (trends) {
+        trendsText += `\n${team}:\n`;
+        trendsText += `  Last 10 Games: ${trends.last10Record}\n`;
+        trendsText += `  Last 5 Games: ${trends.last5Record} (${trends.recentForm.join('-')})\n`;
+        trendsText += `  Home Record: ${trends.homeRecord}\n`;
+        trendsText += `  Away Record: ${trends.awayRecord}\n`;
+        trendsText += `  ATS Record: ${trends.atsRecord}\n`;
+        trendsText += `  O/U Record: ${trends.ouRecord}\n`;
+        trendsText += `  Avg Points Scored: ${trends.avgPointsFor}\n`;
+        trendsText += `  Avg Points Allowed: ${trends.avgPointsAgainst}\n`;
+        trendsText += `  Point Differential: ${trends.avgPointDifferential > 0 ? '+' : ''}${trends.avgPointDifferential}\n`;
+
+        if (trends.currentStreak.type !== 'none') {
+          trendsText += `  Current Streak: ${trends.currentStreak.count} ${trends.currentStreak.type}${trends.currentStreak.count > 1 ? 's' : ''}\n`;
+        }
+      }
+    }
+
+    return trendsText;
+  } catch (error) {
+    console.error('[TRENDS_FETCH] Error:', error);
+    return '';
+  }
+}
+
 async function fetchLineupData(query: string): Promise<string> {
   const startTime = Date.now();
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -1351,6 +1532,868 @@ async function updateBetOutcome(
   }
 }
 
+/**
+ * Handles logging historical bets (bets placed at external sportsbooks)
+ * Patterns: "I won $200 on Lakers yesterday", "I lost $100 on Celtics last night"
+ */
+async function handleHistoricalBet(
+  userId: string,
+  conversationId: string,
+  messageContent: string
+): Promise<any> {
+  const supabase = getSupabaseClient();
+
+  // Patterns for historical wins
+  const historicalWinPatterns = [
+    /(?:i\s+)?won\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)\s+on\s+(?:the\s+)?(.+?)(?:\s+yesterday|\s+last\s+(?:night|week|game)|$)/i,
+    /(?:i\s+)?hit\s+(?:a\s+)?\$?(\d+(?:,\d{3})*(?:\.\d{2})?)\s+(?:on\s+)?(?:the\s+)?(.+?)(?:\s+yesterday|\s+last\s+(?:night|week|game)|$)/i,
+    /(?:i\s+)?cashed\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)\s+on\s+(?:the\s+)?(.+?)(?:\s+yesterday|\s+last\s+(?:night|week|game)|$)/i,
+  ];
+
+  // Patterns for historical losses
+  const historicalLossPatterns = [
+    /(?:i\s+)?lost\s+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)\s+on\s+(?:the\s+)?(.+?)(?:\s+yesterday|\s+last\s+(?:night|week|game)|$)/i,
+    /(?:i\s+)?missed\s+(?:a\s+)?\$?(\d+(?:,\d{3})*(?:\.\d{2})?)\s+(?:on\s+)?(?:the\s+)?(.+?)(?:\s+yesterday|\s+last\s+(?:night|week|game)|$)/i,
+  ];
+
+  let amount: number | null = null;
+  let team: string | null = null;
+  let outcome: 'win' | 'loss' | null = null;
+
+  // Check for historical wins
+  for (const pattern of historicalWinPatterns) {
+    const match = messageContent.match(pattern);
+    if (match && match[1] && match[2]) {
+      amount = parseFloat(match[1].replace(/,/g, ''));
+      team = match[2].trim();
+      outcome = 'win';
+      console.log(`📊 Detected historical win: $${amount} on ${team}`);
+      break;
+    }
+  }
+
+  // Check for historical losses if no win found
+  if (!outcome) {
+    for (const pattern of historicalLossPatterns) {
+      const match = messageContent.match(pattern);
+      if (match && match[1] && match[2]) {
+        amount = parseFloat(match[1].replace(/,/g, ''));
+        team = match[2].trim();
+        outcome = 'loss';
+        console.log(`📊 Detected historical loss: $${amount} on ${team}`);
+        break;
+      }
+    }
+  }
+
+  if (!outcome || !amount || !team) {
+    return null; // No historical bet detected
+  }
+
+  try {
+    // For a win, amount is the profit; for a loss, amount is what they lost
+    // We need to calculate the bet amount and actual return
+    let betAmount: number;
+    let actualReturn: number;
+    let profitLoss: number;
+
+    if (outcome === 'win') {
+      // User said "won $X" - this is the profit
+      // Assume they bet a similar amount (could ask for clarification)
+      // For now, assume standard -110 odds, so bet ~110 to win 100
+      betAmount = amount * 1.1; // Rough estimate
+      actualReturn = betAmount + amount;
+      profitLoss = amount;
+    } else {
+      // User said "lost $X" - this is what they wagered
+      betAmount = amount;
+      actualReturn = 0;
+      profitLoss = -amount;
+    }
+
+    // Insert bet record with outcome already set
+    const { data: bet, error: betError } = await supabase
+      .from('bets')
+      .insert({
+        user_id: userId,
+        conversation_id: conversationId,
+        amount: betAmount,
+        odds: -110, // Default odds
+        description: `${team} (historical bet)`,
+        potential_return: betAmount * 1.909, // -110 odds
+        actual_return: actualReturn,
+        outcome: outcome,
+        team_bet_on: team,
+        bet_type: 'straight',
+        profit_loss: profitLoss,
+        settled_at: new Date().toISOString(),
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (betError) {
+      console.error('Error inserting historical bet:', betError);
+      return {
+        error: true,
+        message: 'Failed to log historical bet',
+        code: 'INSERT_ERROR'
+      };
+    }
+
+    // Update bankroll
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('bankroll')
+      .eq('id', userId)
+      .single();
+
+    const currentBankroll = profile?.bankroll || 1000;
+    const newBankroll = currentBankroll + profitLoss;
+
+    await supabase
+      .from('profiles')
+      .update({ bankroll: newBankroll })
+      .eq('id', userId);
+
+    await supabase
+      .from('user_bankroll')
+      .update({
+        current_amount: newBankroll,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId);
+
+    // Log transaction
+    await supabase
+      .from('bankroll_transactions')
+      .insert({
+        user_id: userId,
+        type: outcome === 'win' ? 'bet_won' : 'bet_lost',
+        amount: Math.abs(profitLoss),
+        balance_after: newBankroll,
+        bet_id: bet.id,
+        notes: `Historical ${outcome} on ${team}`,
+        created_at: new Date().toISOString()
+      });
+
+    console.log(`✅ Historical bet logged: ${outcome} $${amount} on ${team}`);
+
+    return {
+      success: true,
+      outcome,
+      amount,
+      team,
+      betAmount,
+      profitLoss,
+      previousBankroll: currentBankroll,
+      newBankroll,
+      bet
+    };
+  } catch (error) {
+    console.error('Error logging historical bet:', error);
+    return {
+      error: true,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      code: 'PROCESSING_ERROR'
+    };
+  }
+}
+
+/**
+ * PHASE 3: Enhanced Memory and User Intelligence System
+ * Builds comprehensive user context from preferences, patterns, insights, and conversation history
+ */
+
+/**
+ * Fetches user preferences including favorite teams, leagues, and betting style
+ */
+async function getUserPreferences(userId: string): Promise<any> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('user_preferences')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      console.log('[PHASE3] No user preferences found, returning defaults');
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('[PHASE3] Error fetching user preferences:', error);
+    return null;
+  }
+}
+
+/**
+ * Fetches betting patterns analysis
+ */
+async function getBettingPatterns(userId: string): Promise<any> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('betting_patterns')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      console.log('[PHASE3] No betting patterns found');
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('[PHASE3] Error fetching betting patterns:', error);
+    return null;
+  }
+}
+
+/**
+ * Fetches active user insights
+ */
+async function getActiveInsights(userId: string): Promise<any[]> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .rpc('get_active_user_insights', { p_user_id: userId });
+
+    if (error) {
+      console.log('[PHASE3] Error fetching insights:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('[PHASE3] Error fetching active insights:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetches conversation memory context
+ */
+async function getMemoryContext(userId: string): Promise<string> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .rpc('get_user_memory_context', { p_user_id: userId, p_limit: 5 });
+
+    if (error) {
+      console.log('[PHASE3] Error fetching memory context:', error);
+      return '';
+    }
+
+    return data || '';
+  } catch (error) {
+    console.error('[PHASE3] Error fetching memory context:', error);
+    return '';
+  }
+}
+
+/**
+ * Builds comprehensive user context prompt for AI
+ */
+async function buildUserContextPrompt(userId: string): Promise<string> {
+  if (!userId) {
+    return '';
+  }
+
+  console.log('[PHASE3] Building user context prompt...');
+
+  // Fetch all data in parallel for performance (Phase 3 + Phase 4 + Phase 5 + Phase 6)
+  const [preferences, patterns, insights, memoryContext, advancedMetrics, activeLiveBets, unreadAlerts, bankrollHistory, activeGoals] = await Promise.all([
+    getUserPreferences(userId),
+    getBettingPatterns(userId),
+    getActiveInsights(userId),
+    getMemoryContext(userId),
+    getAdvancedMetrics(userId), // Phase 4: CLV and advanced stats
+    getActiveLiveBets(userId), // Phase 5: Live tracked bets
+    getUnreadAlerts(userId), // Phase 5: Unread alerts
+    getRecentBankrollHistory(userId), // Phase 6: Bankroll tracking
+    getActiveGoals(userId) // Phase 6: Active goals
+  ]);
+
+  let contextPrompt = '\n\n═══════════════════════════════════════════════════════════════\n';
+  contextPrompt += '🧠 USER PROFILE & INTELLIGENCE (Phase 3 Enhanced Memory)\n';
+  contextPrompt += '═══════════════════════════════════════════════════════════════\n\n';
+
+  // Add user preferences
+  if (preferences) {
+    contextPrompt += '👤 USER PREFERENCES:\n';
+
+    if (preferences.favorite_teams && preferences.favorite_teams.length > 0) {
+      contextPrompt += `- Favorite Teams: ${preferences.favorite_teams.join(', ')}\n`;
+    }
+
+    if (preferences.preferred_leagues && preferences.preferred_leagues.length > 0) {
+      contextPrompt += `- Preferred Leagues: ${preferences.preferred_leagues.join(', ')}\n`;
+    }
+
+    if (preferences.betting_style) {
+      contextPrompt += `- Betting Style: ${preferences.betting_style}\n`;
+    }
+
+    if (preferences.risk_tolerance) {
+      contextPrompt += `- Risk Tolerance: ${preferences.risk_tolerance}/10\n`;
+    }
+
+    if (preferences.betting_goals) {
+      contextPrompt += `- User's Goal: "${preferences.betting_goals}"\n`;
+    }
+
+    if (preferences.betting_concerns) {
+      contextPrompt += `- User's Concerns: "${preferences.betting_concerns}"\n`;
+    }
+
+    contextPrompt += '\n';
+  }
+
+  // Add betting patterns
+  if (patterns && patterns.total_bets > 0) {
+    contextPrompt += '📊 BETTING PATTERNS & PERFORMANCE:\n';
+    contextPrompt += `- Overall Record: ${patterns.total_wins}-${patterns.total_losses}-${patterns.total_pushes} (${patterns.total_bets} bets)\n`;
+    contextPrompt += `- Win Rate: ${patterns.win_rate}% | ROI: ${patterns.roi > 0 ? '+' : ''}${patterns.roi}%\n`;
+    contextPrompt += `- Total Wagered: $${patterns.total_wagered?.toFixed(2) || '0.00'} | P/L: ${patterns.total_profit_loss > 0 ? '+' : ''}$${patterns.total_profit_loss?.toFixed(2) || '0.00'}\n`;
+
+    // Current streaks
+    if (patterns.current_win_streak > 0) {
+      contextPrompt += `- 🔥 Current Streak: ${patterns.current_win_streak} wins\n`;
+    } else if (patterns.current_loss_streak > 0) {
+      contextPrompt += `- ⚠️ Current Streak: ${patterns.current_loss_streak} losses\n`;
+    }
+
+    // Tilt warning
+    if (patterns.tilt_score > 60) {
+      contextPrompt += `- ⚠️ TILT ALERT: Score ${patterns.tilt_score}/100 - User may be chasing losses or betting erratically\n`;
+    }
+
+    // Best/worst leagues
+    if (patterns.performance_by_league && Object.keys(patterns.performance_by_league).length > 0) {
+      contextPrompt += '\nPerformance by League:\n';
+      const leagues = Object.entries(patterns.performance_by_league as Record<string, any>)
+        .sort((a, b) => (b[1].roi || 0) - (a[1].roi || 0))
+        .slice(0, 3);
+
+      for (const [league, stats] of leagues) {
+        const roi = stats.roi || 0;
+        contextPrompt += `  • ${league}: ${stats.wins}-${stats.losses} (${stats.win_rate}% WR, ${roi > 0 ? '+' : ''}${roi}% ROI)\n`;
+      }
+    }
+
+    // Best/worst teams
+    if (patterns.performance_by_team && Object.keys(patterns.performance_by_team).length > 0) {
+      contextPrompt += '\nPerformance by Team (Top 3):\n';
+      const teams = Object.entries(patterns.performance_by_team as Record<string, any>)
+        .filter(([_, stats]) => stats.total_bets >= 3)
+        .sort((a, b) => (b[1].win_rate || 0) - (a[1].win_rate || 0))
+        .slice(0, 3);
+
+      for (const [team, stats] of teams) {
+        contextPrompt += `  • ${team}: ${stats.wins}-${stats.losses} (${stats.win_rate}% WR)\n`;
+      }
+    }
+
+    contextPrompt += '\n';
+  }
+
+  // Phase 4: Add CLV and advanced metrics
+  if (advancedMetrics) {
+    contextPrompt += '📈 PHASE 4: ADVANCED METRICS (CLV & Performance):\n';
+
+    if (advancedMetrics.avg_clv_points) {
+      const clvSign = advancedMetrics.avg_clv_points > 0 ? '+' : '';
+      contextPrompt += `- Average CLV: ${clvSign}${advancedMetrics.avg_clv_points} points (${clvSign}$${advancedMetrics.avg_clv_dollars?.toFixed(2) || '0.00'})\n`;
+      contextPrompt += `- Beats Closing Line: ${advancedMetrics.pct_beat_closing_line}% of bets\n`;
+
+      if (advancedMetrics.avg_clv_points > 1.5) {
+        contextPrompt += `- 🔥 EXCELLENT CLV: You're consistently beating the market!\n`;
+      } else if (advancedMetrics.avg_clv_points > 0.5) {
+        contextPrompt += `- ✅ POSITIVE CLV: You're finding value bets\n`;
+      } else if (advancedMetrics.avg_clv_points < -0.5) {
+        contextPrompt += `- ⚠️ NEGATIVE CLV: You're consistently getting worse than closing line\n`;
+      }
+    }
+
+    if (advancedMetrics.sharpe_ratio) {
+      contextPrompt += `- Sharpe Ratio: ${advancedMetrics.sharpe_ratio?.toFixed(2)} (risk-adjusted returns)\n`;
+    }
+
+    if (advancedMetrics.avg_kelly_efficiency) {
+      const kellyEff = advancedMetrics.avg_kelly_efficiency;
+      if (kellyEff > 1.5) {
+        contextPrompt += `- ⚠️ Kelly Efficiency: ${kellyEff?.toFixed(2)} (overbetting - too aggressive)\n`;
+      } else if (kellyEff < 0.5) {
+        contextPrompt += `- Kelly Efficiency: ${kellyEff?.toFixed(2)} (underbetting - very conservative)\n`;
+      } else {
+        contextPrompt += `- Kelly Efficiency: ${kellyEff?.toFixed(2)} (good sizing discipline)\n`;
+      }
+    }
+
+    if (advancedMetrics.spread_roi !== null && advancedMetrics.total_roi !== null && advancedMetrics.moneyline_roi !== null) {
+      contextPrompt += `\nROI by Market Type:\n`;
+      contextPrompt += `  • Spreads: ${advancedMetrics.spread_roi > 0 ? '+' : ''}${advancedMetrics.spread_roi}%\n`;
+      contextPrompt += `  • Totals: ${advancedMetrics.total_roi > 0 ? '+' : ''}${advancedMetrics.total_roi}%\n`;
+      contextPrompt += `  • Moneyline: ${advancedMetrics.moneyline_roi > 0 ? '+' : ''}${advancedMetrics.moneyline_roi}%\n`;
+    }
+
+    contextPrompt += '\n';
+  }
+
+  // Add active insights
+  if (insights && insights.length > 0) {
+    contextPrompt += '💡 ACTIVE INSIGHTS:\n';
+    // Sort by priority and take top 5
+    const topInsights = insights
+      .sort((a, b) => (b.priority || 0) - (a.priority || 0))
+      .slice(0, 5);
+
+    for (const insight of topInsights) {
+      const icon = insight.insight_type === 'strength' ? '✅' :
+                   insight.insight_type === 'weakness' ? '⚠️' :
+                   insight.insight_type === 'warning' ? '🚨' :
+                   insight.insight_type === 'milestone' ? '🎉' : '💭';
+      contextPrompt += `${icon} ${insight.insight_text}\n`;
+    }
+    contextPrompt += '\n';
+  }
+
+  // Phase 5: Add live bet tracking and alerts
+  if (activeLiveBets && activeLiveBets.length > 0) {
+    contextPrompt += '🔴 PHASE 5: LIVE BETS IN PROGRESS:\n';
+    for (const bet of activeLiveBets) {
+      const statusIcon = bet.bet_status === 'winning' ? '✅' :
+                        bet.bet_status === 'losing' ? '❌' :
+                        bet.bet_status === 'push' ? '🟰' : '⏳';
+      contextPrompt += `${statusIcon} ${bet.home_team} vs ${bet.away_team} - ${bet.current_score}\n`;
+      contextPrompt += `   Type: ${bet.bet_type} | Amount: $${bet.bet_amount} | Status: ${bet.bet_status.toUpperCase()}\n`;
+      if (bet.time_remaining) {
+        contextPrompt += `   Time: ${bet.time_remaining}\n`;
+      }
+      if (bet.points_needed !== null && bet.points_needed !== undefined) {
+        const needText = bet.points_needed > 0 ? `Need ${bet.points_needed} more points` : `Covering by ${Math.abs(bet.points_needed)} points`;
+        contextPrompt += `   ${needText}\n`;
+      }
+    }
+    contextPrompt += '\n';
+  }
+
+  if (unreadAlerts && unreadAlerts.length > 0) {
+    contextPrompt += '🚨 UNREAD ALERTS:\n';
+    // Sort by priority and take top 5 most urgent
+    const topAlerts = unreadAlerts
+      .sort((a, b) => (b.priority || 0) - (a.priority || 0))
+      .slice(0, 5);
+
+    for (const alert of topAlerts) {
+      const priorityIcon = alert.priority >= 3 ? '🚨' :
+                          alert.priority >= 2 ? '⚠️' :
+                          alert.priority >= 1 ? 'ℹ️' : '💬';
+      contextPrompt += `${priorityIcon} ${alert.alert_title}: ${alert.alert_message}\n`;
+    }
+    contextPrompt += '\n';
+  }
+
+  // Phase 6: Add bankroll tracking and goals
+  if (bankrollHistory && bankrollHistory.length > 0) {
+    contextPrompt += '💰 PHASE 6: BANKROLL TRACKING (Last 30 Days):\n';
+
+    // Calculate stats from history
+    const firstDay = bankrollHistory[0];
+    const lastDay = bankrollHistory[bankrollHistory.length - 1];
+    const growthAmount = lastDay.bankroll - firstDay.bankroll;
+    const growthPercent = ((growthAmount / firstDay.bankroll) * 100).toFixed(1);
+    const totalDailyPL = bankrollHistory.reduce((sum: number, day: any) => sum + (day.daily_profit_loss || 0), 0);
+    const peakBankroll = Math.max(...bankrollHistory.map((day: any) => day.bankroll));
+
+    contextPrompt += `- Current Bankroll: $${lastDay.bankroll.toFixed(2)}\n`;
+    contextPrompt += `- 30-Day Change: ${growthAmount >= 0 ? '+' : ''}$${growthAmount.toFixed(2)} (${growthAmount >= 0 ? '+' : ''}${growthPercent}%)\n`;
+    contextPrompt += `- Peak (30D): $${peakBankroll.toFixed(2)}\n`;
+    contextPrompt += `- Total Daily P/L (30D): ${totalDailyPL >= 0 ? '+' : ''}$${totalDailyPL.toFixed(2)}\n`;
+
+    if (growthAmount >= 0) {
+      contextPrompt += `- ✅ Trending upward - positive momentum!\n`;
+    } else {
+      const drawdown = ((1 - lastDay.bankroll / peakBankroll) * 100).toFixed(1);
+      contextPrompt += `- ⚠️ Down ${drawdown}% from peak - consider reviewing strategy\n`;
+    }
+
+    contextPrompt += '\n';
+  }
+
+  if (activeGoals && activeGoals.length > 0) {
+    contextPrompt += '🎯 ACTIVE BETTING GOALS:\n';
+    for (const goal of activeGoals.slice(0, 3)) { // Show top 3 goals
+      const progress = goal.progress_percentage || 0;
+      const progressBar = '█'.repeat(Math.floor(progress / 10)) + '░'.repeat(10 - Math.floor(progress / 10));
+
+      contextPrompt += `- ${goal.goal_name}: ${progress.toFixed(0)}% [${progressBar}]\n`;
+      contextPrompt += `  Target: ${goal.target_value}${goal.unit === 'percentage' ? '%' : goal.unit === 'dollars' ? ' dollars' : ''}\n`;
+      contextPrompt += `  Current: ${goal.current_value}${goal.unit === 'percentage' ? '%' : goal.unit === 'dollars' ? ' dollars' : ''}\n`;
+
+      if (goal.is_achieved) {
+        contextPrompt += `  🎉 GOAL ACHIEVED!\n`;
+      } else if (goal.days_remaining !== null) {
+        contextPrompt += `  ⏰ ${goal.days_remaining} days remaining\n`;
+      }
+    }
+    contextPrompt += '\n';
+  }
+
+  // Add conversation memory
+  if (memoryContext && memoryContext.trim().length > 0) {
+    contextPrompt += '🗂️ RECENT CONVERSATION MEMORY:\n';
+    contextPrompt += memoryContext;
+    contextPrompt += '\n';
+  }
+
+  contextPrompt += '═══════════════════════════════════════════════════════════════\n';
+  contextPrompt += 'INSTRUCTIONS FOR USING THIS CONTEXT:\n';
+  contextPrompt += '- Reference user\'s favorite teams and past performance when relevant\n';
+  contextPrompt += '- Consider their betting style and risk tolerance in recommendations\n';
+  contextPrompt += '- Warn them if they\'re betting on teams/leagues where they struggle\n';
+  contextPrompt += '- Praise them when betting on teams/leagues where they excel\n';
+  contextPrompt += '- If tilt score is high, be extra cautious with bet sizing recommendations\n';
+  contextPrompt += '- Reference past conversations and advice to maintain continuity\n';
+  contextPrompt += '- Proactively mention relevant insights without being asked\n';
+  contextPrompt += '- [PHASE 5] Proactively mention live bets in progress and unread alerts\n';
+  contextPrompt += '- [PHASE 5] If user has live bets, provide context on current game state\n';
+  contextPrompt += '- [PHASE 5] Alert user to critical moments or momentum shifts they should know about\n';
+  contextPrompt += '- [PHASE 6] Reference bankroll growth trends when discussing performance\n';
+  contextPrompt += '- [PHASE 6] Celebrate goal achievements and encourage progress toward active goals\n';
+  contextPrompt += '- [PHASE 6] Suggest viewing Analytics dashboard for detailed performance breakdown\n';
+  contextPrompt += '- [PHASE 6] If user asks about stats/performance, mention the /analytics page\n';
+  contextPrompt += '═══════════════════════════════════════════════════════════════\n\n';
+
+  console.log('[PHASE3] User context prompt built successfully');
+  return contextPrompt;
+}
+
+/**
+ * PHASE 4: Advanced Statistical Models & EV Analysis
+ * Calculates Expected Value, Kelly sizing, and game predictions
+ */
+
+/**
+ * Fetches advanced metrics including CLV stats
+ */
+async function getAdvancedMetrics(userId: string): Promise<any> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('advanced_metrics')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      console.log('[PHASE4] No advanced metrics found');
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('[PHASE4] Error fetching advanced metrics:', error);
+    return null;
+  }
+}
+
+/**
+ * Predicts game outcome using Elo model
+ */
+async function predictGameWithElo(homeTeam: string, awayTeam: string, league: string): Promise<any> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .rpc('predict_game_with_elo', {
+        p_home_team: homeTeam,
+        p_away_team: awayTeam,
+        p_league: league,
+        p_home_advantage_points: 100
+      });
+
+    if (error) {
+      console.error('[PHASE4] Error predicting game:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('[PHASE4] Error in predictGameWithElo:', error);
+    return null;
+  }
+}
+
+/**
+ * Calculates EV and Kelly sizing for a hypothetical bet
+ */
+async function calculateEVForBet(
+  winProbability: number,
+  odds: number,
+  stake: number,
+  bankroll: number
+): Promise<any> {
+  try {
+    const supabase = getSupabaseClient();
+
+    // Calculate EV
+    const { data: evData, error: evError } = await supabase
+      .rpc('calculate_expected_value', {
+        p_win_probability: winProbability,
+        p_american_odds: odds,
+        p_stake: stake
+      });
+
+    if (evError) {
+      console.error('[PHASE4] Error calculating EV:', evError);
+      return null;
+    }
+
+    // Calculate Kelly sizing
+    const { data: kellyData, error: kellyError } = await supabase
+      .rpc('calculate_kelly_sizing', {
+        p_win_probability: winProbability,
+        p_american_odds: odds,
+        p_bankroll: bankroll,
+        p_fraction: 0.25
+      });
+
+    if (kellyError) {
+      console.error('[PHASE4] Error calculating Kelly:', kellyError);
+      return null;
+    }
+
+    return {
+      ev: evData,
+      kelly: kellyData
+    };
+  } catch (error) {
+    console.error('[PHASE4] Error in calculateEVForBet:', error);
+    return null;
+  }
+}
+
+/**
+ * Builds EV analysis context for AI
+ */
+async function buildEVAnalysisContext(
+  homeTeam: string,
+  awayTeam: string,
+  league: string,
+  odds: number,
+  stake: number,
+  bankroll: number
+): Promise<string> {
+  try {
+    console.log('[PHASE4] Building EV analysis context...');
+
+    // Get Elo prediction
+    const prediction = await predictGameWithElo(homeTeam, awayTeam, league);
+
+    if (!prediction) {
+      return '';
+    }
+
+    const winProbability = prediction.home_win_probability || 0.5;
+
+    // Calculate EV and Kelly
+    const analysis = await calculateEVForBet(winProbability, odds, stake, bankroll);
+
+    if (!analysis) {
+      return '';
+    }
+
+    let context = '\n\n═══════════════════════════════════════════════════════════════\n';
+    context += '📊 PHASE 4: EXPECTED VALUE ANALYSIS\n';
+    context += '═══════════════════════════════════════════════════════════════\n\n';
+
+    context += '🎲 ELO RATING PREDICTION:\n';
+    context += `- ${homeTeam} Elo: ${prediction.home_elo}\n`;
+    context += `- ${awayTeam} Elo: ${prediction.away_elo}\n`;
+    context += `- Elo Difference: ${prediction.elo_difference}\n`;
+    context += `- ${homeTeam} Win Probability: ${(winProbability * 100).toFixed(1)}%\n`;
+    context += `- Predicted Margin: ${homeTeam} by ${prediction.predicted_margin} points\n\n`;
+
+    context += '💰 EXPECTED VALUE CALCULATION:\n';
+    context += `- Estimated Win Probability: ${(winProbability * 100).toFixed(1)}%\n`;
+    context += `- Market Implied Probability: ${(analysis.ev.market_implied_prob * 100).toFixed(1)}% (from ${odds} odds)\n`;
+    context += `- Statistical Edge: ${analysis.ev.edge_percentage > 0 ? '+' : ''}${analysis.ev.edge_percentage}%\n`;
+    context += `- Expected Value: ${analysis.ev.expected_value_percentage > 0 ? '+' : ''}$${analysis.ev.expected_value_dollars} (${analysis.ev.expected_value_percentage > 0 ? '+' : ''}${analysis.ev.expected_value_percentage}% EV)\n`;
+    context += `- Decimal Odds: ${analysis.ev.decimal_odds}\n\n`;
+
+    const edge = analysis.ev.edge_percentage;
+    let recommendation = '';
+    if (edge < 0) {
+      recommendation = '❌ NEGATIVE EV - Do NOT bet';
+    } else if (edge < 2) {
+      recommendation = '⚠️ MARGINAL EDGE - Pass or very small bet';
+    } else if (edge < 5) {
+      recommendation = '✅ DECENT EDGE - Small to moderate bet';
+    } else if (edge < 10) {
+      recommendation = '✅✅ SOLID EDGE - Standard bet size';
+    } else {
+      recommendation = '🔥 STRONG EDGE - High confidence bet';
+    }
+
+    context += `📈 EDGE ASSESSMENT: ${recommendation}\n\n`;
+
+    context += '🎯 KELLY CRITERION BET SIZING:\n';
+    context += `- Full Kelly: ${analysis.kelly.kelly_full_percentage}% of bankroll\n`;
+    context += `- Half Kelly: ${analysis.kelly.kelly_half_percentage}% of bankroll\n`;
+    context += `- Quarter Kelly (RECOMMENDED): ${analysis.kelly.kelly_quarter_percentage}% of bankroll\n`;
+    context += `- Recommended Bet Size: $${analysis.kelly.recommended_bet_dollars}\n`;
+    context += `- User's Proposed Bet: $${stake}\n`;
+
+    const kellyEfficiency = stake / analysis.kelly.recommended_bet_dollars;
+    if (kellyEfficiency > 2) {
+      context += `- ⚠️ WARNING: Betting ${kellyEfficiency.toFixed(1)}x recommended size (OVERBET)\n`;
+    } else if (kellyEfficiency < 0.5) {
+      context += `- ℹ️ Conservative: Betting ${(kellyEfficiency * 100).toFixed(0)}% of recommended size (underbet)\n`;
+    } else {
+      context += `- ✅ Good sizing: Within recommended range\n`;
+    }
+
+    context += '\n═══════════════════════════════════════════════════════════════\n';
+    context += 'INSTRUCTIONS FOR AI:\n';
+    context += '- Lead with the EV and edge percentage in your response\n';
+    context += '- Reference the Kelly recommendation for bet sizing\n';
+    context += '- Explain the Elo prediction and why the model sees value\n';
+    context += '- Warn if the bet is negative EV or if user is overbetting\n';
+    context += '- Show confidence interval to indicate uncertainty\n';
+    context += '- Remember: Even +EV bets can lose due to variance\n';
+    context += '═══════════════════════════════════════════════════════════════\n\n';
+
+    console.log('[PHASE4] EV analysis context built successfully');
+    return context;
+  } catch (error) {
+    console.error('[PHASE4] Error building EV analysis context:', error);
+    return '';
+  }
+}
+
+/**
+ * PHASE 6: Advanced Analytics & Performance Dashboard
+ * Provides bankroll tracking and goal management
+ */
+
+/**
+ * Fetches recent bankroll history for analytics
+ */
+async function getRecentBankrollHistory(userId: string): Promise<any> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .rpc('get_bankroll_history', {
+        p_user_id: userId,
+        p_start_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Last 30 days
+        p_end_date: new Date().toISOString().split('T')[0]
+      });
+
+    if (error) {
+      console.log('[PHASE6] Error fetching bankroll history:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('[PHASE6] Error in getRecentBankrollHistory:', error);
+    return null;
+  }
+}
+
+/**
+ * Fetches active goals for user
+ */
+async function getActiveGoals(userId: string): Promise<any[]> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .rpc('get_active_goals', { p_user_id: userId });
+
+    if (error) {
+      console.log('[PHASE6] Error fetching active goals:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('[PHASE6] Error in getActiveGoals:', error);
+    return [];
+  }
+}
+
+/**
+ * PHASE 5: Live Bet Tracking & In-Game Alerts
+ * Monitors active bets in real-time and sends alerts for critical moments
+ */
+
+/**
+ * Fetches active live tracked bets for a user
+ */
+async function getActiveLiveBets(userId: string): Promise<any[]> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .rpc('get_user_active_bets_live', { p_user_id: userId });
+
+    if (error) {
+      console.log('[PHASE5] Error fetching live bets:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('[PHASE5] Error in getActiveLiveBets:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetches unread alerts for a user
+ */
+async function getUnreadAlerts(userId: string): Promise<any[]> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .rpc('get_user_unread_alerts', { p_user_id: userId });
+
+    if (error) {
+      console.log('[PHASE5] Error fetching unread alerts:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('[PHASE5] Error in getUnreadAlerts:', error);
+    return [];
+  }
+}
+
+/**
+ * Starts live tracking for a bet
+ */
+async function startLiveTracking(betId: string): Promise<any> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .rpc('start_live_tracking', { p_bet_id: betId });
+
+    if (error) {
+      console.error('[PHASE5] Error starting live tracking:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('[PHASE5] Error in startLiveTracking:', error);
+    return null;
+  }
+}
+
 serve(async (req) => {
   const requestStartTime = Date.now();
   console.log("[PERF] ========== NEW REQUEST ==========");
@@ -1451,6 +2494,15 @@ serve(async (req) => {
           detectedOutcome = 'push';
           break;
         }
+      }
+    }
+
+    // PHASE 1.5: Check for historical bet entry
+    let historicalBetResult = null;
+    if (userId && conversationId) {
+      historicalBetResult = await handleHistoricalBet(userId, conversationId, messageContent);
+      if (historicalBetResult && historicalBetResult.success) {
+        console.log(`✅ Historical bet logged: ${historicalBetResult.outcome} $${historicalBetResult.amount}`);
       }
     }
 
@@ -1589,6 +2641,11 @@ RESPONSIBLE GAMBLING:
     let dataContext = "";
     let contextType = "";
 
+    // PHASE 2: Extract team names and league for injury/trends data
+    const teamNames = extractTeamNames(messageContent);
+    const league = detectLeague(messageContent);
+    console.log(`[PHASE2] Extracted teams: ${teamNames.join(', ')}, League: ${league}`);
+
     if (isAskingForScore) {
       try {
         console.log("User is asking for scores, fetching live scores...");
@@ -1605,22 +2662,28 @@ RESPONSIBLE GAMBLING:
 
         // PERFORMANCE FIX: Parallelize data fetching if betting data is also needed
         if (isAskingForBettingData) {
-          console.log("[PERF] Parallelizing lineup, matchup, and odds fetches...");
+          console.log("[PERF] Parallelizing lineup, matchup, odds, injuries, and trends fetches...");
           const parallelStart = Date.now();
 
-          const [lineupData, matchupData, oddsData] = await Promise.all([
+          const [lineupData, matchupData, oddsData, injuryData, trendsData] = await Promise.all([
             fetchLineupData(lastMessage.content),
             fetchMatchupData(lastMessage.content),
-            fetchLiveOdds(lastMessage.content)
+            fetchLiveOdds(lastMessage.content),
+            fetchInjuryData(lastMessage.content, teamNames),
+            fetchTeamTrends(teamNames, league)
           ]);
 
           console.log(`[PERF] Parallel fetches completed in ${Date.now() - parallelStart}ms`);
 
-          dataContext = lineupData + "\n\n" + matchupData + "\n\n" + oddsData;
+          dataContext = lineupData + "\n\n" + matchupData + "\n\n" + oddsData + injuryData + trendsData;
           contextType = "comprehensive";
         } else {
-          const lineupData = await fetchLineupData(lastMessage.content);
-          dataContext = lineupData;
+          const [lineupData, injuryData, trendsData] = await Promise.all([
+            fetchLineupData(lastMessage.content),
+            fetchInjuryData(lastMessage.content, teamNames),
+            fetchTeamTrends(teamNames, league)
+          ]);
+          dataContext = lineupData + injuryData + trendsData;
           contextType = "lineup";
           console.log("Lineup data fetch result:", dataContext);
         }
@@ -1634,21 +2697,27 @@ RESPONSIBLE GAMBLING:
 
         // PERFORMANCE FIX: Parallelize matchup and odds fetching
         if (isAskingForBettingData) {
-          console.log("[PERF] Parallelizing matchup and odds fetches...");
+          console.log("[PERF] Parallelizing matchup, odds, injuries, and trends fetches...");
           const parallelStart = Date.now();
 
-          const [matchupData, oddsData] = await Promise.all([
+          const [matchupData, oddsData, injuryData, trendsData] = await Promise.all([
             fetchMatchupData(lastMessage.content),
-            fetchLiveOdds(lastMessage.content)
+            fetchLiveOdds(lastMessage.content),
+            fetchInjuryData(lastMessage.content, teamNames),
+            fetchTeamTrends(teamNames, league)
           ]);
 
           console.log(`[PERF] Parallel fetches completed in ${Date.now() - parallelStart}ms`);
 
-          dataContext = matchupData + "\n\n" + oddsData;
+          dataContext = matchupData + "\n\n" + oddsData + injuryData + trendsData;
           contextType = "comprehensive";
         } else {
-          const matchupData = await fetchMatchupData(lastMessage.content);
-          dataContext = matchupData;
+          const [matchupData, injuryData, trendsData] = await Promise.all([
+            fetchMatchupData(lastMessage.content),
+            fetchInjuryData(lastMessage.content, teamNames),
+            fetchTeamTrends(teamNames, league)
+          ]);
+          dataContext = matchupData + injuryData + trendsData;
           contextType = "matchup";
           console.log("Matchup data fetch result:", dataContext);
         }
@@ -1659,7 +2728,14 @@ RESPONSIBLE GAMBLING:
     } else if (isAskingForBettingData) {
       try {
         console.log("User is asking for game data, fetching live odds...");
-        dataContext = await fetchLiveOdds(lastMessage.content);
+
+        const [oddsData, injuryData, trendsData] = await Promise.all([
+          fetchLiveOdds(lastMessage.content),
+          fetchInjuryData(lastMessage.content, teamNames),
+          fetchTeamTrends(teamNames, league)
+        ]);
+
+        dataContext = oddsData + injuryData + trendsData;
         contextType = "betting";
         console.log("Odds data fetch result:", dataContext);
       } catch (error) {
@@ -2061,6 +3137,17 @@ Today's date: ${currentDate}`;
     const coachPrompt = bettingMode === 'advanced' ? advancedModePrompt : basicModePrompt;
     const basePrompt = coachPrompt;
 
+    // PHASE 3: Build user intelligence context (preferences, patterns, insights, memory)
+    let userContextPrompt = '';
+    if (userId) {
+      try {
+        userContextPrompt = await buildUserContextPrompt(userId);
+      } catch (error) {
+        console.error('[PHASE3] Error building user context prompt:', error);
+        // Continue without user context if there's an error
+      }
+    }
+
     // PHASE 1.3: Add comprehensive bet outcome context with stats
     // Build context for bankroll update if detected
     let bankrollUpdateContext = '';
@@ -2107,6 +3194,44 @@ RESPONSE INSTRUCTIONS:
 - Keep response brief and friendly (2-3 sentences)
 - Example: "Perfect! I've got your bankroll set at $5,000. Since you mentioned a $50 unit size, that's a conservative 1% approach - great for managing risk!"
 `;
+      }
+    }
+
+    // PHASE 1.5: Format historical bet context
+    let historicalBetContext = '';
+    if (historicalBetResult) {
+      if (historicalBetResult.error) {
+        historicalBetContext = `
+HISTORICAL BET ENTRY ERROR:
+${historicalBetResult.message}
+
+RESPONSE INSTRUCTIONS:
+Politely inform the user about the error and ask them to provide more details if needed.`;
+      } else if (historicalBetResult.success) {
+        const { outcome, amount, team, betAmount, profitLoss, previousBankroll, newBankroll } = historicalBetResult;
+        const emoji = outcome === 'win' ? '🎉' : '😔';
+        const sign = profitLoss >= 0 ? '+' : '';
+
+        historicalBetContext = `
+${emoji} HISTORICAL BET LOGGED:
+
+Bet Details:
+- Team: ${team}
+- Outcome: ${outcome.toUpperCase()}
+- ${outcome === 'win' ? 'Profit' : 'Loss'}: ${sign}$${Math.abs(profitLoss).toFixed(2)}
+- Bet Amount: $${betAmount.toFixed(2)}
+
+Bankroll Update:
+- Previous: $${previousBankroll.toFixed(2)}
+- New: $${newBankroll.toFixed(2)}
+- Change: ${sign}$${profitLoss.toFixed(2)}
+
+RESPONSE INSTRUCTIONS:
+Acknowledge the historical bet entry and confirm it's been added to their tracking. Keep it brief and empathetic based on the outcome.
+${outcome === 'win' ?
+  `Example: "Nice! I've logged that $${amount.toFixed(2)} win on ${team}. Your bankroll is now at $${newBankroll.toFixed(2)}."` :
+  `Example: "Got it, I've logged that $${amount.toFixed(2)} loss on ${team}. Your bankroll is now at $${newBankroll.toFixed(2)}."`
+}`;
       }
     }
 
@@ -2214,6 +3339,8 @@ Keep your response CONCISE but ALWAYS include the updated P/L percentage.`;
     const systemPrompt = dataContext
       ? `${basePrompt}
 
+${userContextPrompt}
+
 ${bankrollContext}
 
 ${isAskingForScore ? 'LIVE SCORE DATA RETRIEVED:' : 'LIVE BETTING DATA RETRIEVED:'}
@@ -2226,16 +3353,30 @@ ${isAskingForScore
       : bankrollUpdateContext
         ? `${basePrompt}
 
+${userContextPrompt}
+
 ${bankrollContext}
 
 ${bankrollUpdateContext}`
+      : historicalBetContext
+        ? `${basePrompt}
+
+${userContextPrompt}
+
+${bankrollContext}
+
+${historicalBetContext}`
       : betOutcomeContext
         ? `${basePrompt}
+
+${userContextPrompt}
 
 ${bankrollContext}
 
 ${betOutcomeContext}`
         : `${basePrompt}
+
+${userContextPrompt}
 
 ${bankrollContext}
 
