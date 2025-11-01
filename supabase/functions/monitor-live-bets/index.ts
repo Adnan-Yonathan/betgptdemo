@@ -7,7 +7,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const RUNDOWN_API_KEY = Deno.env.get('RUNDOWN_API_KEY') || '';
+const RUNDOWN_API_KEY = Deno.env.get('THE_RUNDOWN_API') || '';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 
@@ -39,12 +39,15 @@ interface LiveScoresResponse {
   events: LiveScore[];
 }
 
-// Map league names to sport IDs
+// Map league names to sport IDs (must match The Rundown API sport IDs)
 const sportIdMap: Record<string, number> = {
-  'NBA': 4,    // Basketball
-  'NFL': 2,    // American Football
-  'MLB': 3,    // Baseball
-  'NHL': 1,    // Ice Hockey
+  'NBA': 4,     // Basketball
+  'NFL': 2,     // American Football
+  'NCAAF': 9,   // College Football (CFB)
+  'MLB': 3,     // Baseball
+  'NHL': 1,     // Ice Hockey
+  'WNBA': 12,   // Women's Basketball
+  'MLS': 10,    // Soccer
 };
 
 // Map game status from API to our format
@@ -142,17 +145,14 @@ async function monitorLiveBets() {
   const activeTracking = await getActiveTracking(supabase);
   console.log(`Found ${activeTracking.length} active bets to track`);
 
-  if (activeTracking.length === 0) {
-    return { success: true, message: 'No active bets to track' };
-  }
-
-  // Get unique leagues from active bets
-  const activeLeagues = [...new Set(activeTracking.map((t: any) => t.league))];
-  console.log(`Active leagues: ${activeLeagues.join(', ')}`);
+  // Always fetch live scores for ALL leagues, not just those with active bets
+  // This ensures the live score ticker always has data to display
+  const allLeagues = Object.keys(sportIdMap);
+  console.log(`Fetching live scores for all leagues: ${allLeagues.join(', ')}`);
 
   // Fetch live scores for each league
   const allScores: LiveScore[] = [];
-  for (const league of activeLeagues) {
+  for (const league of allLeagues) {
     const scores = await fetchLiveScores(league as string);
     allScores.push(...scores);
     console.log(`Fetched ${scores.length} live scores for ${league}`);
@@ -160,7 +160,7 @@ async function monitorLiveBets() {
 
   // Update live score cache
   for (const score of allScores) {
-    const league = activeLeagues.find(l => {
+    const league = allLeagues.find(l => {
       const sportId = sportIdMap[l as string];
       return sportId === score.sport_id;
     });
@@ -230,15 +230,6 @@ async function monitorLiveBets() {
 
 serve(async (req) => {
   try {
-    // Verify request is from Supabase cron or authorized caller
-    const authHeader = req.headers.get('authorization');
-    if (authHeader !== `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
     const result = await monitorLiveBets();
 
     return new Response(JSON.stringify(result), {
