@@ -8,6 +8,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { useBets } from "@/contexts/BetContext";
+import { isBetTrackingIntent, extractBetData, isValidBetData } from "@/utils/betUtils";
 
 interface Message {
   id: string;
@@ -28,6 +30,7 @@ const initialMessages: Message[] = [{
 export function LiveTrackingChat() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { addBet } = useBets();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -133,6 +136,23 @@ export function LiveTrackingChat() {
               }
             }
           }
+        }
+      }
+
+      // Check if this is a bet tracking message and add to tracker
+      if (isBetTrackingIntent(userMessage.content)) {
+        const betData = extractBetData(userMessage.content, accumulatedContent);
+
+        if (isValidBetData(betData)) {
+          addBet(betData);
+          console.log('✅ Bet tracked from LiveTrackingChat:', betData);
+
+          toast({
+            title: "Bet Tracked",
+            description: betData.displayDescription || "Your bet has been added to the tracker",
+          });
+        } else {
+          console.log('⚠️ Bet tracking detected but data insufficient:', betData);
         }
       }
 
