@@ -75,9 +75,9 @@ export function SmartAlerts() {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('smart_alerts')
-        .select('*')
+    const { data, error } = await supabase
+      .from('smart_alerts')
+      .select('*')
         .eq('user_id', user.id)
         .order('priority', { ascending: true })
         .order('created_at', { ascending: false})

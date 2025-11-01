@@ -51,9 +51,9 @@ export function AIStrategyAdvisor() {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('ai_insights')
-        .select('*')
+    const { data, error } = await supabase
+      .from('ai_insights')
+      .select('*')
         .eq('user_id', user.id)
         .eq('status', 'active')
         .order('priority', { ascending: false })

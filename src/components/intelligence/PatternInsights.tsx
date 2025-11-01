@@ -44,9 +44,9 @@ export function PatternInsights() {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('pattern_detections')
-        .select('*')
+    const { data, error } = await supabase
+      .from('pattern_detections')
+      .select('*')
         .eq('user_id', user.id)
         .eq('status', 'active')
         .order('confidence', { ascending: false });

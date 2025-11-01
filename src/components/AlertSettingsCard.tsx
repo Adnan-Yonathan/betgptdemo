@@ -70,7 +70,7 @@ export function AlertSettings() {
 
       try {
         const { data, error } = await supabase
-          .from('user_alert_settings')
+          .from('user_alert_preferences')
           .select('*')
           .eq('user_id', user.id)
           .single();
@@ -108,7 +108,7 @@ export function AlertSettings() {
     setIsSaving(true);
     try {
       const { error } = await supabase
-        .from('user_alert_settings')
+        .from('user_alert_preferences')
         .upsert({
           user_id: user.id,
           ...settings,

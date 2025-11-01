@@ -40,9 +40,9 @@ export function PredictiveAnalytics() {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('predictions')
-        .select('*')
+    const { data, error } = await supabase
+      .from('model_predictions')
+      .select('*')
         .eq('user_id', user.id)
         .is('validated_at', null)
         .order('prediction_date', { ascending: false })

@@ -6,23 +6,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Activity, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
-interface LiveScore {
-  game_id: string;
-  league: string;
-  home_team: string;
-  away_team: string;
-  home_score: number;
-  away_score: number;
-  period: string;
-  time_remaining: string;
-  game_status: string;
-}
-
 export function LiveScoreTicker() {
-  const [liveScores, setLiveScores] = useState<LiveScore[]>([]);
+  const [liveScores, setLiveScores] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch live scores
   const fetchLiveScores = async () => {
     try {
       const { data, error } = await supabase
@@ -42,38 +29,10 @@ export function LiveScoreTicker() {
     }
   };
 
-  // Initial fetch
   useEffect(() => {
     fetchLiveScores();
-
-    // Poll every 30 seconds
     const interval = setInterval(fetchLiveScores, 30000);
-
     return () => clearInterval(interval);
-  }, []);
-
-  // Set up Realtime subscription
-  useEffect(() => {
-    const channel = supabase
-      .channel('live_score_updates')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'live_score_cache',
-          filter: 'game_status=eq.in_progress'
-        },
-        (payload) => {
-          console.log('Live score update:', payload);
-          fetchLiveScores();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, []);
 
   if (isLoading) {
@@ -81,7 +40,6 @@ export function LiveScoreTicker() {
       <Card className="border-0 shadow-none">
         <CardContent className="p-3">
           <div className="flex items-center gap-4">
-            <Skeleton className="h-16 flex-1" />
             <Skeleton className="h-16 flex-1" />
             <Skeleton className="h-16 flex-1" />
           </div>
@@ -110,12 +68,11 @@ export function LiveScoreTicker() {
           <div className="flex gap-3 pb-2">
             {liveScores.map((score) => (
               <Card
-                key={score.game_id}
+                key={score.id}
                 className="flex-shrink-0 w-[280px] border-2 bg-card"
               >
                 <CardContent className="p-3">
                   <div className="space-y-2">
-                    {/* League and Status */}
                     <div className="flex items-center justify-between">
                       <Badge variant="outline" className="text-xs">
                         {score.league}
@@ -125,8 +82,6 @@ export function LiveScoreTicker() {
                         <span>LIVE</span>
                       </div>
                     </div>
-
-                    {/* Scores */}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium truncate max-w-[140px]">
@@ -145,10 +100,8 @@ export function LiveScoreTicker() {
                         </span>
                       </div>
                     </div>
-
-                    {/* Game Time */}
                     <div className="text-xs text-muted-foreground text-center pt-1 border-t">
-                      {score.period} • {score.time_remaining || 'In Progress'}
+                      {score.period || 'Live'} • {score.game_time || 'In Progress'}
                     </div>
                   </div>
                 </CardContent>
