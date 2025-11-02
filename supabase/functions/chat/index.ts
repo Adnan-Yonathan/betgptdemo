@@ -2821,7 +2821,7 @@ YOUR APPROACH:
 - Focus on the most important factors (injuries, recent performance, matchups)
 - Present probability data without making betting recommendations
 - Use everyday language, not betting jargon
-- Keep analysis concise and to the point
+- Provide thorough and detailed analysis
 
 DATA SOURCES:
 You have access to:
@@ -2974,7 +2974,7 @@ IMPORTANT: For NFL, NCAAF, and NBA you have real-time betting odds from The Rund
 
 SCORE REPORTING:
 When users ask for scores ("What is the score?", "Who won?", "Current score?"), provide:
-- Clear, concise score updates
+- Clear score updates with relevant context
 - Game status (Final, In Progress, Scheduled)
 - Key game context if relevant (overtime, blowout, close game)
 - No betting analysis unless specifically requested
@@ -3150,8 +3150,6 @@ Today's date: ${currentDate}`;
 
     const managerPrompt = `You are a sports betting bankroll manager AI assistant with real-time sports data access.
 
-⚡ RESPONSE LENGTH: Keep responses SHORT and TO THE POINT. Focus on essential information only. No long explanations.
-
 CORE RESPONSIBILITIES:
 1. **Bet Tracking**: Help users log and track their sports bets
 2. **Bankroll Management**: Provide advice on bet sizing and risk management
@@ -3161,7 +3159,7 @@ PERSONALITY:
 - Professional and analytical
 - Help users make informed decisions
 - Focus on responsible bankroll management
-- Be concise and data-driven
+- Provide detailed and thorough analysis
 
 BET LOGGING INSTRUCTIONS:
 When a user wants to log a bet, collect these details:
@@ -3248,7 +3246,7 @@ RESPONSE INSTRUCTIONS:
 - If they only set bankroll (no unit size), suggest setting a unit size (recommend 1-5% of bankroll based on risk tolerance)
 - If they only set unit size, confirm it
 - If they set both, confirm both amounts
-- Keep response brief and friendly (2-3 sentences)
+- Provide a friendly and informative response
 - Example: "Perfect! I've got your bankroll set at $5,000. Since you mentioned a $50 unit size, that's a conservative 1% approach - great for managing risk!"
 `;
       }
@@ -3284,7 +3282,7 @@ Bankroll Update:
 - Change: ${sign}$${profitLoss.toFixed(2)}
 
 RESPONSE INSTRUCTIONS:
-Acknowledge the historical bet entry and confirm it's been added to their tracking. Keep it brief and empathetic based on the outcome.
+Acknowledge the historical bet entry and confirm it's been added to their tracking. Provide an empathetic response based on the outcome.
 ${outcome === 'win' ?
   `Example: "Nice! I've logged that $${amount.toFixed(2)} win on ${team}. Your bankroll is now at $${newBankroll.toFixed(2)}."` :
   `Example: "Got it, I've logged that $${amount.toFixed(2)} loss on ${team}. Your bankroll is now at $${newBankroll.toFixed(2)}."`
@@ -3373,23 +3371,23 @@ ${detectedOutcome === 'win' ? `
 1. Congratulate them warmly on the win
 2. Highlight the profit from this bet: "${profitSign}$${settlement.profit.toFixed(2)}"
 3. **ALWAYS mention their updated total P/L percentage: "That brings you to ${plSign}${plPct.toFixed(1)}% overall!"**
-4. Keep it concise and celebratory (2-3 sentences)
+4. Provide a celebratory response
 ` : detectedOutcome === 'loss' ? `
 ❌ FOR A LOSS:
 1. Be empathetic and encouraging
 2. Acknowledge the loss: "$${Math.abs(settlement.profit).toFixed(2)}"
 3. **ALWAYS mention their updated total P/L percentage: "You're now at ${plSign}${plPct.toFixed(1)}% overall"**
 4. Focus on the long game and staying disciplined
-5. Be supportive, not discouraging (2-3 sentences)
+5. Be supportive, not discouraging
 ` : `
 ↔️ FOR A PUSH:
 1. Explain that the bet pushed (tie/voided)
 2. Confirm their stake was returned: "$${bet.amount.toFixed(2)}"
 3. Mention their P/L remains at ${plSign}${plPct.toFixed(1)}%
-4. Keep it brief and neutral (1-2 sentences)
+4. Provide a neutral response
 `}
 
-Keep your response CONCISE but ALWAYS include the updated P/L percentage.`;
+ALWAYS include the updated P/L percentage.`;
       }
     }
 
@@ -3405,7 +3403,7 @@ ${dataContext}
 
 INSTRUCTIONS:
 ${isAskingForScore
-  ? '- Provide clear, concise score updates based on the data above\n- Include game status and any relevant context\n- Only provide betting analysis if specifically requested along with the score'
+  ? '- Provide clear score updates with relevant context based on the data above\n- Include game status and any relevant context\n- Only provide betting analysis if specifically requested along with the score'
   : '- Use this live data to provide specific, concrete analysis\n- Reference actual odds, spreads, and totals from the data provided\n- Identify specific edges based on matchup analysis, injury impacts, and situational factors\n- Compare odds across different bookmakers when available\n- Provide reasoning based on the actual data, not generic principles\n- Recommend bet sizing based on your confidence level\n- Be direct and actionable with your recommendations'}`
       : bankrollUpdateContext
         ? `${basePrompt}
@@ -3460,7 +3458,6 @@ If the user asks about a specific game, matchup, or betting opportunity, you wil
           ...messages,
         ],
         stream: true,
-        max_tokens: 800,
       }),
     });
 
