@@ -104,6 +104,9 @@ async function generateMLBPrediction(supabase: any, game: any) {
 
   const homeWinProb = calculateMLBWinProbability(predictedHomeScore, predictedAwayScore);
 
+  // Calculate total over/under probabilities
+  const totalProbabilities = calculateTotalProbability(predictedTotal, marketData.total);
+
   return {
     model_id: modelId,
     event_id: game.event_id,
@@ -118,6 +121,8 @@ async function generateMLBPrediction(supabase: any, game: any) {
     predicted_total: predictedTotal,
     home_win_probability: homeWinProb,
     away_win_probability: 1 - homeWinProb,
+    total_over_probability: totalProbabilities.overProb,
+    total_under_probability: totalProbabilities.underProb,
     confidence_score: confidence,
     fair_odds_home: fairOdds.homeML,
     fair_odds_away: fairOdds.awayML,
@@ -126,8 +131,6 @@ async function generateMLBPrediction(supabase: any, game: any) {
     market_odds_home: marketData.homeML,
     market_odds_away: marketData.awayML,
     market_total: marketData.total,
-    edge_percentage: calculateMLBEdge(homeWinProb, marketData.homeML),
-    edge_side: homeWinProb > 0.5 ? 'home' : 'away',
     feature_values: features,
     game_started: false,
     game_completed: false,
@@ -177,18 +180,31 @@ function calculateMLBWinProbability(homeScore: number, awayScore: number): numbe
   return Math.max(0.01, Math.min(0.99, prob));
 }
 
-function calculateMLBEdge(winProb: number, marketOdds: number): number {
-  const marketImplied = oddsToImpliedProbability(marketOdds);
-  const edge = (winProb - marketImplied) * 100;
-  return Math.round(edge * 10) / 10;
-}
+/**
+ * Calculate the probability of the total going over or under
+ * Uses the difference between predicted total and market total
+ */
+function calculateTotalProbability(
+  predictedTotal: number,
+  marketTotal: number
+) {
+  // MLB standard deviation for totals ~2.5 runs
+  const stdDev = 2.5;
 
-function oddsToImpliedProbability(odds: number): number {
-  if (odds > 0) {
-    return 100 / (odds + 100);
-  } else {
-    return Math.abs(odds) / (Math.abs(odds) + 100);
-  }
+  // Calculate how many standard deviations the market total is from our prediction
+  const totalDiff = predictedTotal - marketTotal;
+  const z = totalDiff / stdDev;
+
+  // Positive totalDiff means we predict higher scoring than market expects
+  const overProb = 1 / (1 + Math.exp(-z));
+
+  // Under probability is complementary
+  const underProb = 1 - overProb;
+
+  return {
+    overProb: Math.max(0.01, Math.min(0.99, overProb)),
+    underProb: Math.max(0.01, Math.min(0.99, underProb)),
+  };
 }
 
 async function getMarketOdds(supabase: any, eventId: string) {
