@@ -7,10 +7,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Activity, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useBets } from "@/contexts/BetContext";
 
 export function LiveBetTracker() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { activeBets } = useBets();
   const [liveBets, setLiveBets] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -42,6 +44,16 @@ export function LiveBetTracker() {
     return () => clearInterval(interval);
   }, [user]);
 
+  // Combine database bets with context bets
+  const allBets = [...liveBets, ...activeBets];
+
+  // Log when active bets update
+  useEffect(() => {
+    if (activeBets.length > 0) {
+      console.log('📊 Live Tracker - Active Bets Updated:', activeBets.length);
+    }
+  }, [activeBets]);
+
   if (isLoading) {
     return (
       <Card>
@@ -58,7 +70,7 @@ export function LiveBetTracker() {
     );
   }
 
-  if (liveBets.length === 0) {
+  if (allBets.length === 0) {
     return (
       <Card>
         <CardHeader>
@@ -85,39 +97,39 @@ export function LiveBetTracker() {
             <Activity className="w-5 h-5 text-primary animate-pulse" />
             Live Bets
           </div>
-          <Badge variant="secondary">{liveBets.length} active</Badge>
+          <Badge variant="secondary">{allBets.length} active</Badge>
         </CardTitle>
         <CardDescription>Real-time tracking of your active bets</CardDescription>
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[400px] pr-4">
           <div className="space-y-4">
-            {liveBets.map((bet) => (
+            {allBets.map((bet) => (
               <Card key={bet.id} className="border-2">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <CardTitle className="text-base">
-                        {bet.description}
+                        {bet.displayDescription || bet.description}
                       </CardTitle>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
                         <Badge variant="outline" className="text-xs">
-                          {bet.bet_type}
+                          {bet.type || bet.bet_type || 'unknown'}
                         </Badge>
                         <span>•</span>
-                        <span className="font-medium">${bet.amount}</span>
+                        <span className="font-medium">${bet.amount || 0}</span>
                         <span>•</span>
-                        <span>{bet.odds > 0 ? '+' : ''}{bet.odds}</span>
+                        <span>{bet.odds}</span>
                       </div>
                     </div>
                     <Badge className="bg-blue-500/10 text-blue-500">
-                      PENDING
+                      {bet.status?.toUpperCase() || bet.outcome?.toUpperCase() || 'PENDING'}
                     </Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
                   <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    <span>{bet.league || 'Unknown League'}</span>
+                    <span>{bet.gameInfo?.league || bet.league || 'Unknown League'}</span>
                     <Clock className="w-4 h-4" />
                   </div>
                 </CardContent>

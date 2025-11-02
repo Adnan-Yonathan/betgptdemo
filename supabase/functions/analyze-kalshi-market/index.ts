@@ -28,38 +28,23 @@ async function analyzeMarketWithAI(
   // Build context for AI
   const context = buildAnalysisContext(market, relatedData);
 
-  const prompt = `You are an expert sports betting analyst. Analyze this Kalshi prediction market and provide a detailed assessment.
+  const prompt = `Analyze this Kalshi market concisely. Provide ONLY the most critical insights.
 
-MARKET DETAILS:
-${context}
+MARKET: ${context}
 
-Provide your analysis in the following JSON format:
+Return JSON with:
 {
-  "model_probability": <your estimated probability as decimal 0-1>,
-  "edge": <difference between your probability and market price as decimal>,
-  "confidence_score": <confidence in your analysis 0-100>,
-  "recommendation": "<one of: strong_yes, yes, no, strong_no, hold, avoid>",
-  "reasoning": "<detailed explanation of your analysis>",
-  "key_factors": [
-    "<factor 1>",
-    "<factor 2>",
-    "<factor 3>"
-  ],
-  "expected_value": <expected profit/loss per contract>,
-  "kelly_fraction": <optimal bet size using Kelly Criterion as decimal>
+  "model_probability": <decimal 0-1>,
+  "edge": <decimal>,
+  "confidence_score": <0-100>,
+  "recommendation": "<strong_yes|yes|no|strong_no|hold|avoid>",
+  "reasoning": "<2-3 sentences max - only KEY points>",
+  "key_factors": ["<top 3 factors only>"],
+  "expected_value": <number>,
+  "kelly_fraction": <decimal>
 }
 
-Consider:
-1. Team/player recent performance and trends
-2. Historical matchup data
-3. Home/away splits
-4. Injuries and lineup changes
-5. Market efficiency and sharp money indicators
-6. Statistical models and power ratings
-7. Public betting sentiment vs sharp money
-8. Value and edge analysis
-
-Be objective and data-driven. Only recommend bets with significant edge (>5%).`;
+Focus on: recent performance, key matchup factors, value edge. Be concise and data-driven.`;
 
   try {
     const response = await fetch(OPENAI_API_URL, {
@@ -73,7 +58,7 @@ Be objective and data-driven. Only recommend bets with significant edge (>5%).`;
         messages: [
           {
             role: 'system',
-            content: 'You are an expert sports betting analyst with deep knowledge of statistics, probability theory, and sports analytics. Provide detailed, data-driven analysis.',
+            content: 'You are a sports betting analyst. Provide concise, data-driven analysis with ONLY essential information.',
           },
           {
             role: 'user',
@@ -81,7 +66,7 @@ Be objective and data-driven. Only recommend bets with significant edge (>5%).`;
           },
         ],
         temperature: 0.3,
-        max_tokens: 1500,
+        max_tokens: 500,
       }),
     });
 

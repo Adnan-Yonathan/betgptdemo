@@ -1135,6 +1135,11 @@ function formatOddsData(odds: any[], query: string): string {
   const lastUpdated = odds[0]?.last_updated ? new Date(odds[0].last_updated) : now;
   const dataAgeMinutes = Math.floor((now.getTime() - lastUpdated.getTime()) / 60000);
 
+  // CRITICAL: Reject data older than 2 hours as too stale for reliable betting
+  if (dataAgeMinutes > 120) {
+    return `ERROR: Betting odds data is too stale (${dataAgeMinutes} minutes / ${Math.floor(dataAgeMinutes / 60)} hours old). Cannot provide reliable recommendations. Data last updated: ${lastUpdated.toLocaleString()}. The automated refresh system should update this data within 30 minutes. Please try again later or contact support if this persists.`;
+  }
+
   // Group odds by event
   const eventMap = new Map<string, any[]>();
   for (const odd of odds) {
@@ -1148,7 +1153,19 @@ function formatOddsData(odds: any[], query: string): string {
   let result = `LIVE BETTING ODDS DATA:\n`;
   result += `Data Retrieved: ${now.toLocaleString()}\n`;
   result += `Last Updated: ${lastUpdated.toLocaleString()} (${dataAgeMinutes} minutes ago)\n`;
-  result += `Data Freshness: ${dataAgeMinutes < 5 ? 'FRESH' : dataAgeMinutes < 15 ? 'RECENT' : dataAgeMinutes < 30 ? 'ACCEPTABLE' : 'STALE - lines may have moved'}\n\n`;
+
+  // ENHANCED: Stronger, clearer staleness warnings
+  if (dataAgeMinutes > 60) {
+    result += `⚠️ DATA QUALITY: STALE (>1 hour old) - Lines may have significantly moved. Use with extreme caution or wait for refresh.\n\n`;
+  } else if (dataAgeMinutes > 30) {
+    result += `⚠️ DATA QUALITY: MODERATELY STALE (>30 min old) - Lines may have moved since last update.\n\n`;
+  } else if (dataAgeMinutes > 15) {
+    result += `Data Freshness: RECENT (updated ${dataAgeMinutes} min ago)\n\n`;
+  } else if (dataAgeMinutes > 5) {
+    result += `Data Freshness: FRESH (updated ${dataAgeMinutes} min ago) ✅\n\n`;
+  } else {
+    result += `Data Freshness: VERY FRESH (updated ${dataAgeMinutes} min ago) ✅✅\n\n`;
+  }
 
   for (const [event, eventOdds] of eventMap.entries()) {
     const firstOdd = eventOdds[0];
@@ -2749,11 +2766,33 @@ RESPONSIBLE GAMBLING:
       }
     }
 
-    const currentDate = new Date().toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    // CRITICAL: Validate betting data availability before allowing AI to respond
+    // This prevents AI from hallucinating or guessing betting lines
+    if (isAskingForBettingData) {
+      const hasValidBettingData = dataContext &&
+                                 !dataContext.includes('ERROR') &&
+                                 !dataContext.includes('No betting odds') &&
+                                 !dataContext.includes('too stale') &&
+                                 !dataContext.includes('not available');
+
+      if (!hasValidBettingData) {
+        console.error('[BETTING GUARDRAIL] Blocking AI response - no valid betting data available');
+        console.error('[BETTING GUARDRAIL] Data context:', dataContext?.substring(0, 200));
+
+        return new Response(JSON.stringify({
+          response: "I apologize, but I cannot provide betting recommendations at this time because I don't have access to current, accurate betting lines. The data may be unavailable or too stale. Please try again in a few minutes, or contact support if this persists.\n\nIf you need general betting advice or have questions about betting concepts, I'm happy to help with that instead!",
+          requiresAuth: false,
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
+    const currentDate = new Date().toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
 
     // Define system prompts for each mode
@@ -2761,6 +2800,14 @@ RESPONSIBLE GAMBLING:
     const basicModePrompt = `You are DeltaEdge - a friendly sports betting analyst who helps bettors understand probability and make informed decisions.
 
 MISSION: Provide clear, easy-to-understand probability analysis to help users evaluate betting opportunities.
+
+🚨 CRITICAL DATA REQUIREMENT - READ THIS FIRST:
+- You MUST ONLY provide betting recommendations when you have FRESH, VERIFIED odds data from The Rundown API
+- If the odds data shows "STALE" or "ERROR" or is marked as unavailable, you MUST refuse to recommend specific lines
+- NEVER guess or estimate betting lines from your training data
+- NEVER use historical odds or make up numbers
+- Only use the EXACT odds provided in the live data context below
+- If asked for betting lines but you don't have current data, say: "I cannot provide specific betting recommendations without current odds data from The Rundown API."
 
 CRITICAL: MEMORY & DATA ACCESS
 - You have FULL ACCESS to this user's complete betting history, bankroll data, and all previous conversations
@@ -2852,6 +2899,14 @@ Today's date: ${currentDate}`;
     const advancedModePrompt = `You are DeltaEdge - a professional sports betting analyst with advanced statistical modeling capabilities.
 
 MISSION: Provide statistically-driven probability analysis with transparent mathematical reasoning.
+
+🚨 CRITICAL DATA REQUIREMENT - READ THIS FIRST:
+- You MUST ONLY provide betting recommendations when you have FRESH, VERIFIED odds data from The Rundown API
+- If the odds data shows "STALE" (>1 hour old), "ERROR", or is marked as unavailable, you MUST refuse to recommend specific lines
+- NEVER guess, estimate, or use historical betting lines from your training data
+- Only use the EXACT odds, spreads, and totals provided in the live data context below
+- Data must be clearly marked as "FRESH" or "RECENT" to make recommendations
+- If data quality is insufficient, say: "I cannot provide specific betting recommendations without current, accurate odds data from The Rundown API. The data is either unavailable, too stale, or incomplete."
 
 ⚠️ CRITICAL: NEVER PROVIDE SIMPLE OR CASUAL ANALYSIS ⚠️
 You MUST ALWAYS include in EVERY probability analysis:
@@ -3094,6 +3149,8 @@ Users in advanced mode EXPECT and DEMAND sophisticated statistical analysis pres
 Today's date: ${currentDate}`;
 
     const managerPrompt = `You are a sports betting bankroll manager AI assistant with real-time sports data access.
+
+⚡ RESPONSE LENGTH: Keep responses SHORT and TO THE POINT. Focus on essential information only. No long explanations.
 
 CORE RESPONSIBILITIES:
 1. **Bet Tracking**: Help users log and track their sports bets
@@ -3396,13 +3453,14 @@ If the user asks about a specific game, matchup, or betting opportunity, you wil
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { 
-            role: "system", 
+          {
+            role: "system",
             content: systemPrompt
           },
           ...messages,
         ],
         stream: true,
+        max_tokens: 800,
       }),
     });
 

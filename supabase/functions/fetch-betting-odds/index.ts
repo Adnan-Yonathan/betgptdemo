@@ -113,6 +113,18 @@ serve(async (req) => {
 
     if (!rundownApiKey) {
       console.error('THE_RUNDOWN_API key not configured');
+
+      // Log this error to betting_odds_fetch_log for monitoring
+      await supabaseClient
+        .from('betting_odds_fetch_log')
+        .insert({
+          sports_fetched: [sport],
+          success: false,
+          events_count: 0,
+          odds_count: 0,
+          error_message: 'THE_RUNDOWN_API key not configured in environment variables',
+        });
+
       return new Response(JSON.stringify({
         error: 'THE_RUNDOWN_API key not configured',
         success: false,
@@ -144,6 +156,19 @@ serve(async (req) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`The Rundown API error: ${response.status} - ${errorText}`);
+
+      // Log API errors for monitoring and debugging
+      const errorMessage = `The Rundown API returned ${response.status}: ${errorText.substring(0, 500)}`;
+      await supabaseClient
+        .from('betting_odds_fetch_log')
+        .insert({
+          sports_fetched: [sport],
+          success: false,
+          events_count: 0,
+          odds_count: 0,
+          error_message: errorMessage,
+        });
+
       return new Response(JSON.stringify({
         error: `The Rundown API returned ${response.status}`,
         details: errorText,

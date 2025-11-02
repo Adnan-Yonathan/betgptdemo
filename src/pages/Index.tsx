@@ -6,9 +6,11 @@ import { ProfileDropdown } from "@/components/ProfileDropdown";
 import { ProfileSettings } from "@/components/ProfileSettings";
 import { ThinkingIndicator } from "@/components/ThinkingIndicator";
 import { LiveBetTracker } from "@/components/LiveBetTracker";
+import { LiveTrackingChat } from "@/components/LiveTrackingChat";
 import { BetAlerts } from "@/components/BetAlerts";
 import { AlertSettings } from "@/components/AlertSettingsCard";
 import { LiveScoreTicker } from "@/components/LiveScoreTicker";
+import { LiveEventsTicker } from "@/components/LiveEventsTicker";
 import { SmartAlerts } from "@/components/intelligence/SmartAlerts";
 import { AIStrategyAdvisor } from "@/components/intelligence/AIStrategyAdvisor";
 import { PatternInsights } from "@/components/intelligence/PatternInsights";
@@ -22,7 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { playAudioFromBase64 } from "@/utils/voiceUtils";
-import { BookOpen, Menu, Activity, Bell, Settings, Brain, TrendingUp, Target, Zap, LineChart } from "lucide-react";
+import { BookOpen, Menu, Activity, Bell, Settings, Brain, TrendingUp, Target, Zap, LineChart, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserGuide } from "@/components/UserGuide";
 interface Message {
@@ -352,7 +354,11 @@ const Index = () => {
       });
     }
   };
-  return <div className="flex h-screen bg-background">
+  return <div className="flex h-screen bg-background flex-col">
+      {/* Live Events Ticker - Always visible at the top */}
+      <LiveEventsTicker />
+
+      <div className="flex flex-1 overflow-hidden">
       {/* Desktop Sidebar - Hidden on mobile */}
       {!isMobile && <ChatSidebar currentConversationId={currentConversationId} onConversationSelect={loadConversation} onNewChat={handleNewChat} />}
 
@@ -433,10 +439,14 @@ const Index = () => {
           </div>
           <ScrollArea className="flex-1">
             <Tabs defaultValue="bets" className="w-full">
-              <TabsList className="w-full grid grid-cols-4 border-b rounded-none h-auto p-0">
+              <TabsList className="w-full grid grid-cols-5 border-b rounded-none h-auto p-0">
                 <TabsTrigger value="bets" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs">
                   <Activity className="w-4 h-4 mr-1" />
                   Bets
+                </TabsTrigger>
+                <TabsTrigger value="chat" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs">
+                  <MessageSquare className="w-4 h-4 mr-1" />
+                  Chat
                 </TabsTrigger>
                 <TabsTrigger value="alerts" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs">
                   <Bell className="w-4 h-4 mr-1" />
@@ -472,6 +482,9 @@ const Index = () => {
               <div className="p-4">
                 <TabsContent value="bets" className="mt-0">
                   <LiveBetTracker />
+                </TabsContent>
+                <TabsContent value="chat" className="mt-0">
+                  <LiveTrackingChat />
                 </TabsContent>
                 <TabsContent value="alerts" className="mt-0">
                   <BetAlerts />
@@ -514,6 +527,10 @@ const Index = () => {
                     <Activity className="w-4 h-4 mr-1" />
                     Bets
                   </TabsTrigger>
+                  <TabsTrigger value="chat" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2">
+                    <MessageSquare className="w-4 h-4 mr-1" />
+                    Chat
+                  </TabsTrigger>
                   <TabsTrigger value="alerts" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary text-xs px-2">
                     <Bell className="w-4 h-4 mr-1" />
                     Alerts
@@ -550,6 +567,9 @@ const Index = () => {
                 <TabsContent value="bets" className="mt-0">
                   <LiveBetTracker />
                 </TabsContent>
+                <TabsContent value="chat" className="mt-0">
+                  <LiveTrackingChat />
+                </TabsContent>
                 <TabsContent value="alerts" className="mt-0">
                   <BetAlerts />
                 </TabsContent>
@@ -579,6 +599,7 @@ const Index = () => {
 
       <ProfileSettings open={profileOpen} onOpenChange={setProfileOpen} />
       <UserGuide open={guideOpen} onOpenChange={setGuideOpen} />
+      </div>
     </div>;
 };
 export default Index;
