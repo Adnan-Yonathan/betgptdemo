@@ -240,32 +240,59 @@ async function detectSteamMoves(supabase: any) {
 async function detectEVDiscrepancies(supabase: any) {
   const alerts: any[] = [];
 
-  // Get model predictions with high edge (using Eastern Time zone)
+  // Get model predictions with high probability scenarios (using Eastern Time zone)
   const { data: predictions } = await supabase
     .from('model_predictions')
     .select('*')
-    .gte('edge_percentage', 3)
     .eq('game_completed', false)
     .gte('game_date', getNowInEST().toISOString())
-    .order('edge_percentage', { ascending: false })
-    .limit(50);
+    .limit(100);
 
   if (!predictions) return alerts;
 
   for (const pred of predictions) {
+    // Find the highest probability scenario
+    let maxProb = 0;
+    let probScenario = '';
+    let probValue = 0;
+
+    if (pred.spread_cover_probability_home && pred.spread_cover_probability_home > maxProb) {
+      maxProb = pred.spread_cover_probability_home;
+      probScenario = `${pred.home_team} cover`;
+      probValue = pred.spread_cover_probability_home;
+    }
+    if (pred.spread_cover_probability_away && pred.spread_cover_probability_away > maxProb) {
+      maxProb = pred.spread_cover_probability_away;
+      probScenario = `${pred.away_team} cover`;
+      probValue = pred.spread_cover_probability_away;
+    }
+    if (pred.total_over_probability && pred.total_over_probability > maxProb) {
+      maxProb = pred.total_over_probability;
+      probScenario = 'OVER';
+      probValue = pred.total_over_probability;
+    }
+    if (pred.total_under_probability && pred.total_under_probability > maxProb) {
+      maxProb = pred.total_under_probability;
+      probScenario = 'UNDER';
+      probValue = pred.total_under_probability;
+    }
+
+    // Only alert on high-probability scenarios (>65%)
+    if (maxProb < 0.65) continue;
+
     const alert = {
       event_id: pred.event_id,
       sport: pred.sport,
       home_team: pred.home_team,
       away_team: pred.away_team,
       game_date: pred.game_date,
-      alert_type: 'ev_discrepancy',
-      priority: pred.edge_percentage >= 7 ? 'high' : 'medium',
-      title: `+EV: ${pred.away_team} @ ${pred.home_team}`,
-      message: `Model shows ${pred.edge_percentage.toFixed(1)}% edge on ${pred.edge_side}`,
+      alert_type: 'high_probability',
+      priority: maxProb >= 0.75 ? 'high' : 'medium',
+      title: `High Probability: ${pred.away_team} @ ${pred.home_team}`,
+      message: `Model shows ${(maxProb * 100).toFixed(1)}% probability for ${probScenario}`,
       data: {
-        edgePercentage: pred.edge_percentage,
-        edgeSide: pred.edge_side,
+        probability: probValue,
+        scenario: probScenario,
         confidence: pred.confidence_score,
         predictedSpread: pred.predicted_spread,
         marketSpread: pred.market_spread,
@@ -275,16 +302,19 @@ async function detectEVDiscrepancies(supabase: any) {
     alerts.push(alert);
   }
 
-  return alerts;
+  // Sort by probability descending
+  alerts.sort((a, b) => b.data.probability - a.data.probability);
+
+  return alerts.slice(0, 50);
 }
 
 /**
- * Detect closing line alerts (games closing soon with edge)
+ * Detect closing line alerts (games closing soon with high probability scenarios)
  */
 async function detectClosingLineAlerts(supabase: any) {
   const alerts: any[] = [];
 
-  // Get games starting in next 1-3 hours with model edge (using Eastern Time zone)
+  // Get games starting in next 1-3 hours (using Eastern Time zone)
   const nowEST = getNowInEST();
   const oneHourFromNow = new Date(nowEST.getTime() + 60 * 60 * 1000).toISOString();
   const threeHoursFromNow = new Date(nowEST.getTime() + 3 * 60 * 60 * 1000).toISOString();
@@ -294,12 +324,35 @@ async function detectClosingLineAlerts(supabase: any) {
     .select('*')
     .gte('game_date', oneHourFromNow)
     .lte('game_date', threeHoursFromNow)
-    .gte('edge_percentage', 2)
     .eq('game_completed', false);
 
   if (!predictions) return alerts;
 
   for (const pred of predictions) {
+    // Find the highest probability scenario
+    let maxProb = 0;
+    let probScenario = '';
+
+    if (pred.spread_cover_probability_home && pred.spread_cover_probability_home > maxProb) {
+      maxProb = pred.spread_cover_probability_home;
+      probScenario = `${pred.home_team} cover`;
+    }
+    if (pred.spread_cover_probability_away && pred.spread_cover_probability_away > maxProb) {
+      maxProb = pred.spread_cover_probability_away;
+      probScenario = `${pred.away_team} cover`;
+    }
+    if (pred.total_over_probability && pred.total_over_probability > maxProb) {
+      maxProb = pred.total_over_probability;
+      probScenario = 'OVER';
+    }
+    if (pred.total_under_probability && pred.total_under_probability > maxProb) {
+      maxProb = pred.total_under_probability;
+      probScenario = 'UNDER';
+    }
+
+    // Only alert on meaningful probabilities (>60%)
+    if (maxProb < 0.60) continue;
+
     const timeUntilGame = new Date(pred.game_date).getTime() - Date.now();
     const hoursUntilGame = Math.floor(timeUntilGame / (60 * 60 * 1000));
 
@@ -312,11 +365,11 @@ async function detectClosingLineAlerts(supabase: any) {
       alert_type: 'closing_line',
       priority: 'high',
       title: `Closing Soon: ${pred.away_team} @ ${pred.home_team}`,
-      message: `Game starts in ${hoursUntilGame}h. ${pred.edge_percentage.toFixed(1)}% edge on ${pred.edge_side}`,
+      message: `Game starts in ${hoursUntilGame}h. Model shows ${(maxProb * 100).toFixed(1)}% probability for ${probScenario}`,
       data: {
         hoursUntilGame,
-        edgePercentage: pred.edge_percentage,
-        edgeSide: pred.edge_side,
+        probability: maxProb,
+        scenario: probScenario,
       },
       expires_at: pred.game_date,
     };

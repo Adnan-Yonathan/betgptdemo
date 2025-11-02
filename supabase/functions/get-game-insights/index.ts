@@ -7,14 +7,21 @@ const corsHeaders = {
 };
 
 interface GameInsights {
-  valuePercent: number;
+  probabilities: {
+    spreadCoverHome?: number;
+    spreadCoverAway?: number;
+    totalOver?: number;
+    totalUnder?: number;
+    homeWin?: number;
+    awayWin?: number;
+  };
   sharpMoneyPercent: number;
   lineMovement: {
     opening: number;
     current: number;
     direction: "up" | "down" | "stable";
   };
-  dataConfidence: number;
+  modelConfidence: number;
   injuries: string[];
   weather: string;
   publicBettingPercent: number;
@@ -100,16 +107,23 @@ serve(async (req) => {
       console.error("[get-game-insights] Error fetching opening/closing:", ocError);
     }
 
-    // Build insights object
+    // Build insights object with probability data
     const insights: GameInsights = {
-      valuePercent: prediction?.edge_percentage || 0,
+      probabilities: {
+        spreadCoverHome: prediction?.spread_cover_probability_home || undefined,
+        spreadCoverAway: prediction?.spread_cover_probability_away || undefined,
+        totalOver: prediction?.total_over_probability || undefined,
+        totalUnder: prediction?.total_under_probability || undefined,
+        homeWin: prediction?.home_win_probability || undefined,
+        awayWin: prediction?.away_win_probability || undefined,
+      },
       sharpMoneyPercent: sharpSignals?.sharp_percentage || 50,
       lineMovement: {
         opening: openingClosing?.opening_spread || lineHistory?.[0]?.spread || 0,
         current: lineHistory?.[lineHistory.length - 1]?.spread || openingClosing?.opening_spread || 0,
         direction: "stable",
       },
-      dataConfidence: prediction?.confidence_score || 75,
+      modelConfidence: prediction?.confidence_score || 75,
       injuries: [],
       weather: "",
       publicBettingPercent: sharpSignals?.public_percentage || 50,
