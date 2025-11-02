@@ -16,6 +16,7 @@ import { AIStrategyAdvisor } from "@/components/intelligence/AIStrategyAdvisor";
 import { PatternInsights } from "@/components/intelligence/PatternInsights";
 import { BetSimulator } from "@/components/intelligence/BetSimulator";
 import { PredictiveAnalytics } from "@/components/intelligence/PredictiveAnalytics";
+import { OnboardingChat } from "@/components/OnboardingChat";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -51,6 +52,8 @@ const Index = () => {
   const [guideOpen, setGuideOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [checkingOnboarding, setCheckingOnboarding] = useState(true);
   const isMobile = useIsMobile();
   const {
     toast
@@ -59,6 +62,39 @@ const Index = () => {
     user
   } = useAuth();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  // Check if user needs onboarding
+  useEffect(() => {
+    const checkOnboardingStatus = async () => {
+      if (!user) {
+        setCheckingOnboarding(false);
+        return;
+      }
+
+      try {
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('onboarding_completed')
+          .eq('id', user.id)
+          .single();
+
+        if (error) {
+          console.error('Error checking onboarding status:', error);
+          setCheckingOnboarding(false);
+          return;
+        }
+
+        // Show onboarding if not completed
+        setShowOnboarding(!profile?.onboarding_completed);
+      } catch (error) {
+        console.error('Error in onboarding check:', error);
+      } finally {
+        setCheckingOnboarding(false);
+      }
+    };
+
+    checkOnboardingStatus();
+  }, [user]);
 
   // Auto-scroll with different behavior for streaming vs complete messages
   useEffect(() => {
@@ -354,6 +390,23 @@ const Index = () => {
       });
     }
   };
+  // Show loading state while checking onboarding
+  if (checkingOnboarding) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show onboarding if user needs it
+  if (user && showOnboarding) {
+    return <OnboardingChat onComplete={() => setShowOnboarding(false)} />;
+  }
+
   return <div className="flex h-screen bg-background flex-col">
       {/* Live Events Ticker - Always visible at the top */}
       <LiveEventsTicker />
