@@ -1227,6 +1227,143 @@ function formatOddsData(odds: any[], query: string): string {
   return result;
 }
 
+/**
+ * Fetch pre-computed odds discrepancies from the database
+ * This prevents token limit issues by using pre-calculated probability differences
+ */
+async function fetchOddsDiscrepancies(query: string, limit: number = 20): Promise<string> {
+  const supabase = getSupabaseClient();
+
+  console.log("Fetching odds discrepancies for query:", query);
+
+  // Determine sport from query
+  let sport = 'americanfootball_nfl'; // default
+  const queryLower = query.toLowerCase();
+
+  if (queryLower.includes('nba') || queryLower.includes('basketball')) {
+    sport = 'basketball_nba';
+  } else if (queryLower.includes('mlb') || queryLower.includes('baseball')) {
+    sport = 'baseball_mlb';
+  } else if (queryLower.includes('nhl') || queryLower.includes('hockey')) {
+    sport = 'icehockey_nhl';
+  } else if (queryLower.includes('ncaaf') || queryLower.includes('college football')) {
+    sport = 'americanfootball_ncaaf';
+  }
+
+  try {
+    // Fetch recent discrepancies (last hour)
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+    let query_builder = supabase
+      .from('odds_discrepancies')
+      .select('*')
+      .gte('calculated_at', oneHourAgo)
+      .order('probability_difference', { ascending: false })
+      .limit(limit);
+
+    // Filter by sport if not asking for "all" discrepancies
+    if (!queryLower.includes('all sports') && !queryLower.includes('every sport')) {
+      query_builder = query_builder.eq('sport', sport);
+    }
+
+    const { data: discrepancies, error } = await query_builder;
+
+    if (error) {
+      console.error('Error fetching odds discrepancies:', error);
+      return "No odds discrepancy data available at the moment.";
+    }
+
+    if (!discrepancies || discrepancies.length === 0) {
+      return `No significant odds discrepancies found for ${sport} in the last hour.\n\nNote: Discrepancies are automatically analyzed every 15 minutes. Check back soon or ask about a different sport.`;
+    }
+
+    return formatDiscrepanciesData(discrepancies, queryLower);
+
+  } catch (error) {
+    console.error('Exception fetching odds discrepancies:', error);
+    return "Error retrieving odds discrepancy analysis. Please try again.";
+  }
+}
+
+/**
+ * Format discrepancies data for the AI to use in responses
+ */
+function formatDiscrepanciesData(discrepancies: any[], query: string): string {
+  let result = "=== BETTING ODDS DISCREPANCY ANALYSIS ===\n\n";
+  result += `Found ${discrepancies.length} significant odds discrepancies across bookmakers.\n`;
+  result += `Data freshness: ${discrepancies[0]?.data_freshness_minutes || 'N/A'} minutes old\n\n`;
+
+  // Group by game
+  const gameMap = new Map<string, any[]>();
+
+  for (const disc of discrepancies) {
+    const gameKey = `${disc.away_team} @ ${disc.home_team}`;
+    if (!gameMap.has(gameKey)) {
+      gameMap.set(gameKey, []);
+    }
+    gameMap.get(gameKey)!.push(disc);
+  }
+
+  result += `=== TOP DISCREPANCIES BY GAME ===\n\n`;
+
+  for (const [game, discs] of gameMap.entries()) {
+    result += `📊 ${game}\n`;
+
+    if (discs[0].game_time) {
+      const gameTime = new Date(discs[0].game_time);
+      result += `   Game Time: ${gameTime.toLocaleString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      })}\n`;
+    }
+
+    result += `\n`;
+
+    // Sort by probability difference (biggest first)
+    discs.sort((a, b) => b.probability_difference - a.probability_difference);
+
+    for (const disc of discs) {
+      const marketName = disc.market_key === 'h2h' ? 'Moneyline' :
+                        disc.market_key === 'spreads' ? 'Spread' : 'Total';
+
+      result += `   ${marketName}: ${disc.outcome_name}\n`;
+      result += `   └─ BIGGEST DISCREPANCY: ${(disc.probability_difference * 100).toFixed(2)}%\n`;
+      result += `      • ${disc.bookmaker_low}: ${disc.odds_low > 0 ? '+' : ''}${disc.odds_low} → ${(disc.probability_low * 100).toFixed(2)}% implied\n`;
+      result += `      • ${disc.bookmaker_high}: ${disc.odds_high > 0 ? '+' : ''}${disc.odds_high} → ${(disc.probability_high * 100).toFixed(2)}% implied\n`;
+
+      if (disc.point_low !== null && disc.point_low !== disc.point_high) {
+        result += `      • Line difference: ${disc.point_low} vs ${disc.point_high}\n`;
+      }
+
+      result += `      • Coverage: ${disc.num_bookmakers} bookmakers\n`;
+      result += `\n`;
+    }
+
+    result += `\n`;
+  }
+
+  // Add summary of biggest single discrepancy
+  const biggest = discrepancies[0];
+  result += `🔥 LARGEST SINGLE DISCREPANCY:\n`;
+  result += `${biggest.away_team} @ ${biggest.home_team}\n`;
+  result += `${biggest.market_key === 'h2h' ? 'Moneyline' : biggest.market_key === 'spreads' ? 'Spread' : 'Total'}: ${biggest.outcome_name}\n`;
+  result += `Probability Range: ${(biggest.probability_low * 100).toFixed(2)}% to ${(biggest.probability_high * 100).toFixed(2)}%\n`;
+  result += `Difference: ${(biggest.probability_difference * 100).toFixed(2)}%\n`;
+  result += `${biggest.bookmaker_low} (${biggest.odds_low > 0 ? '+' : ''}${biggest.odds_low}) vs ${biggest.bookmaker_high} (${biggest.odds_high > 0 ? '+' : ''}${biggest.odds_high})\n\n`;
+
+  result += `\nIMPORTANT NOTES:\n`;
+  result += `- Discrepancies indicate disagreement between bookmakers\n`;
+  result += `- Larger discrepancies may signal value betting opportunities\n`;
+  result += `- Always verify current lines before placing bets\n`;
+  result += `- Consider why bookmakers disagree (sharp action, news, injuries, etc.)\n`;
+
+  return result;
+}
+
 // Helper function to call log-bet edge function
 async function logBetViaFunction(
   betDetails: { amount: number; odds: number; description: string; team?: string },
@@ -2647,6 +2784,15 @@ RESPONSIBLE GAMBLING:
       'sharp money', 'public', 'line movement', 'juice'
     ];
 
+    // Patterns for discrepancy analysis requests
+    const discrepancyKeywords = [
+      'discrepancy', 'discrepancies', 'difference', 'differences',
+      'biggest difference', 'largest difference', 'most different',
+      'compare odds', 'odds comparison', 'bookmaker difference',
+      'probability difference', 'implied probability', 'market inefficiency',
+      'arbitrage', 'arb', 'middling', 'soft lines'
+    ];
+
     // Sport-specific terms that indicate game queries
     const sportTerms = [
       'nfl', 'nba', 'mlb', 'nhl', 'mls', 'ncaaf', 'ncaab',
@@ -2656,6 +2802,7 @@ RESPONSIBLE GAMBLING:
     const isAskingForScore = scoreKeywords.some(keyword => messageContent.includes(keyword));
     const isAskingForLineup = lineupKeywords.some(keyword => messageContent.includes(keyword));
     const isAskingForMatchup = matchupKeywords.some(keyword => messageContent.includes(keyword));
+    const isAskingForDiscrepancy = discrepancyKeywords.some(keyword => messageContent.includes(keyword));
     const isAskingForBettingData = bettingKeywords.some(keyword => messageContent.includes(keyword)) ||
                                    sportTerms.some(term => messageContent.includes(term));
 
@@ -2746,6 +2893,24 @@ RESPONSIBLE GAMBLING:
       } catch (error) {
         console.error("Failed to fetch matchup data:", error);
         dataContext = "I could not fetch matchup analysis at the moment. Please try again shortly.";
+      }
+    } else if (isAskingForDiscrepancy) {
+      try {
+        console.log("User is asking for odds discrepancies, fetching pre-computed analysis...");
+
+        // Fetch discrepancies along with context data if needed
+        const [discrepancyData, injuryData, trendsData] = await Promise.all([
+          fetchOddsDiscrepancies(lastMessage.content),
+          fetchInjuryData(lastMessage.content, teamNames),
+          fetchTeamTrends(teamNames, league)
+        ]);
+
+        dataContext = discrepancyData + injuryData + trendsData;
+        contextType = "discrepancy";
+        console.log("Discrepancy data fetch result:", dataContext);
+      } catch (error) {
+        console.error("Failed to fetch discrepancy data:", error);
+        dataContext = "I could not fetch odds discrepancy analysis at the moment. The analysis runs every 15 minutes, so please try again shortly.";
       }
     } else if (isAskingForBettingData) {
       try {
@@ -3286,13 +3451,15 @@ ${userContextPrompt}
 
 ${bankrollContext}
 
-${isAskingForScore ? 'LIVE SCORE DATA RETRIEVED:' : 'LIVE BETTING DATA RETRIEVED:'}
+${isAskingForScore ? 'LIVE SCORE DATA RETRIEVED:' : contextType === 'discrepancy' ? 'ODDS DISCREPANCY ANALYSIS RETRIEVED:' : 'LIVE BETTING DATA RETRIEVED:'}
 ${dataContext}
 
 INSTRUCTIONS:
 ${isAskingForScore
   ? '- Provide clear score updates with relevant context based on the data above\n- Include game status and any relevant context\n- Only provide betting analysis if specifically requested along with the score'
-  : '- Use this live data to provide specific, concrete analysis\n- Reference actual odds, spreads, and totals from the data provided\n- Identify specific edges based on matchup analysis, injury impacts, and situational factors\n- Compare odds across different bookmakers when available\n- Provide reasoning based on the actual data, not generic principles\n- Recommend bet sizing based on your confidence level\n- Be direct and actionable with your recommendations'}`
+  : contextType === 'discrepancy'
+    ? '- Focus on the LARGEST probability discrepancies identified in the analysis above\n- Explain what these discrepancies mean and why bookmakers disagree\n- Highlight potential value opportunities but caution about verifying current lines\n- Discuss possible reasons: sharp action, news, injuries, market inefficiencies\n- Use the pre-computed data - DO NOT recalculate probabilities\n- Keep explanations concise and focused on the biggest discrepancies\n- Recommend further investigation before placing bets'
+    : '- Use this live data to provide specific, concrete analysis\n- Reference actual odds, spreads, and totals from the data provided\n- Identify specific edges based on matchup analysis, injury impacts, and situational factors\n- Compare odds across different bookmakers when available\n- Provide reasoning based on the actual data, not generic principles\n- Recommend bet sizing based on your confidence level\n- Be direct and actionable with your recommendations'}`
       : bankrollUpdateContext
         ? `${basePrompt}
 
