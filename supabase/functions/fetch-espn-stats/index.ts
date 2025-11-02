@@ -100,7 +100,7 @@ function buildGameData(boxScore: RundownBoxScoreResponse): GameData {
     };
   });
 
-  const score = boxScore.score || {};
+  const score: any = boxScore.score || {};
 
   return {
     event_id: boxScore.event_id,

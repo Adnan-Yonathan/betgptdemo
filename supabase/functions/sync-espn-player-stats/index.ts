@@ -73,17 +73,18 @@ async function fetchRundownSchedule(
 
     const homeName = home?.name || home?.mascot || home?.abbreviation || 'Home Team';
     const awayName = away?.name || away?.mascot || away?.abbreviation || 'Away Team';
+    const scoreData: any = score || {};
 
     return {
       id: event.event_id || event.event_uuid,
       date: event.event_date,
       name: `${awayName} @ ${homeName}`,
       shortName: `${awayName} @ ${homeName}`,
-      status: score.event_status || 'STATUS_SCHEDULED',
+      status: scoreData.event_status || 'STATUS_SCHEDULED',
       homeTeam: homeName,
       awayTeam: awayName,
-      homeScore: score.score_home ?? 0,
-      awayScore: score.score_away ?? 0,
+      homeScore: scoreData.score_home ?? 0,
+      awayScore: scoreData.score_away ?? 0,
     };
   });
 }

@@ -84,8 +84,8 @@ const Index = () => {
           return;
         }
 
-        // Show onboarding if not completed
-        setShowOnboarding(!profile?.onboarding_completed);
+        // Onboarding check removed - profiles table doesn't have onboarding_completed column
+        setShowOnboarding(false);
       } catch (error) {
         console.error('Error in onboarding check:', error);
       } finally {

@@ -128,7 +128,7 @@ async function fetchScoresForSport(
     for (const event of events) {
       try {
         const { home, away } = mapTeams(event);
-        const score = event.score || {};
+        const score: any = event.score || {};
 
         const scoreData = {
           event_id: event.event_uuid || event.event_id,

@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 interface RundownTeam {
+  team_id?: number;
   name: string;
   mascot?: string;
   abbreviation?: string;
@@ -205,7 +206,7 @@ Deno.serve(async (req) => {
     for (const event of filteredEvents) {
       try {
         const { home, away } = resolveTeams(event);
-        const score = event.score || {};
+        const score: any = event.score || {};
 
         const teamMap = new Map<number, string>();
         const teams = event.teams_normalized || event.teams || [];

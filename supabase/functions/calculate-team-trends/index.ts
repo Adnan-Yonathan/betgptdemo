@@ -89,8 +89,8 @@ async function calculateTeamTrends(supabase: any, team: string, league: string) 
     // Straight up record
     last10Record: calculateRecord(last10Games, team),
     last5Record: calculateRecord(recentGames.slice(0, 5), team),
-    homeRecord: calculateRecord(recentGames.filter(g => g.home_team === team), team),
-    awayRecord: calculateRecord(recentGames.filter(g => g.away_team === team), team),
+    homeRecord: calculateRecord(recentGames.filter((g: any) => g.home_team === team), team),
+    awayRecord: calculateRecord(recentGames.filter((g: any) => g.away_team === team), team),
 
     // ATS and O/U records
     atsRecord: await calculateATSRecord(supabase, recentGames, team),
@@ -102,7 +102,7 @@ async function calculateTeamTrends(supabase: any, team: string, league: string) 
     avgPointDifferential: 0, // Will calculate below
 
     // Recent form (last 5 games: W/L)
-    recentForm: last10Games.slice(0, 5).map(g => {
+    recentForm: last10Games.slice(0, 5).map((g: any) => {
       const won = didTeamWin(g, team);
       return won ? 'W' : 'L';
     }),
