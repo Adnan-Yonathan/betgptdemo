@@ -119,8 +119,11 @@ async function generateNFLPrediction(supabase: any, game: any) {
   // Calculate fair odds
   const fairOdds = calculateFairOdds(predictedSpread, predictedTotal);
 
-  // Calculate edge
-  const edge = calculateEdge(predictedSpread, marketData.spread, fairOdds, marketData);
+  // Calculate spread cover probabilities
+  const spreadProbabilities = calculateSpreadCoverProbability(predictedSpread, marketData.spread);
+
+  // Calculate total over/under probabilities
+  const totalProbabilities = calculateTotalProbability(predictedTotal, marketData.total);
 
   return {
     model_id: modelId,
@@ -137,6 +140,10 @@ async function generateNFLPrediction(supabase: any, game: any) {
     predicted_total: predictedTotal,
     home_win_probability: calculateWinProbability(predictedSpread),
     away_win_probability: calculateWinProbability(-predictedSpread),
+    spread_cover_probability_home: spreadProbabilities.homeCoverProb,
+    spread_cover_probability_away: spreadProbabilities.awayCoverProb,
+    total_over_probability: totalProbabilities.overProb,
+    total_under_probability: totalProbabilities.underProb,
     confidence_score: confidence,
     fair_odds_home: fairOdds.homeML,
     fair_odds_away: fairOdds.awayML,
@@ -146,8 +153,6 @@ async function generateNFLPrediction(supabase: any, game: any) {
     market_odds_away: marketData.awayML,
     market_spread: marketData.spread,
     market_total: marketData.total,
-    edge_percentage: edge.percentage,
-    edge_side: edge.side,
     feature_values: features,
     game_started: false,
     game_completed: false,
@@ -307,35 +312,59 @@ function probabilityToOdds(probability: number): number {
   }
 }
 
-function calculateEdge(
+/**
+ * Calculate the probability that each team covers the spread
+ * Uses the difference between predicted spread and market spread
+ * to determine cover probabilities
+ */
+function calculateSpreadCoverProbability(
   predictedSpread: number,
-  marketSpread: number,
-  fairOdds: any,
-  marketData: any
+  marketSpread: number
 ) {
-  // Calculate edge based on spread differential
-  const spreadDiff = Math.abs(predictedSpread - marketSpread);
+  // NFL standard deviation for spread ~13 points
+  const stdDev = 13;
 
-  let edgeSide = '';
-  let edgePercentage = 0;
+  // Calculate how many standard deviations the market spread is from our prediction
+  const spreadDiff = predictedSpread - marketSpread;
+  const z = spreadDiff / stdDev;
 
-  if (spreadDiff >= 1) {
-    // Determine which side has edge
-    if (predictedSpread > marketSpread) {
-      // Home team is better than market thinks
-      edgeSide = 'home';
-    } else {
-      // Away team is better than market thinks
-      edgeSide = 'away';
-    }
+  // Use logistic function to convert to probability
+  // Positive spreadDiff means we predict home team to do better than market expects
+  const homeCoverProb = 1 / (1 + Math.exp(-z));
 
-    // Calculate EV percentage (rough approximation)
-    edgePercentage = spreadDiff * 2.5; // 1 point = ~2.5% edge in NFL
-  }
+  // Away cover probability is complementary
+  const awayCoverProb = 1 - homeCoverProb;
 
   return {
-    side: edgeSide,
-    percentage: Math.round(edgePercentage * 10) / 10,
+    homeCoverProb: Math.max(0.01, Math.min(0.99, homeCoverProb)),
+    awayCoverProb: Math.max(0.01, Math.min(0.99, awayCoverProb)),
+  };
+}
+
+/**
+ * Calculate the probability of the total going over or under
+ * Uses the difference between predicted total and market total
+ */
+function calculateTotalProbability(
+  predictedTotal: number,
+  marketTotal: number
+) {
+  // NFL standard deviation for totals ~13 points
+  const stdDev = 13;
+
+  // Calculate how many standard deviations the market total is from our prediction
+  const totalDiff = predictedTotal - marketTotal;
+  const z = totalDiff / stdDev;
+
+  // Positive totalDiff means we predict higher scoring than market expects
+  const overProb = 1 / (1 + Math.exp(-z));
+
+  // Under probability is complementary
+  const underProb = 1 - overProb;
+
+  return {
+    overProb: Math.max(0.01, Math.min(0.99, overProb)),
+    underProb: Math.max(0.01, Math.min(0.99, underProb)),
   };
 }
 

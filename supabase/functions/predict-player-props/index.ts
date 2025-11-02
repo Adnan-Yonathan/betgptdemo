@@ -90,8 +90,9 @@ async function generatePropPrediction(supabase: any, prop: any) {
   // Calculate confidence
   const confidence = calculateConfidence(playerHistory);
 
-  // Calculate edge
-  const edge = calculatePropEdge(adjustedPrediction, prop.line, prop.over_odds, prop.under_odds);
+  // Calculate over/under probabilities
+  const overProbability = calculatePropProbability(adjustedPrediction, prop.line, 'over');
+  const underProbability = calculatePropProbability(adjustedPrediction, prop.line, 'under');
 
   return {
     prop_id: prop.id,
@@ -101,8 +102,8 @@ async function generatePropPrediction(supabase: any, prop: any) {
     predicted_value: adjustedPrediction,
     confidence_score: confidence,
     market_line: prop.line,
-    edge_percentage: edge.percentage,
-    recommended_side: edge.side,
+    over_probability: overProbability,
+    under_probability: underProbability,
     season_average: playerHistory.seasonAvg,
     last_5_games_average: playerHistory.last5Avg,
     vs_opponent_average: playerHistory.vsOpponentAvg,
@@ -324,63 +325,24 @@ function calculateConfidence(history: any): number {
   return Math.min(95, confidence); // Cap at 95% (never 100% certain)
 }
 
-function calculatePropEdge(
-  predictedValue: number,
-  line: number,
-  overOdds: number,
-  underOdds: number
-) {
-  // Determine which side has edge
-  const difference = predictedValue - line;
-
-  let side = 'no_bet';
-  let percentage = 0;
-
-  if (Math.abs(difference) < 0.5) {
-    // Too close, no bet
-    return { side: 'no_bet', percentage: 0 };
-  }
-
-  if (difference > 0) {
-    // Over has edge
-    side = 'over';
-    const overImplied = oddsToImpliedProbability(overOdds);
-    const fairProb = calculatePropProbability(predictedValue, line, 'over');
-    percentage = (fairProb - overImplied) * 100;
-  } else {
-    // Under has edge
-    side = 'under';
-    const underImplied = oddsToImpliedProbability(underOdds);
-    const fairProb = calculatePropProbability(predictedValue, line, 'under');
-    percentage = (fairProb - underImplied) * 100;
-  }
-
-  return {
-    side,
-    percentage: Math.round(percentage * 10) / 10,
-  };
-}
-
+/**
+ * Calculate the probability that a player prop goes over or under the line
+ * Uses the predicted value and a standard deviation model
+ */
 function calculatePropProbability(predicted: number, line: number, side: string): number {
   // Simple probability model based on distance from line
   const difference = predicted - line;
-  const stdDev = predicted * 0.15; // Assume 15% standard deviation
+  const stdDev = Math.max(predicted * 0.15, 0.5); // Assume 15% standard deviation, min 0.5
 
   if (side === 'over') {
     // Probability that actual > line
     const z = difference / stdDev;
-    return 1 / (1 + Math.exp(-z));
+    const prob = 1 / (1 + Math.exp(-z));
+    return Math.max(0.01, Math.min(0.99, prob));
   } else {
     // Probability that actual < line
     const z = difference / stdDev;
-    return 1 - (1 / (1 + Math.exp(-z)));
-  }
-}
-
-function oddsToImpliedProbability(odds: number): number {
-  if (odds > 0) {
-    return 100 / (odds + 100);
-  } else {
-    return Math.abs(odds) / (Math.abs(odds) + 100);
+    const prob = 1 - (1 / (1 + Math.exp(-z)));
+    return Math.max(0.01, Math.min(0.99, prob));
   }
 }
