@@ -92,17 +92,21 @@ async function fetchLiveScores(league: string): Promise<LiveScore[]> {
 
 // Update live score cache in database
 async function updateLiveScoreCache(supabase: any, score: LiveScore, league: string) {
-  const { event_id, home_team, away_team, event_date, score: gameScore } = score;
+  const { event_id, home_team, away_team, event_date, score: gameScore, sport_id } = score;
 
   const gameStatus = mapGameStatus(gameScore.event_status);
   const period = gameScore.event_status_detail || '';
   const timeRemaining = gameScore.game_clock || gameScore.display_clock || '';
+  
+  // Map sport_id to sport name
+  const sportName = Object.keys(sportIdMap).find(key => sportIdMap[key] === sport_id) || league;
 
   await supabase
     .from('live_score_cache')
     .upsert({
       game_id: event_id,
       league,
+      sport: sportName,
       home_team,
       away_team,
       home_score: gameScore.score_home || 0,

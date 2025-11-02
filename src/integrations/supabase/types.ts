@@ -770,10 +770,13 @@ export type Database = {
       }
       live_score_cache: {
         Row: {
+          api_last_updated: string | null
+          api_response: Json | null
           away_score: number
           away_team: string
           created_at: string
-          event_id: string
+          game_date: string
+          game_id: string
           game_status: string
           game_time: string | null
           home_score: number
@@ -783,12 +786,16 @@ export type Database = {
           league: string
           period: string | null
           sport: string
+          time_remaining: string | null
         }
         Insert: {
+          api_last_updated?: string | null
+          api_response?: Json | null
           away_score?: number
           away_team: string
           created_at?: string
-          event_id: string
+          game_date: string
+          game_id: string
           game_status: string
           game_time?: string | null
           home_score?: number
@@ -798,12 +805,16 @@ export type Database = {
           league: string
           period?: string | null
           sport: string
+          time_remaining?: string | null
         }
         Update: {
+          api_last_updated?: string | null
+          api_response?: Json | null
           away_score?: number
           away_team?: string
           created_at?: string
-          event_id?: string
+          game_date?: string
+          game_id?: string
           game_status?: string
           game_time?: string | null
           home_score?: number
@@ -813,6 +824,7 @@ export type Database = {
           league?: string
           period?: string | null
           sport?: string
+          time_remaining?: string | null
         }
         Relationships: []
       }
@@ -1681,6 +1693,7 @@ export type Database = {
         Args: { p_alert_id: string; p_user_id: string }
         Returns: undefined
       }
+      trigger_live_scores_update: { Args: never; Returns: string }
     }
     Enums: {
       [_ in never]: never
