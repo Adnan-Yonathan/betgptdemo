@@ -745,20 +745,6 @@ function formatMatchupData(matchups: any[], query: string): string {
       result += '\n';
     }
 
-    if (matchup.ai_prediction) {
-      const pred = matchup.ai_prediction;
-      result += `AI PREDICTION:\n`;
-      if (pred.predicted_winner) result += `  Predicted Winner: ${pred.predicted_winner}\n`;
-      if (pred.confidence) result += `  Confidence: ${pred.confidence}%\n`;
-      if (pred.key_factors && pred.key_factors.length > 0) {
-        result += `  Key Factors:\n`;
-        pred.key_factors.forEach((factor: string) => {
-          result += `    - ${factor}\n`;
-        });
-      }
-      result += '\n';
-    }
-
     if (matchup.tactical_analysis) {
       result += `TACTICAL ANALYSIS:\n${matchup.tactical_analysis}\n\n`;
     }
@@ -2260,31 +2246,7 @@ async function getAdvancedMetrics(userId: string): Promise<any> {
   }
 }
 
-/**
- * Predicts game outcome using Elo model
- */
-async function predictGameWithElo(homeTeam: string, awayTeam: string, league: string): Promise<any> {
-  try {
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase
-      .rpc('predict_game_with_elo', {
-        p_home_team: homeTeam,
-        p_away_team: awayTeam,
-        p_league: league,
-        p_home_advantage_points: 100
-      });
-
-    if (error) {
-      console.error('[PHASE4] Error predicting game:', error);
-      return null;
-    }
-
-    return data;
-  } catch (error) {
-    console.error('[PHASE4] Error in predictGameWithElo:', error);
-    return null;
-  }
-}
+// Removed: predictGameWithElo function - no longer using Elo predictions
 
 /**
  * Calculates EV and Kelly sizing for a hypothetical bet
@@ -2335,103 +2297,7 @@ async function calculateEVForBet(
   }
 }
 
-/**
- * Builds EV analysis context for AI
- */
-async function buildEVAnalysisContext(
-  homeTeam: string,
-  awayTeam: string,
-  league: string,
-  odds: number,
-  stake: number,
-  bankroll: number
-): Promise<string> {
-  try {
-    console.log('[PHASE4] Building EV analysis context...');
-
-    // Get Elo prediction
-    const prediction = await predictGameWithElo(homeTeam, awayTeam, league);
-
-    if (!prediction) {
-      return '';
-    }
-
-    const winProbability = prediction.home_win_probability || 0.5;
-
-    // Calculate EV and Kelly
-    const analysis = await calculateEVForBet(winProbability, odds, stake, bankroll);
-
-    if (!analysis) {
-      return '';
-    }
-
-    let context = '\n\n═══════════════════════════════════════════════════════════════\n';
-    context += '📊 PHASE 4: EXPECTED VALUE ANALYSIS\n';
-    context += '═══════════════════════════════════════════════════════════════\n\n';
-
-    context += '🎲 ELO RATING PREDICTION:\n';
-    context += `- ${homeTeam} Elo: ${prediction.home_elo}\n`;
-    context += `- ${awayTeam} Elo: ${prediction.away_elo}\n`;
-    context += `- Elo Difference: ${prediction.elo_difference}\n`;
-    context += `- ${homeTeam} Win Probability: ${(winProbability * 100).toFixed(1)}%\n`;
-    context += `- Predicted Margin: ${homeTeam} by ${prediction.predicted_margin} points\n\n`;
-
-    context += '💰 EXPECTED VALUE CALCULATION:\n';
-    context += `- Estimated Win Probability: ${(winProbability * 100).toFixed(1)}%\n`;
-    context += `- Market Implied Probability: ${(analysis.ev.market_implied_prob * 100).toFixed(1)}% (from ${odds} odds)\n`;
-    context += `- Statistical Edge: ${analysis.ev.edge_percentage > 0 ? '+' : ''}${analysis.ev.edge_percentage}%\n`;
-    context += `- Expected Value: ${analysis.ev.expected_value_percentage > 0 ? '+' : ''}$${analysis.ev.expected_value_dollars} (${analysis.ev.expected_value_percentage > 0 ? '+' : ''}${analysis.ev.expected_value_percentage}% EV)\n`;
-    context += `- Decimal Odds: ${analysis.ev.decimal_odds}\n\n`;
-
-    const edge = analysis.ev.edge_percentage;
-    let recommendation = '';
-    if (edge < 0) {
-      recommendation = '❌ NEGATIVE EV - Do NOT bet';
-    } else if (edge < 2) {
-      recommendation = '⚠️ MARGINAL EDGE - Pass or very small bet';
-    } else if (edge < 5) {
-      recommendation = '✅ DECENT EDGE - Small to moderate bet';
-    } else if (edge < 10) {
-      recommendation = '✅✅ SOLID EDGE - Standard bet size';
-    } else {
-      recommendation = '🔥 STRONG EDGE - High confidence bet';
-    }
-
-    context += `📈 EDGE ASSESSMENT: ${recommendation}\n\n`;
-
-    context += '🎯 KELLY CRITERION BET SIZING:\n';
-    context += `- Full Kelly: ${analysis.kelly.kelly_full_percentage}% of bankroll\n`;
-    context += `- Half Kelly: ${analysis.kelly.kelly_half_percentage}% of bankroll\n`;
-    context += `- Quarter Kelly (RECOMMENDED): ${analysis.kelly.kelly_quarter_percentage}% of bankroll\n`;
-    context += `- Recommended Bet Size: $${analysis.kelly.recommended_bet_dollars}\n`;
-    context += `- User's Proposed Bet: $${stake}\n`;
-
-    const kellyEfficiency = stake / analysis.kelly.recommended_bet_dollars;
-    if (kellyEfficiency > 2) {
-      context += `- ⚠️ WARNING: Betting ${kellyEfficiency.toFixed(1)}x recommended size (OVERBET)\n`;
-    } else if (kellyEfficiency < 0.5) {
-      context += `- ℹ️ Conservative: Betting ${(kellyEfficiency * 100).toFixed(0)}% of recommended size (underbet)\n`;
-    } else {
-      context += `- ✅ Good sizing: Within recommended range\n`;
-    }
-
-    context += '\n═══════════════════════════════════════════════════════════════\n';
-    context += 'INSTRUCTIONS FOR AI:\n';
-    context += '- Lead with the EV and edge percentage in your response\n';
-    context += '- Reference the Kelly recommendation for bet sizing\n';
-    context += '- Explain the Elo prediction and why the model sees value\n';
-    context += '- Warn if the bet is negative EV or if user is overbetting\n';
-    context += '- Show confidence interval to indicate uncertainty\n';
-    context += '- Remember: Even +EV bets can lose due to variance\n';
-    context += '═══════════════════════════════════════════════════════════════\n\n';
-
-    console.log('[PHASE4] EV analysis context built successfully');
-    return context;
-  } catch (error) {
-    console.error('[PHASE4] Error building EV analysis context:', error);
-    return '';
-  }
-}
+// Removed: buildEVAnalysisContext function - no longer using Elo predictions for EV calculation
 
 /**
  * PHASE 6: Advanced Analytics & Performance Dashboard
@@ -2966,6 +2832,12 @@ RESPONSIBLE GAMBLING:
 
 MISSION: Help users make smarter bets with quick, easy-to-digest insights. Think "helpful friend" not "stats professor."
 
+🚨 CRITICAL RULES - NEVER BREAK THESE:
+- NEVER predict who will win or what the score will be
+- NEVER provide win probabilities or outcome predictions
+- ONLY provide value-based recommendations by comparing odds across sportsbooks
+- Focus on: best available lines, line movement, sharp action, and recent team performance
+
 🚨 CRITICAL DATA REQUIREMENT:
 - Only provide betting analysis when you have FRESH odds data from The Rundown API
 - If odds are STALE or ERROR, say: "I need current odds data to give you accurate info."
@@ -3004,9 +2876,9 @@ INTENT RECOGNITION - Match user's question to these patterns:
 3. FIND_EDGE Intent
    User says: "any good bets?", "EV plays?", "value today?", "best edge?"
    Response format (4 lines):
-   "Best edge right now: [team/bet] at [+X]% EV.
-   [Key factor or line movement].
-   Model has [outcome] at [X]% vs [Y]% implied.
+   "Best value right now: [team/bet] at [book].
+   [Key factor or line movement - e.g., "1 point better than consensus" or "Line moved 2 pts on sharp action"].
+   Most books have [comparison line] but [book] has [better line].
    Want me to log it or keep looking?"
 
 4. LINE_MOVEMENT Intent
@@ -3037,14 +2909,14 @@ INTENT RECOGNITION - Match user's question to these patterns:
    User says: "thoughts on Lakers?", "who wins tonight?", "Chargers vs Bills?"
    Response format (4-6 lines max):
    "[Recognition: context about user or game]
-   [Edge: model sees X at Y% edge / Z% probability]
-   [Interpretation: key factor in simple terms]
+   [Value: best available line comparison across books]
+   [Interpretation: line movement or key factor in simple terms]
    [Action: question or next step]"
 
    Example:
    "Looks like you've got $1,250 left — nice discipline this week.
-   For Lakers vs Kings, model sees small edge on Lakers -2.5.
-   That's about 5% advantage over what books show.
+   For Lakers vs Kings, best value is Lakers -2.5 at FanDuel (most books -3).
+   You're getting half a point better than consensus.
    If staying conservative, keep it around 1 unit.
    Want me to track it?"
 
@@ -3073,6 +2945,12 @@ Today's date: ${currentDate}`;
     const advancedModePrompt = `You are DeltaEdge - a sharp sports betting analyst who delivers data-driven insights in a casual, conversational way.
 
 MISSION: Give users quick, quantified edges with the data that matters. More casual than a textbook, sharper than a forum post.
+
+🚨 CRITICAL RULES - NEVER BREAK THESE:
+- NEVER predict who will win or what the score will be
+- NEVER provide win probabilities or outcome predictions
+- ONLY provide value-based recommendations by comparing odds across sportsbooks
+- Focus on: best available lines, line movement, sharp action, market discrepancies, and recent team performance
 
 🚨 CRITICAL DATA REQUIREMENT:
 - Only provide analysis when you have FRESH odds data from The Rundown API
@@ -3116,9 +2994,9 @@ INTENT RECOGNITION - Match patterns and respond accordingly:
 3. FIND_EDGE Intent
    User says: "any good bets?", "EV plays?", "value today?"
    Response (4 lines):
-   "Best edge: [team/bet] at +[X]% EV.
-   [Line movement or key factor].
-   Model: [X]% | Market implies: [Y]%.
+   "Best value: [team/bet] at [book] - [advantage over consensus].
+   [Line movement or key factor - e.g., "moved 2 pts on sharp action"].
+   Most books: [consensus line] | [Book]: [better line].
    Log it or want alternatives?"
 
 4. LINE_MOVEMENT Intent
@@ -3150,23 +3028,23 @@ INTENT RECOGNITION - Match patterns and respond accordingly:
 
    CASUAL Response (4 lines):
    "Looks like you've got $1,250 left in your bankroll — nice discipline this week.
-   For tonight's Lakers vs Kings, my model sees small edge on Lakers -2.5.
-   That's about 5% advantage over what most books show.
+   For tonight's Lakers vs Kings, best value is Lakers -2.5 at FanDuel (consensus -3).
+   You're getting half a point better than most books.
    If staying conservative, keep it around 1 unit. Want me to track it?"
 
    MODERATE Response (4 lines):
    "You're 9-4 on NFL totals this month (+12% ROI).
-   Model flags Over 46.5 in Chargers-Bills at +5.9% EV.
-   Stake suggestion: 1.3 units (within your risk band).
-   Want me to track line movement overnight?"
+   Over 46.5 in Chargers-Bills at BetMGM (most books 47).
+   Line opened at 45.5, moved up on sharp action.
+   Stake suggestion: 1.3 units. Want me to track line movement overnight?"
 
    COMPLEX Response (when user asks for details - 6 lines):
-   "Market average: -4.5 (FanDuel, DraftKings).
-   Delta projection: -6.1 → +7.3% EV.
-   Bankroll rec: 1.2 units (Kelly 0.25).
+   "Market consensus: -4.5 (FanDuel, DraftKings, Caesars).
+   Best value: -4 at Pinnacle (sharp book, half point better).
+   Line opened at -3.5, moved to -4/-4.5 over 3 hours.
    Notable factor: team off 2 days rest vs opponent B2B.
-   Line expected to close near -5.5 based on steam indicators.
-   Logging this for model calibration — confirm placement?"
+   Sharp action detected on favorite based on reverse line movement.
+   Stake rec: 1.2 units. Confirm placement?"
 
 SPORTS COVERAGE:
 🏈 NFL, 🏈 NCAAF, 🏀 NBA - Full live data
@@ -3182,8 +3060,8 @@ RESPONSE RULES:
 - Keep it conversational but quantified
 
 WHAT TO INCLUDE:
-- Model probability % vs market implied %
-- Edge calculation (EV %)
+- Best available line vs consensus across books
+- Line movement (opening vs current, magnitude, sharp action indicators)
 - Key factor (injury, line move, rest, matchup)
 - Stake suggestion in units when relevant
 - Next action or tracking offer

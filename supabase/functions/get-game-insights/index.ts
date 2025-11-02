@@ -7,24 +7,31 @@ const corsHeaders = {
 };
 
 interface GameInsights {
-  probabilities: {
-    spreadCoverHome?: number;
-    spreadCoverAway?: number;
-    totalOver?: number;
-    totalUnder?: number;
-    homeWin?: number;
-    awayWin?: number;
-  };
-  sharpMoneyPercent: number;
   lineMovement: {
     opening: number;
     current: number;
     direction: "up" | "down" | "stable";
+    magnitude: number;
   };
-  modelConfidence: number;
-  injuries: string[];
-  weather: string;
-  publicBettingPercent: number;
+  sharpMoneyIndicators: {
+    hasSharpAction: boolean;
+    sharpSide?: string;
+    signalType?: string;
+    strength?: string;
+  };
+  oddsComparison: {
+    bestSpread?: { bookmaker: string; point: number; odds: number };
+    worstSpread?: { bookmaker: string; point: number; odds: number };
+    spreadRange?: number;
+  };
+  discrepancies: Array<{
+    market: string;
+    outcome: string;
+    probabilityDiff: number;
+    bestBook: string;
+    worstBook: string;
+  }>;
+  injuries: Array<{ player: string; status: string; team: string }>;
 }
 
 serve(async (req) => {
@@ -61,17 +68,6 @@ serve(async (req) => {
 
     console.log(`[get-game-insights] Fetching insights for event ${eventId}`);
 
-    // Fetch prediction for this game
-    const { data: prediction, error: predError } = await supabase
-      .from("model_predictions")
-      .select("*")
-      .eq("event_id", eventId)
-      .single();
-
-    if (predError && predError.code !== "PGRST116") {
-      console.error("[get-game-insights] Error fetching prediction:", predError);
-    }
-
     // Fetch sharp money signals
     const { data: sharpSignals, error: sharpError } = await supabase
       .from("sharp_money_signals")
@@ -107,45 +103,106 @@ serve(async (req) => {
       console.error("[get-game-insights] Error fetching opening/closing:", ocError);
     }
 
-    // Build insights object with probability data
+    // Fetch current betting odds for comparison
+    const { data: currentOdds, error: oddsError } = await supabase
+      .from("betting_odds")
+      .select("*")
+      .eq("event_id", eventId)
+      .eq("market_key", "spreads")
+      .order("last_update", { ascending: false });
+
+    if (oddsError) {
+      console.error("[get-game-insights] Error fetching odds:", oddsError);
+    }
+
+    // Fetch odds discrepancies for this game
+    const { data: discrepancies, error: discError } = await supabase
+      .from("odds_discrepancies")
+      .select("*")
+      .eq("event_id", eventId)
+      .order("probability_difference", { ascending: false })
+      .limit(5);
+
+    if (discError) {
+      console.error("[get-game-insights] Error fetching discrepancies:", discError);
+    }
+
+    // Fetch injury reports
+    const { data: injuries, error: injuryError } = await supabase
+      .from("injury_reports")
+      .select("player_name, injury_status, team, position")
+      .eq("event_id", eventId)
+      .in("injury_status", ["Out", "Doubtful", "Questionable"]);
+
+    if (injuryError) {
+      console.error("[get-game-insights] Error fetching injuries:", injuryError);
+    }
+
+    // Calculate line movement
+    const opening = openingClosing?.opening_spread || lineHistory?.[0]?.spread || 0;
+    const current = lineHistory?.[lineHistory.length - 1]?.spread || openingClosing?.opening_spread || 0;
+    const magnitude = Math.abs(current - opening);
+    let direction: "up" | "down" | "stable" = "stable";
+
+    if (current > opening + 0.5) {
+      direction = "up";
+    } else if (current < opening - 0.5) {
+      direction = "down";
+    }
+
+    // Find best and worst spreads
+    let bestSpread = null;
+    let worstSpread = null;
+    if (currentOdds && currentOdds.length > 0) {
+      const spreads = currentOdds
+        .filter((o: any) => o.outcome_point !== null)
+        .map((o: any) => ({
+          bookmaker: o.bookmaker,
+          point: o.outcome_point,
+          odds: o.outcome_price,
+        }));
+
+      if (spreads.length > 0) {
+        spreads.sort((a, b) => b.point - a.point);
+        bestSpread = spreads[0];
+        worstSpread = spreads[spreads.length - 1];
+      }
+    }
+
+    // Build insights object with value-based data
     const insights: GameInsights = {
-      probabilities: {
-        spreadCoverHome: prediction?.spread_cover_probability_home || undefined,
-        spreadCoverAway: prediction?.spread_cover_probability_away || undefined,
-        totalOver: prediction?.total_over_probability || undefined,
-        totalUnder: prediction?.total_under_probability || undefined,
-        homeWin: prediction?.home_win_probability || undefined,
-        awayWin: prediction?.away_win_probability || undefined,
-      },
-      sharpMoneyPercent: sharpSignals?.sharp_percentage || 50,
       lineMovement: {
-        opening: openingClosing?.opening_spread || lineHistory?.[0]?.spread || 0,
-        current: lineHistory?.[lineHistory.length - 1]?.spread || openingClosing?.opening_spread || 0,
-        direction: "stable",
+        opening,
+        current,
+        direction,
+        magnitude,
       },
-      modelConfidence: prediction?.confidence_score || 75,
-      injuries: [],
-      weather: "",
-      publicBettingPercent: sharpSignals?.public_percentage || 50,
+      sharpMoneyIndicators: {
+        hasSharpAction: !!sharpSignals,
+        sharpSide: sharpSignals?.sharp_side,
+        signalType: sharpSignals?.signal_type,
+        strength: sharpSignals?.strength,
+      },
+      oddsComparison: {
+        bestSpread: bestSpread || undefined,
+        worstSpread: worstSpread || undefined,
+        spreadRange: bestSpread && worstSpread
+          ? Math.abs(bestSpread.point - worstSpread.point)
+          : undefined,
+      },
+      discrepancies: (discrepancies || []).map((d: any) => ({
+        market: d.market_key,
+        outcome: d.outcome_name,
+        probabilityDiff: d.probability_difference,
+        bestBook: d.bookmaker_high,
+        worstBook: d.bookmaker_low,
+      })),
+      injuries: (injuries || []).map((inj: any) => ({
+        player: inj.player_name,
+        status: inj.injury_status,
+        team: inj.team,
+      })),
     };
-
-    // Calculate line movement direction
-    if (insights.lineMovement.current > insights.lineMovement.opening + 0.5) {
-      insights.lineMovement.direction = "up";
-    } else if (insights.lineMovement.current < insights.lineMovement.opening - 0.5) {
-      insights.lineMovement.direction = "down";
-    }
-
-    // Extract injuries from feature values
-    if (prediction?.feature_values) {
-      const features = prediction.feature_values as Record<string, any>;
-      if (features.injuries && Array.isArray(features.injuries)) {
-        insights.injuries = features.injuries;
-      }
-      if (features.weather) {
-        insights.weather = features.weather;
-      }
-    }
 
     console.log(`[get-game-insights] Returning insights for event ${eventId}`);
 
