@@ -50,6 +50,49 @@ function americanToImpliedProbability(americanOdds: number): number {
   }
 }
 
+// Identify sharp vs recreational books
+const SHARP_BOOKS = ['Pinnacle', 'CRIS', 'Circa Sports', '5Dimes', 'Bookmaker'];
+const RECREATIONAL_BOOKS = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars', 'BetRivers'];
+
+function getBookmakerType(bookmaker: string): 'sharp' | 'recreational' | 'unknown' {
+  if (SHARP_BOOKS.includes(bookmaker)) return 'sharp';
+  if (RECREATIONAL_BOOKS.includes(bookmaker)) return 'recreational';
+  return 'unknown';
+}
+
+// Generate contextual reasoning for the discrepancy
+function generateReasoning(
+  bookmakerLow: string,
+  bookmakerHigh: string,
+  probabilityDiff: number,
+  market: string
+): string {
+  const lowType = getBookmakerType(bookmakerLow);
+  const highType = getBookmakerType(bookmakerHigh);
+  const diffPercent = (probabilityDiff * 100).toFixed(2);
+
+  if (probabilityDiff > 0.03) {
+    // >3% difference - significant value
+    if (highType === 'sharp') {
+      return `Significant ${diffPercent}% value opportunity. ${bookmakerHigh} (sharp book) has much better odds than ${bookmakerLow}. Sharp books typically have efficient lines, suggesting this is real value.`;
+    } else if (lowType === 'recreational') {
+      return `Significant ${diffPercent}% discrepancy. ${bookmakerLow} (recreational book) has a soft line. These books often have less efficient pricing - good opportunity.`;
+    }
+    return `Large ${diffPercent}% discrepancy between ${bookmakerHigh} and ${bookmakerLow}. Strong value opportunity.`;
+  } else if (probabilityDiff > 0.02) {
+    // 2-3% difference - good value
+    return `Notable ${diffPercent}% value at ${bookmakerHigh} compared to ${bookmakerLow}. Solid line shopping opportunity.`;
+  } else if (probabilityDiff > 0.01) {
+    // 1-2% difference - decent value
+    if (market === 'spreads') {
+      return `${diffPercent}% better odds at ${bookmakerHigh}. Could translate to half a point or better on the spread.`;
+    }
+    return `${diffPercent}% edge at ${bookmakerHigh}. Worthwhile if this aligns with your analysis.`;
+  }
+
+  return `${diffPercent}% difference between books. Line shopping adds up over time.`;
+}
+
 // Calculate data freshness in minutes
 function calculateFreshnessMinutes(lastUpdated: string): number {
   const now = new Date();
