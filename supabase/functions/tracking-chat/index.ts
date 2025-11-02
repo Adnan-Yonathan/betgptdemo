@@ -136,6 +136,7 @@ Current time: ${new Date().toISOString()}`;
         ],
         stream: true,
         temperature: 0.7,
+        max_tokens: 8192,
       }),
     });
 

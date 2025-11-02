@@ -66,7 +66,7 @@ Focus on: recent performance, key matchup factors, value edge. Be concise and da
           },
         ],
         temperature: 0.3,
-        max_tokens: 500,
+        max_tokens: 2000,
       }),
     });
 
