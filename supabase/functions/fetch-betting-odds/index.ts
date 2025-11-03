@@ -6,7 +6,37 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// The Rundown API interfaces
+// The Odds API interfaces
+interface OddsApiOutcome {
+  name: string;
+  price: number;
+  point?: number;
+}
+
+interface OddsApiMarket {
+  key: string;
+  last_update: string;
+  outcomes: OddsApiOutcome[];
+}
+
+interface OddsApiBookmaker {
+  key: string;
+  title: string;
+  last_update: string;
+  markets: OddsApiMarket[];
+}
+
+interface OddsApiEvent {
+  id: string;
+  sport_key: string;
+  sport_title: string;
+  commence_time: string;
+  home_team: string;
+  away_team: string;
+  bookmakers: OddsApiBookmaker[];
+}
+
+// The Rundown API interfaces (fallback)
 interface RundownLine {
   affiliate_id: number;
   moneyline?: {
@@ -79,7 +109,7 @@ const BOOKMAKER_MAP: { [key: number]: string } = {
   15: 'bodog',
 };
 
-// Sport ID mapping
+// Sport ID mapping for The Rundown API (fallback)
 const SPORT_MAP: { [key: string]: number } = {
   'americanfootball_nfl': 2,
   'basketball_nba': 4,
@@ -87,6 +117,93 @@ const SPORT_MAP: { [key: string]: number } = {
   'icehockey_nhl': 1,
   'soccer_epl': 6,
 };
+
+// The Odds API uses the sport key directly (no mapping needed)
+// Supported sports: americanfootball_nfl, basketball_nba, baseball_mlb, icehockey_nhl, soccer_epl, etc.
+
+/**
+ * Fetch odds from The Odds API (primary source)
+ */
+async function fetchFromOddsApi(sport: string, oddsApiKey: string): Promise<OddsApiEvent[]> {
+  const regions = 'us'; // Focus on US bookmakers
+  const markets = 'h2h,spreads,totals'; // Moneyline, spreads, and totals
+  const oddsFormat = 'american'; // American odds format (+150, -110, etc.)
+
+  const url = `https://api.the-odds-api.com/v4/sports/${sport}/odds/?` +
+    `apiKey=${oddsApiKey}&regions=${regions}&markets=${markets}&oddsFormat=${oddsFormat}`;
+
+  console.log(`Fetching odds from The Odds API for sport: ${sport}`);
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`The Odds API error: ${response.status} - ${errorText}`);
+  }
+
+  const events: OddsApiEvent[] = await response.json();
+
+  // Check remaining requests from headers
+  const requestsRemaining = response.headers.get('x-requests-remaining');
+  const requestsUsed = response.headers.get('x-requests-used');
+  console.log(`The Odds API - Requests used: ${requestsUsed}, Remaining: ${requestsRemaining}`);
+
+  return events;
+}
+
+/**
+ * Store odds from The Odds API events in database
+ */
+async function storeOddsApiEvents(
+  events: OddsApiEvent[],
+  supabaseClient: any
+): Promise<{ oddsInserted: number; eventsProcessed: number; eventsWithOdds: number }> {
+  let totalOddsInserted = 0;
+  let eventsProcessed = 0;
+  let eventsWithOdds = 0;
+
+  for (const event of events) {
+    eventsProcessed++;
+
+    if (event.bookmakers && event.bookmakers.length > 0) {
+      eventsWithOdds++;
+
+      // Process each bookmaker
+      for (const bookmaker of event.bookmakers) {
+        // Process each market (h2h, spreads, totals)
+        for (const market of bookmaker.markets) {
+          // Process each outcome in the market
+          for (const outcome of market.outcomes) {
+            const oddsRecord = {
+              event_id: event.id,
+              sport_key: event.sport_key,
+              sport_title: event.sport_title,
+              commence_time: event.commence_time,
+              home_team: event.home_team,
+              away_team: event.away_team,
+              bookmaker: bookmaker.key,
+              market_key: market.key,
+              outcome_name: outcome.name,
+              outcome_price: outcome.price,
+              outcome_point: outcome.point || null,
+              last_updated: new Date().toISOString(),
+            };
+
+            const { error } = await supabaseClient
+              .from('betting_odds')
+              .upsert(oddsRecord, {
+                onConflict: 'event_id,bookmaker,market_key,outcome_name',
+              });
+
+            if (!error) totalOddsInserted++;
+          }
+        }
+      }
+    }
+  }
+
+  return { oddsInserted: totalOddsInserted, eventsProcessed, eventsWithOdds };
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -108,11 +225,13 @@ serve(async (req) => {
     console.log(`=== FETCH BETTING ODDS: ${sport} for ${date} ===`);
     const startTime = Date.now();
 
-    // Get The Rundown API key from environment (RapidAPI format)
+    // Get API keys from environment
+    // Priority: The Odds API (primary) -> The Rundown API (fallback)
+    const oddsApiKey = Deno.env.get('THE_ODDS_API_KEY');
     const rundownApiKey = Deno.env.get('X_RAPID_APIKEY');
 
-    if (!rundownApiKey) {
-      console.error('X_RAPID_APIKEY key not configured');
+    if (!oddsApiKey && !rundownApiKey) {
+      console.error('No API keys configured. Need either THE_ODDS_API_KEY or X_RAPID_APIKEY');
 
       // Log this error to betting_odds_fetch_log for monitoring
       await supabaseClient
@@ -122,28 +241,114 @@ serve(async (req) => {
           success: false,
           events_count: 0,
           odds_count: 0,
-          error_message: 'X_RAPID_APIKEY key not configured in environment variables',
+          error_message: 'No API keys configured. Need either THE_ODDS_API_KEY or X_RAPID_APIKEY',
         });
 
       return new Response(JSON.stringify({
-        error: 'X_RAPID_APIKEY key not configured',
+        error: 'No betting odds API keys configured',
         success: false,
-        message: 'Please configure X_RAPID_APIKEY in backend secrets',
+        message: 'Please configure THE_ODDS_API_KEY (primary) or X_RAPID_APIKEY (fallback) in backend secrets',
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Map sport name to The Rundown sport ID
-    const sportId = SPORT_MAP[sport] || 2; // Default to NFL if not found
-    
-    // Build The Rundown API URL
+    // Try The Odds API first (primary source)
+    let oddsApiEvents: OddsApiEvent[] = [];
+    let usedOddsApi = false;
+    let apiSource = '';
+    let apiRequestsRemaining: number | null = null;
+
+    if (oddsApiKey) {
+      try {
+        console.log(`Attempting to fetch from The Odds API (primary source)...`);
+        oddsApiEvents = await fetchFromOddsApi(sport, oddsApiKey);
+        usedOddsApi = true;
+        apiSource = 'The Odds API';
+        console.log(`Successfully fetched ${oddsApiEvents.length} events from The Odds API`);
+      } catch (error) {
+        console.error(`The Odds API failed: ${error instanceof Error ? error.message : String(error)}`);
+        console.log(`Falling back to The Rundown API...`);
+      }
+    } else {
+      console.log(`THE_ODDS_API_KEY not configured, using The Rundown API...`);
+    }
+
+    // If The Odds API succeeded, process those events
+    if (usedOddsApi && oddsApiEvents.length > 0) {
+      const { oddsInserted, eventsProcessed, eventsWithOdds } =
+        await storeOddsApiEvents(oddsApiEvents, supabaseClient);
+
+      // Log the successful fetch
+      await supabaseClient
+        .from('betting_odds_fetch_log')
+        .insert({
+          sports_fetched: [sport],
+          success: true,
+          events_count: eventsProcessed,
+          odds_count: oddsInserted,
+          api_requests_remaining: apiRequestsRemaining,
+        });
+
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+
+      console.log(`=== FETCH BETTING ODDS: Completed in ${duration}ms ===`);
+      console.log(`Events processed: ${eventsProcessed}, Events with odds: ${eventsWithOdds}`);
+      console.log(`Odds inserted/updated: ${oddsInserted}`);
+      console.log(`Source: The Odds API (api.the-odds-api.com)`);
+
+      return new Response(JSON.stringify({
+        success: true,
+        sport,
+        date,
+        events: eventsProcessed,
+        eventsWithOdds,
+        oddsInserted,
+        duration: `${duration}ms`,
+        timestamp: new Date().toISOString(),
+        source: 'The Odds API',
+        apiEndpoint: 'api.the-odds-api.com',
+        message: `Successfully fetched and stored ${oddsInserted} odds from ${eventsProcessed} events using The Odds API`,
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Fallback to The Rundown API if The Odds API failed or returned no events
+    if (!rundownApiKey) {
+      console.error('The Odds API failed and no Rundown API key configured');
+
+      await supabaseClient
+        .from('betting_odds_fetch_log')
+        .insert({
+          sports_fetched: [sport],
+          success: false,
+          events_count: 0,
+          odds_count: 0,
+          error_message: 'The Odds API failed and X_RAPID_APIKEY not configured as fallback',
+        });
+
+      return new Response(JSON.stringify({
+        error: 'The Odds API failed and no fallback API configured',
+        success: false,
+        message: 'The Odds API returned no events and X_RAPID_APIKEY is not configured for fallback',
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Use The Rundown API as fallback
+    console.log(`Using The Rundown API as fallback...`);
+    apiSource = 'The Rundown API (fallback)';
+
+    const sportId = SPORT_MAP[sport] || 2;
     const rundownApiUrl = `https://therundown-therundown-v1.p.rapidapi.com/sports/${sportId}/events/${date}`;
-    
+
     console.log(`Fetching odds from The Rundown API for sport ${sportId}...`);
 
-    // Fetch odds from The Rundown API
     const response = await fetch(rundownApiUrl, {
       method: 'GET',
       headers: {
@@ -157,8 +362,7 @@ serve(async (req) => {
       const errorText = await response.text();
       console.error(`The Rundown API error: ${response.status} - ${errorText}`);
 
-      // Log API errors for monitoring and debugging
-      const errorMessage = `The Rundown API returned ${response.status}: ${errorText.substring(0, 500)}`;
+      const errorMessage = `Both APIs failed. The Odds API: ${usedOddsApi ? 'No events' : 'Not configured'}. Rundown API: ${response.status} - ${errorText.substring(0, 500)}`;
       await supabaseClient
         .from('betting_odds_fetch_log')
         .insert({
@@ -181,7 +385,6 @@ serve(async (req) => {
 
     const responseData = await response.json();
 
-    // Validate response structure
     if (!responseData || typeof responseData !== 'object') {
       console.error('Invalid response structure from The Rundown API');
       return new Response(JSON.stringify({
@@ -194,7 +397,6 @@ serve(async (req) => {
     }
 
     const events: RundownEvent[] = responseData.events || [];
-
     console.log(`Received ${events.length} events from The Rundown API`);
 
     // Early return if no events
@@ -457,7 +659,7 @@ serve(async (req) => {
     console.log(`=== FETCH BETTING ODDS: Completed in ${duration}ms ===`);
     console.log(`Events processed: ${eventsProcessed}, Events with odds: ${eventsWithOdds}, Events skipped: ${eventsSkipped}`);
     console.log(`Odds inserted/updated: ${totalOddsInserted}`);
-    console.log(`Source: The Rundown API (therundown-therundown-v1.p.rapidapi.com)`);
+    console.log(`Source: ${apiSource} (therundown-therundown-v1.p.rapidapi.com)`);
     console.log(`Sport ID: ${sportId}, Sport Key: ${sport}`);
 
     return new Response(JSON.stringify({
@@ -471,9 +673,9 @@ serve(async (req) => {
       oddsInserted: totalOddsInserted,
       duration: `${duration}ms`,
       timestamp: new Date().toISOString(),
-      source: 'The Rundown API',
+      source: apiSource,
       apiEndpoint: 'therundown-therundown-v1.p.rapidapi.com',
-      message: `Successfully fetched and stored ${totalOddsInserted} odds from ${eventsProcessed} events (${eventsWithOdds} with odds) using The Rundown API`,
+      message: `Successfully fetched and stored ${totalOddsInserted} odds from ${eventsProcessed} events (${eventsWithOdds} with odds) using ${apiSource}`,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
