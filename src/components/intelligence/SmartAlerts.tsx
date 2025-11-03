@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Bell, BellOff, X } from "lucide-react";
+import { Bell, BellOff, X, TrendingUp, Zap, DollarSign, AlertTriangle } from "lucide-react";
 
 export function SmartAlerts() {
   const { user } = useAuth();
@@ -57,6 +57,34 @@ export function SmartAlerts() {
     }
   };
 
+  const getAlertIcon = (alertType: string) => {
+    switch (alertType) {
+      case 'line_movement':
+        return <TrendingUp className="w-4 h-4" />;
+      case 'steam_move':
+        return <Zap className="w-4 h-4" />;
+      case 'best_line':
+        return <DollarSign className="w-4 h-4" />;
+      case 'injury':
+        return <AlertTriangle className="w-4 h-4" />;
+      default:
+        return <Bell className="w-4 h-4" />;
+    }
+  };
+
+  const getAlertBadgeVariant = (priority: string) => {
+    switch (priority) {
+      case 'high':
+        return 'destructive';
+      case 'medium':
+        return 'default';
+      case 'low':
+        return 'secondary';
+      default:
+        return 'outline';
+    }
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -97,10 +125,10 @@ export function SmartAlerts() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Bell className="w-5 h-5" />
-          Smart Alerts
+          Value Alerts
           <Badge variant="destructive">{alerts.length} new</Badge>
         </CardTitle>
-        <CardDescription>Context-aware notifications</CardDescription>
+        <CardDescription>Line movement, sharp action, and best available odds</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
@@ -109,8 +137,26 @@ export function SmartAlerts() {
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <CardTitle className="text-sm">{alert.title}</CardTitle>
-                    <p className="text-sm text-muted-foreground mt-1">{alert.message}</p>
+                    <div className="flex items-center gap-2 mb-2">
+                      {getAlertIcon(alert.alert_type)}
+                      <CardTitle className="text-sm">{alert.title}</CardTitle>
+                      {alert.priority && (
+                        <Badge variant={getAlertBadgeVariant(alert.priority)} className="text-xs">
+                          {alert.priority}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">{alert.message}</p>
+                    {alert.data && (
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        {alert.sport && <span className="font-semibold">{alert.sport}</span>}
+                        {alert.game_date && (
+                          <span className="ml-2">
+                            {new Date(alert.game_date).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <Button
                     variant="ghost"

@@ -271,8 +271,8 @@ export async function getPlayerPropPredictions(
   playerName?: string
 ): Promise<any[]> {
   try {
-    // TODO: player_prop_predictions table doesn't exist yet
-    console.log('Player prop predictions feature requires database table setup');
+    // Note: This app no longer provides predictions. Use odds comparison features instead.
+    console.log('Predictions feature removed - use odds comparison and value analysis instead');
     return [];
   } catch (error) {
     console.error('Exception fetching prop predictions:', error);
