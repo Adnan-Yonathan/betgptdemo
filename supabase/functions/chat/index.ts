@@ -2810,11 +2810,35 @@ RESPONSIBLE GAMBLING:
         console.error('[BETTING GUARDRAIL] Blocking AI response - no valid betting data available');
         console.error('[BETTING GUARDRAIL] Data context:', dataContext?.substring(0, 200));
 
-        return new Response(JSON.stringify({
-          response: "I apologize, but I cannot provide betting recommendations at this time because I don't have access to current, accurate betting lines. The data may be unavailable or too stale. Please try again in a few minutes, or contact support if this persists.\n\nIf you need general betting advice or have questions about betting concepts, I'm happy to help with that instead!",
-          requiresAuth: false,
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        // Return error message in SSE streaming format so frontend can parse it
+        const errorMessage = "I apologize, but I cannot provide betting recommendations at this time because I don't have access to current, accurate betting lines. The data may be unavailable or too stale. Please try again in a few minutes, or contact support if this persists.\n\nIf you need general betting advice or have questions about betting concepts, I'm happy to help with that instead!";
+
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream({
+          start(controller) {
+            // Send the error message in OpenAI SSE format
+            const chunks = errorMessage.split(' ');
+            for (const chunk of chunks) {
+              const sseData = `data: ${JSON.stringify({
+                choices: [{
+                  delta: { content: chunk + ' ' }
+                }]
+              })}\n\n`;
+              controller.enqueue(encoder.encode(sseData));
+            }
+            // Send the done signal
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+            controller.close();
+          }
+        });
+
+        return new Response(stream, {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+          },
         });
       }
     }
