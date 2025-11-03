@@ -1,7 +1,7 @@
 # Replace with your Supabase project reference ID
 # Get this from: https://supabase.com/dashboard > Your Project > Settings > General
 # Or run: supabase link --project-ref YOUR_PROJECT_REF
-project_id = "YOUR_PROJECT_REF_HERE"
+project_id = "dskfsnbdgyjizoaafqfk"
 
 [functions.chat]
 verify_jwt = false
