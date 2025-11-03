@@ -51,26 +51,13 @@ export function ValueDashboard() {
   const fetchValueData = async () => {
     setIsLoading(true);
     try {
-      // Fetch odds discrepancies
-      const { data: discrepData, error: discrepError } = await supabase
-        .from('odds_discrepancies')
-        .select('*')
-        .gte('game_time', new Date().toISOString())
-        .order('probability_difference', { ascending: false })
-        .limit(20);
-
-      if (discrepError) throw discrepError;
-      setDiscrepancies(discrepData || []);
-
-      // Fetch sharp money signals
-      const { data: sharpData, error: sharpError } = await supabase
-        .from('sharp_money_signals')
-        .select('*')
-        .order('detected_at', { ascending: false })
-        .limit(20);
-
-      if (sharpError) throw sharpError;
-      setSharpSignals(sharpData || []);
+      // TODO: Re-enable when odds_discrepancies table is created
+      // Odds discrepancies feature is temporarily disabled
+      setDiscrepancies([]);
+      
+      // TODO: Re-enable when sharp_money_signals table is created  
+      // Sharp money signals feature is temporarily disabled
+      setSharpSignals([]);
     } catch (error) {
       console.error('Error fetching value data:', error);
     } finally {

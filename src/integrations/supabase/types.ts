@@ -155,6 +155,48 @@ export type Database = {
         }
         Relationships: []
       }
+      api_health_status: {
+        Row: {
+          api_name: string
+          consecutive_failures: number | null
+          created_at: string | null
+          error_message: string | null
+          id: string
+          last_failed_call: string | null
+          last_successful_call: string | null
+          metadata: Json | null
+          rate_limit_reset_at: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          api_name: string
+          consecutive_failures?: number | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          last_failed_call?: string | null
+          last_successful_call?: string | null
+          metadata?: Json | null
+          rate_limit_reset_at?: string | null
+          status: string
+          updated_at?: string | null
+        }
+        Update: {
+          api_name?: string
+          consecutive_failures?: number | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          last_failed_call?: string | null
+          last_successful_call?: string | null
+          metadata?: Json | null
+          rate_limit_reset_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       bankroll_history: {
         Row: {
           bankroll: number
@@ -946,6 +988,60 @@ export type Database = {
           },
         ]
       }
+      model_predictions: {
+        Row: {
+          away_team: string
+          confidence_score: number | null
+          created_at: string
+          edge_percentage: number | null
+          event_id: string
+          feature_values: Json | null
+          game_date: string | null
+          home_team: string
+          id: string
+          league: string | null
+          model_version: string | null
+          predicted_outcome: string | null
+          predicted_value: number | null
+          prediction_type: string
+          sport: string
+        }
+        Insert: {
+          away_team: string
+          confidence_score?: number | null
+          created_at?: string
+          edge_percentage?: number | null
+          event_id: string
+          feature_values?: Json | null
+          game_date?: string | null
+          home_team: string
+          id?: string
+          league?: string | null
+          model_version?: string | null
+          predicted_outcome?: string | null
+          predicted_value?: number | null
+          prediction_type: string
+          sport: string
+        }
+        Update: {
+          away_team?: string
+          confidence_score?: number | null
+          created_at?: string
+          edge_percentage?: number | null
+          event_id?: string
+          feature_values?: Json | null
+          game_date?: string | null
+          home_team?: string
+          id?: string
+          league?: string | null
+          model_version?: string | null
+          predicted_outcome?: string | null
+          predicted_value?: number | null
+          prediction_type?: string
+          sport?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           action_url: string | null
@@ -1116,6 +1212,48 @@ export type Database = {
           pattern_type?: string
           sport?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      prediction_feedback: {
+        Row: {
+          confidence_rating: number | null
+          created_at: string
+          id: string
+          prediction_id: string
+          sport: string | null
+          user_action: string | null
+          user_id: string
+          user_profit_loss: number | null
+          value_rating: number | null
+          was_accurate: boolean | null
+          was_helpful: boolean
+        }
+        Insert: {
+          confidence_rating?: number | null
+          created_at?: string
+          id?: string
+          prediction_id: string
+          sport?: string | null
+          user_action?: string | null
+          user_id: string
+          user_profit_loss?: number | null
+          value_rating?: number | null
+          was_accurate?: boolean | null
+          was_helpful: boolean
+        }
+        Update: {
+          confidence_rating?: number | null
+          created_at?: string
+          id?: string
+          prediction_id?: string
+          sport?: string | null
+          user_action?: string | null
+          user_id?: string
+          user_profit_loss?: number | null
+          value_rating?: number | null
+          was_accurate?: boolean | null
+          was_helpful?: boolean
         }
         Relationships: []
       }

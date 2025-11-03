@@ -108,11 +108,11 @@ serve(async (req) => {
     console.log(`=== FETCH BETTING ODDS: ${sport} for ${date} ===`);
     const startTime = Date.now();
 
-    // Get The Rundown API key from environment
-    const rundownApiKey = Deno.env.get('THE_RUNDOWN_API');
+    // Get The Rundown API key from environment (RapidAPI format)
+    const rundownApiKey = Deno.env.get('X_RAPID_APIKEY');
 
     if (!rundownApiKey) {
-      console.error('THE_RUNDOWN_API key not configured');
+      console.error('X_RAPID_APIKEY key not configured');
 
       // Log this error to betting_odds_fetch_log for monitoring
       await supabaseClient
@@ -122,13 +122,13 @@ serve(async (req) => {
           success: false,
           events_count: 0,
           odds_count: 0,
-          error_message: 'THE_RUNDOWN_API key not configured in environment variables',
+          error_message: 'X_RAPID_APIKEY key not configured in environment variables',
         });
 
       return new Response(JSON.stringify({
-        error: 'THE_RUNDOWN_API key not configured',
+        error: 'X_RAPID_APIKEY key not configured',
         success: false,
-        message: 'Please configure THE_RUNDOWN_API in backend secrets',
+        message: 'Please configure X_RAPID_APIKEY in backend secrets',
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
