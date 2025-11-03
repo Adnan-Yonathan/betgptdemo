@@ -199,7 +199,8 @@ supabase functions deploy
    OPENAI_API_KEY="sk-..."
 
    # Betting Odds API (Required for odds data)
-   RUNDOWN_API_KEY="your_rundown_api_key"
+   THE_ODDS_API_KEY="your_odds_api_key"        # Primary source
+   X_RAPID_APIKEY="your_rundown_api_key"       # Fallback source
 
    # Optional: Sports Data APIs
    BALLDONTLIE_API_KEY="your_balldontlie_key"
@@ -262,8 +263,11 @@ Edge functions need environment variables:
 # Set OpenAI API key
 supabase secrets set OPENAI_API_KEY=sk-your-key-here
 
-# Set Rundown API key (betting odds)
-supabase secrets set RUNDOWN_API_KEY=your-rundown-key
+# Set The Odds API key (betting odds - primary)
+supabase secrets set THE_ODDS_API_KEY=your-odds-api-key
+
+# Set Rundown API key (betting odds - fallback)
+supabase secrets set X_RAPID_APIKEY=your-rundown-key
 
 # Set Ball Don't Lie API key (NBA stats)
 supabase secrets set BALLDONTLIE_API_KEY=your-key
@@ -299,12 +303,13 @@ npm run build
 | `VITE_SUPABASE_URL` | Your Supabase project URL | Dashboard > Settings > API |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Public anon key | Dashboard > Settings > API |
 | `OPENAI_API_KEY` | OpenAI API key for AI features | [platform.openai.com](https://platform.openai.com) |
-| `RUNDOWN_API_KEY` | The Rundown API for betting odds | [therundown.io](https://therundown.io) |
+| `THE_ODDS_API_KEY` | The Odds API for betting odds (primary) | [the-odds-api.com](https://the-odds-api.com) |
 
 ### Optional Variables
 
 | Variable | Description | Where to Get |
 |----------|-------------|--------------|
+| `X_RAPID_APIKEY` | The Rundown API (fallback for betting odds) | [RapidAPI - The Rundown](https://rapidapi.com/therundown/api/therundown) |
 | `BALLDONTLIE_API_KEY` | NBA stats API | [balldontlie.io](https://balldontlie.io) |
 | `ESPN_API_KEY` | ESPN stats fallback | ESPN Developer Portal |
 | `KALSHI_API_KEY` | Kalshi prediction markets | [kalshi.com](https://kalshi.com) |
