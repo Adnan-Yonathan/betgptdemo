@@ -7,9 +7,8 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const RUNDOWN_API_KEY = Deno.env.get('X_RAPID_APIKEY') || '';
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+const BALLDONTLIE_API = Deno.env.get('BALLDONTLIE_API') || Deno.env.get('BALL_DONT_LIE_API') || '';
+const BASE_URL = 'https://api.balldontlie.io/v1';
 
 interface LiveScore {
   event_id: string;
@@ -39,15 +38,9 @@ interface LiveScoresResponse {
   events: LiveScore[];
 }
 
-// Map league names to sport IDs (must match The Rundown API sport IDs)
+// Map league names to Ball Don't Lie API (NBA only)
 const sportIdMap: Record<string, number> = {
-  'NBA': 4,     // Basketball
-  'NFL': 2,     // American Football
-  'NCAAF': 9,   // College Football (CFB)
-  'MLB': 3,     // Baseball
-  'NHL': 1,     // Ice Hockey
-  'WNBA': 12,   // Women's Basketball
-  'MLS': 10,    // Soccer
+  'NBA': 4,     // Basketball - supported by Ball Don't Lie
 };
 
 // Map game status from API to our format
@@ -59,21 +52,34 @@ function mapGameStatus(apiStatus: string): string {
   return 'scheduled';
 }
 
-// Fetch live scores for a specific league
+// Fetch live NBA scores using Ball Don't Lie API
 async function fetchLiveScores(league: string): Promise<LiveScore[]> {
   const sportId = sportIdMap[league];
   if (!sportId) {
-    console.error(`Unknown league: ${league}`);
+    console.error(`League not supported by Ball Don't Lie: ${league}`);
+    return [];
+  }
+
+  // Ball Don't Lie only supports NBA
+  if (league !== 'NBA') {
+    console.log(`Ball Don't Lie only supports NBA, skipping ${league}`);
+    return [];
+  }
+
+  if (!BALLDONTLIE_API) {
+    console.error('BALLDONTLIE_API key not configured');
     return [];
   }
 
   try {
-    const url = `https://therundown-therundown-v1.p.rapidapi.com/sports/${sportId}/events/live`;
+    // Fetch today's NBA games
+    const today = new Date().toISOString().split('T')[0];
+    const url = `${BASE_URL}/games?dates[]=${today}&per_page=100`;
 
     const response = await fetch(url, {
       headers: {
-        'X-RapidAPI-Key': RUNDOWN_API_KEY,
-        'X-RapidAPI-Host': 'therundown-therundown-v1.p.rapidapi.com',
+        'Authorization': BALLDONTLIE_API,
+        'Accept': 'application/json',
       },
     });
 
@@ -82,8 +88,26 @@ async function fetchLiveScores(league: string): Promise<LiveScore[]> {
       return [];
     }
 
-    const data: LiveScoresResponse = await response.json();
-    return data.events || [];
+    const data = await response.json();
+    const games = data.data || [];
+
+    // Convert Ball Don't Lie format to our LiveScore format
+    return games.map((game: any) => ({
+      event_id: String(game.id),
+      event_date: game.date,
+      sport_id: 4, // NBA
+      home_team: game.home_team?.full_name || game.home_team?.name || 'Home Team',
+      away_team: game.visitor_team?.full_name || game.visitor_team?.name || 'Away Team',
+      score: {
+        event_status: game.status?.includes('Final') || game.status === 'F' ? 'STATUS_FINAL' :
+                      game.status?.includes('In Progress') || game.status === 'Live' ? 'STATUS_IN_PROGRESS' :
+                      'STATUS_SCHEDULED',
+        event_status_detail: game.status || 'Scheduled',
+        score_home: game.home_team_score ?? 0,
+        score_away: game.visitor_team_score ?? 0,
+        game_clock: game.time || '',
+      },
+    }));
   } catch (error) {
     console.error(`Error fetching live scores for ${league}:`, error);
     return [];
@@ -141,18 +165,19 @@ async function getActiveTracking(supabase: any) {
 
 // Main monitoring function
 async function monitorLiveBets() {
+  const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
+  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-  console.log('Starting live bet monitoring...');
+  console.log('Starting live bet monitoring (Ball Don\'t Lie API - NBA only)...');
 
   // Get all active tracking records
   const activeTracking = await getActiveTracking(supabase);
   console.log(`Found ${activeTracking.length} active bets to track`);
 
-  // Always fetch live scores for ALL leagues, not just those with active bets
-  // This ensures the live score ticker always has data to display
-  const allLeagues = Object.keys(sportIdMap);
-  console.log(`Fetching live scores for all leagues: ${allLeagues.join(', ')}`);
+  // Always fetch live scores for NBA (Ball Don't Lie only supports NBA)
+  const allLeagues = ['NBA'];
+  console.log(`Fetching live scores for NBA from Ball Don't Lie API`);
 
   // Fetch live scores for each league
   const allScores: LiveScore[] = [];

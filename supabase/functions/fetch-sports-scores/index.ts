@@ -45,18 +45,11 @@ interface SportConfig {
   league: string;
 }
 
-const RUNDOWN_HOST = 'therundown-therundown-v1.p.rapidapi.com';
-const BASE_URL = `https://${RUNDOWN_HOST}`;
+const BALLDONTLIE_BASE_URL = 'https://api.balldontlie.io/v1';
 
-// Configuration for all supported sports (The Rundown API sport IDs)
+// Ball Don't Lie API only supports NBA
 const SPORTS_CONFIG: SportConfig[] = [
-  { key: 'nfl', sportId: 2, sportType: 'football', league: 'NFL' },
-  { key: 'ncaaf', sportId: 9, sportType: 'football', league: 'NCAAF' },
   { key: 'nba', sportId: 4, sportType: 'basketball', league: 'NBA' },
-  { key: 'mlb', sportId: 3, sportType: 'baseball', league: 'MLB' },
-  { key: 'nhl', sportId: 1, sportType: 'hockey', league: 'NHL' },
-  { key: 'wnba', sportId: 12, sportType: 'basketball', league: 'WNBA' },
-  { key: 'mls', sportId: 10, sportType: 'soccer', league: 'MLS' },
 ];
 
 function mapTeams(event: RundownEvent): { home: string; away: string } {
@@ -94,57 +87,64 @@ function extractAdvancedStats(score?: RundownScore): Record<string, unknown> | n
   return Object.keys(stats).length > 0 ? stats : null;
 }
 
-// Helper function to fetch and update scores for a sport using The Rundown API
+// Helper function to fetch and update scores for NBA using Ball Don't Lie API
 async function fetchScoresForSport(
   supabaseClient: any,
   config: SportConfig,
-  rundownApiKey: string,
+  ballDontLieApiKey: string,
   targetDate: string
 ): Promise<{ sport: string; count: number; error?: string }> {
   try {
-    const rundownUrl = `${BASE_URL}/sports/${config.sportId}/events/${targetDate}`;
-    console.log(`Fetching scores for ${config.league} from The Rundown API: ${rundownUrl}`);
+    const ballDontLieUrl = `${BALLDONTLIE_BASE_URL}/games?dates[]=${targetDate}&per_page=100`;
+    console.log(`Fetching scores for ${config.league} from Ball Don't Lie API: ${ballDontLieUrl}`);
 
-    const response = await fetch(rundownUrl, {
+    const response = await fetch(ballDontLieUrl, {
       headers: {
-        'X-RapidAPI-Key': rundownApiKey,
-        'X-RapidAPI-Host': RUNDOWN_HOST,
+        'Authorization': ballDontLieApiKey,
         'Accept': 'application/json',
       },
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`The Rundown API error for ${config.league}: ${response.status} - ${errorText}`);
+      console.error(`Ball Don't Lie API error for ${config.league}: ${response.status} - ${errorText}`);
       return { sport: config.league, count: 0, error: `HTTP ${response.status}` };
     }
 
     const data = await response.json();
-    const events: RundownEvent[] = data.events || [];
+    const games = data.data || [];
 
-    console.log(`Found ${events.length} events for ${config.league}`);
+    console.log(`Found ${games.length} games for ${config.league}`);
 
     let updatedCount = 0;
-    for (const event of events) {
+    for (const game of games) {
       try {
-        const { home, away } = mapTeams(event);
-        const score: any = event.score || {};
+        const homeTeam = game.home_team?.full_name || game.home_team?.name || 'Home Team';
+        const awayTeam = game.visitor_team?.full_name || game.visitor_team?.name || 'Away Team';
+        
+        const status = game.status?.toLowerCase() || 'scheduled';
+        let gameStatus = 'STATUS_SCHEDULED';
+        if (status.includes('final') || status === 'f') {
+          gameStatus = 'STATUS_FINAL';
+        } else if (status.includes('in progress') || status === 'live') {
+          gameStatus = 'STATUS_IN_PROGRESS';
+        }
 
         const scoreData = {
-          event_id: event.event_uuid || event.event_id,
+          event_id: String(game.id),
           sport: config.sportType,
           league: config.league,
-          event_name: `${away} @ ${home}`,
-          short_name: `${away} @ ${home}`,
-          home_team: home,
-          away_team: away,
-          home_score: score.score_home ?? 0,
-          away_score: score.score_away ?? 0,
-          game_status: score.event_status || 'STATUS_SCHEDULED',
-          status_description: score.event_status_detail || score.event_status || 'Scheduled',
-          game_date: event.event_date,
+          event_name: `${awayTeam} @ ${homeTeam}`,
+          short_name: `${awayTeam} @ ${homeTeam}`,
+          home_team: homeTeam,
+          away_team: awayTeam,
+          home_score: game.home_team_score ?? 0,
+          away_score: game.visitor_team_score ?? 0,
+          game_status: gameStatus,
+          status_description: game.status || 'Scheduled',
+          game_date: game.date,
           last_updated: new Date().toISOString(),
-          advanced_stats: extractAdvancedStats(score),
+          advanced_stats: null,
         };
 
         const { error } = await supabaseClient
@@ -152,16 +152,16 @@ async function fetchScoresForSport(
           .upsert(scoreData, { onConflict: 'event_id' });
 
         if (error) {
-          console.error(`Error upserting event ${event.event_id}:`, error);
+          console.error(`Error upserting game ${game.id}:`, error);
         } else {
           updatedCount++;
         }
-      } catch (eventError) {
-        console.error(`Error processing event ${event.event_id}:`, eventError);
+      } catch (gameError) {
+        console.error(`Error processing game ${game.id}:`, gameError);
       }
     }
 
-    console.log(`Successfully updated ${updatedCount}/${events.length} games for ${config.league}`);
+    console.log(`Successfully updated ${updatedCount}/${games.length} games for ${config.league}`);
     return { sport: config.league, count: updatedCount };
   } catch (error) {
     console.error(`Error fetching scores for ${config.league}:`, error);
@@ -184,10 +184,10 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
 
-    const rundownApiKey = Deno.env.get('THE_RUNDOWN_API');
+    const ballDontLieApiKey = Deno.env.get('BALLDONTLIE_API') || Deno.env.get('BALL_DONT_LIE_API');
 
-    if (!rundownApiKey) {
-      throw new Error('THE_RUNDOWN_API key not configured');
+    if (!ballDontLieApiKey) {
+      throw new Error('BALLDONTLIE_API key not configured');
     }
 
     console.log('=== FETCH SPORTS SCORES: Starting data refresh ===');
@@ -213,10 +213,10 @@ serve(async (req) => {
 
     console.log(`Fetching scores for: ${sportsToFetch.map(s => s.league).join(', ')}`);
 
-    // Fetch scores for all sports
+    // Fetch scores for all sports (currently only NBA from Ball Don't Lie)
     const results = [];
     for (const sportConfig of sportsToFetch) {
-      const result = await fetchScoresForSport(supabaseClient, sportConfig, rundownApiKey, targetDate);
+      const result = await fetchScoresForSport(supabaseClient, sportConfig, ballDontLieApiKey, targetDate);
       results.push(result);
     }
 
