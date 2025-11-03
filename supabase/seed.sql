@@ -1,0 +1,401 @@
+-- ============================================
+-- BetGPT Seed Data
+-- ============================================
+-- This file contains optional seed data for development and testing
+-- Run with: supabase db seed (local only)
+-- Or create a migration to run in production
+
+-- ============================================
+-- DEMO USER SETUP
+-- ============================================
+-- Note: In production, users sign up via Supabase Auth
+-- This is for development/testing only
+
+-- Create demo user (if using local development)
+-- INSERT INTO auth.users (
+--   id,
+--   email,
+--   encrypted_password,
+--   email_confirmed_at,
+--   created_at,
+--   updated_at
+-- ) VALUES (
+--   '00000000-0000-0000-0000-000000000001'::uuid,
+--   'demo@betgpt.com',
+--   crypt('DemoPassword123!', gen_salt('bf')),
+--   NOW(),
+--   NOW(),
+--   NOW()
+-- );
+
+-- ============================================
+-- USER PROFILE INITIALIZATION
+-- ============================================
+-- When a real user signs up, this happens automatically via trigger
+-- For demo purposes, you can insert directly:
+
+-- INSERT INTO profiles (
+--   id,
+--   email,
+--   win_rate,
+--   roi,
+--   total_profit,
+--   current_streak,
+--   longest_win_streak,
+--   longest_loss_streak,
+--   bankroll,
+--   risk_tolerance,
+--   kelly_multiplier,
+--   created_at
+-- ) VALUES (
+--   '00000000-0000-0000-0000-000000000001'::uuid,
+--   'demo@betgpt.com',
+--   0.0,
+--   0.0,
+--   0.0,
+--   0,
+--   0,
+--   0,
+--   1000.00,
+--   'moderate',
+--   0.25,
+--   NOW()
+-- );
+
+-- ============================================
+-- USER PREFERENCES
+-- ============================================
+-- Default preferences for demo user
+
+-- INSERT INTO user_preferences (
+--   user_id,
+--   theme,
+--   notifications_enabled,
+--   email_notifications,
+--   sms_notifications,
+--   favorite_sports,
+--   favorite_teams,
+--   default_stake_size,
+--   default_unit_size,
+--   bet_tracking_enabled,
+--   analytics_enabled
+-- ) VALUES (
+--   '00000000-0000-0000-0000-000000000001'::uuid,
+--   'dark',
+--   true,
+--   true,
+--   false,
+--   ARRAY['NBA', 'NFL', 'MLB']::text[],
+--   ARRAY['Lakers', 'Patriots', 'Yankees']::text[],
+--   50.00,
+--   25.00,
+--   true,
+--   true
+-- );
+
+-- ============================================
+-- SAMPLE BANKROLL SETUP
+-- ============================================
+
+-- INSERT INTO user_bankroll (
+--   user_id,
+--   starting_bankroll,
+--   current_bankroll,
+--   total_deposited,
+--   total_withdrawn,
+--   last_updated
+-- ) VALUES (
+--   '00000000-0000-0000-0000-000000000001'::uuid,
+--   1000.00,
+--   1000.00,
+--   1000.00,
+--   0.00,
+--   NOW()
+-- );
+
+-- ============================================
+-- SAMPLE BETS (HISTORICAL)
+-- ============================================
+-- Some winning and losing bets to populate the dashboard
+
+-- -- Winning NBA bet
+-- INSERT INTO bets (
+--   id,
+--   user_id,
+--   amount,
+--   odds,
+--   outcome,
+--   sport,
+--   league,
+--   description,
+--   potential_return,
+--   actual_return,
+--   confidence_score,
+--   created_at,
+--   settled_at,
+--   bet_type
+-- ) VALUES (
+--   gen_random_uuid(),
+--   '00000000-0000-0000-0000-000000000001'::uuid,
+--   50.00,
+--   -110,
+--   'won',
+--   'basketball',
+--   'NBA',
+--   'Lakers ML vs Celtics',
+--   95.45,
+--   95.45,
+--   75.0,
+--   NOW() - INTERVAL '2 days',
+--   NOW() - INTERVAL '2 days',
+--   'moneyline'
+-- );
+
+-- -- Losing NFL bet
+-- INSERT INTO bets (
+--   id,
+--   user_id,
+--   amount,
+--   odds,
+--   outcome,
+--   sport,
+--   league,
+--   description,
+--   potential_return,
+--   actual_return,
+--   confidence_score,
+--   created_at,
+--   settled_at,
+--   bet_type
+-- ) VALUES (
+--   gen_random_uuid(),
+--   '00000000-0000-0000-0000-000000000001'::uuid,
+--   75.00,
+--   150,
+--   'lost',
+--   'football',
+--   'NFL',
+--   'Patriots +3.5 vs Bills',
+--   187.50,
+--   0.00,
+--   60.0,
+--   NOW() - INTERVAL '3 days',
+--   NOW() - INTERVAL '3 days',
+--   'spread'
+-- );
+
+-- -- Pending bet
+-- INSERT INTO bets (
+--   id,
+--   user_id,
+--   amount,
+--   odds,
+--   outcome,
+--   sport,
+--   league,
+--   description,
+--   potential_return,
+--   actual_return,
+--   confidence_score,
+--   created_at,
+--   bet_type
+-- ) VALUES (
+--   gen_random_uuid(),
+--   '00000000-0000-0000-0000-000000000001'::uuid,
+--   100.00,
+--   -115,
+--   'pending',
+--   'basketball',
+--   'NBA',
+--   'Warriors ML vs Suns',
+--   186.96,
+--   NULL,
+--   80.0,
+--   NOW() - INTERVAL '1 hour',
+--   'moneyline'
+-- );
+
+-- ============================================
+-- SAMPLE CONVERSATIONS
+-- ============================================
+-- Chat history with AI
+
+-- INSERT INTO conversations (
+--   id,
+--   user_id,
+--   title,
+--   created_at,
+--   updated_at
+-- ) VALUES (
+--   '11111111-1111-1111-1111-111111111111'::uuid,
+--   '00000000-0000-0000-0000-000000000001'::uuid,
+--   'NBA Betting Strategy',
+--   NOW() - INTERVAL '1 day',
+--   NOW() - INTERVAL '1 day'
+-- );
+
+-- INSERT INTO messages (
+--   id,
+--   conversation_id,
+--   role,
+--   content,
+--   created_at
+-- ) VALUES
+--   (
+--     gen_random_uuid(),
+--     '11111111-1111-1111-1111-111111111111'::uuid,
+--     'user',
+--     'What are the best NBA bets tonight?',
+--     NOW() - INTERVAL '1 day'
+--   ),
+--   (
+--     gen_random_uuid(),
+--     '11111111-1111-1111-1111-111111111111'::uuid,
+--     'assistant',
+--     'Based on current odds and team performance, here are my top 3 picks for tonight...',
+--     NOW() - INTERVAL '1 day'
+--   );
+
+-- ============================================
+-- SAMPLE USER GOALS
+-- ============================================
+
+-- INSERT INTO user_goals (
+--   user_id,
+--   goal_type,
+--   target_value,
+--   current_value,
+--   target_date,
+--   created_at
+-- ) VALUES
+--   (
+--     '00000000-0000-0000-0000-000000000001'::uuid,
+--     'monthly_profit',
+--     500.00,
+--     45.45,
+--     DATE_TRUNC('month', NOW()) + INTERVAL '1 month',
+--     NOW()
+--   ),
+--   (
+--     '00000000-0000-0000-0000-000000000001'::uuid,
+--     'win_rate',
+--     60.0,
+--     50.0,
+--     NOW() + INTERVAL '3 months',
+--     NOW()
+--   );
+
+-- ============================================
+-- SAMPLE ALERT PREFERENCES
+-- ============================================
+
+-- INSERT INTO user_alert_preferences (
+--   user_id,
+--   alert_type,
+--   enabled,
+--   min_confidence,
+--   sports,
+--   delivery_method
+-- ) VALUES
+--   (
+--     '00000000-0000-0000-0000-000000000001'::uuid,
+--     'sharp_money',
+--     true,
+--     70.0,
+--     ARRAY['NBA', 'NFL']::text[],
+--     'push'
+--   ),
+--   (
+--     '00000000-0000-0000-0000-000000000001'::uuid,
+--     'arbitrage',
+--     true,
+--     80.0,
+--     ARRAY['NBA', 'NFL', 'MLB']::text[],
+--     'push'
+--   ),
+--   (
+--     '00000000-0000-0000-0000-000000000001'::uuid,
+--     'line_movement',
+--     true,
+--     60.0,
+--     ARRAY['NBA']::text[],
+--     'in_app'
+--   );
+
+-- ============================================
+-- SAMPLE LOSS LIMITS (RESPONSIBLE GAMBLING)
+-- ============================================
+
+-- INSERT INTO loss_limits (
+--   user_id,
+--   daily_limit,
+--   weekly_limit,
+--   monthly_limit,
+--   current_daily_loss,
+--   current_weekly_loss,
+--   current_monthly_loss,
+--   cool_off_until
+-- ) VALUES (
+--   '00000000-0000-0000-0000-000000000001'::uuid,
+--   100.00,
+--   500.00,
+--   2000.00,
+--   0.00,
+--   0.00,
+--   0.00,
+--   NULL
+-- );
+
+-- ============================================
+-- REFERENCE DATA: SPORTS LEAGUES
+-- ============================================
+-- Not stored in database, but useful for reference
+
+-- Supported Sports:
+-- - NBA (National Basketball Association)
+-- - NFL (National Football League)
+-- - MLB (Major League Baseball)
+-- - NHL (National Hockey League)
+-- - NCAA Basketball
+-- - NCAA Football
+-- - UFC (Ultimate Fighting Championship)
+-- - Soccer (EPL, La Liga, etc.)
+
+-- ============================================
+-- DEVELOPMENT NOTES
+-- ============================================
+
+-- To use this seed data:
+-- 1. Uncomment the sections you want to seed
+-- 2. Update UUIDs to match your auth.users IDs
+-- 3. Run: supabase db seed (local only)
+-- 4. Or create a migration for production seeding
+
+-- For production:
+-- - Don't seed demo users
+-- - Consider seeding reference data only
+-- - Use real user sign-ups via Supabase Auth
+
+-- Testing workflow:
+-- 1. supabase db reset (clears all data)
+-- 2. Uncomment seed data above
+-- 3. supabase db seed
+-- 4. Test your application with seeded data
+
+-- ============================================
+-- CLEAN UP (for testing)
+-- ============================================
+
+-- To remove all demo data:
+-- DELETE FROM messages WHERE conversation_id IN (
+--   SELECT id FROM conversations WHERE user_id = '00000000-0000-0000-0000-000000000001'
+-- );
+-- DELETE FROM conversations WHERE user_id = '00000000-0000-0000-0000-000000000001';
+-- DELETE FROM bets WHERE user_id = '00000000-0000-0000-0000-000000000001';
+-- DELETE FROM user_goals WHERE user_id = '00000000-0000-0000-0000-000000000001';
+-- DELETE FROM user_alert_preferences WHERE user_id = '00000000-0000-0000-0000-000000000001';
+-- DELETE FROM loss_limits WHERE user_id = '00000000-0000-0000-0000-000000000001';
+-- DELETE FROM user_preferences WHERE user_id = '00000000-0000-0000-0000-000000000001';
+-- DELETE FROM user_bankroll WHERE user_id = '00000000-0000-0000-0000-000000000001';
+-- DELETE FROM profiles WHERE id = '00000000-0000-0000-0000-000000000001';
+-- DELETE FROM auth.users WHERE id = '00000000-0000-0000-0000-000000000001';
