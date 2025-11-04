@@ -1121,10 +1121,9 @@ function formatOddsData(odds: any[], query: string): string {
   const lastUpdated = odds[0]?.last_updated ? new Date(odds[0].last_updated) : now;
   const dataAgeMinutes = Math.floor((now.getTime() - lastUpdated.getTime()) / 60000);
 
-  // CRITICAL: Reject data older than 1 hour as too stale for reliable betting
-  // Updated threshold to match hourly fetch frequency - data must be fresh
-  if (dataAgeMinutes > 60) {
-    return `ERROR: Betting odds data is too stale (${dataAgeMinutes} minutes old). Cannot provide reliable recommendations. Data last updated: ${lastUpdated.toLocaleString()}. The automated refresh system updates every hour. Please try again in a few minutes or contact support if this persists.`;
+  // Allow data up to 3 hours old, but warn for data older than 60 minutes
+  if (dataAgeMinutes > 180) {
+    return `ERROR: Betting odds data is too stale (${dataAgeMinutes} minutes old). Cannot provide reliable recommendations. Data last updated: ${lastUpdated.toLocaleString()}. Please try again later.`;
   }
 
   // Group odds by event
@@ -1141,10 +1140,9 @@ function formatOddsData(odds: any[], query: string): string {
   result += `Data Retrieved: ${now.toLocaleString()}\n`;
   result += `Last Updated: ${lastUpdated.toLocaleString()} (${dataAgeMinutes} minutes ago)\n`;
 
-  // ENHANCED: Staleness warnings adjusted for hourly fetch frequency
-  // Note: Data updates every hour, so data should never be >60 minutes old
-  if (dataAgeMinutes > 45) {
-    result += `⚠️ DATA QUALITY: STALE (${dataAgeMinutes} min old) - Lines may have moved. Next update coming soon.\n\n`;
+  // Warning for older data (between 60-180 minutes)
+  if (dataAgeMinutes > 60) {
+    result += `⚠️ WARNING: Odds data is ${dataAgeMinutes} min old. Lines may have moved significantly. Verify with bookmaker before placing bets.\n\n`;
   } else if (dataAgeMinutes > 30) {
     result += `⚠️ DATA QUALITY: MODERATELY STALE (${dataAgeMinutes} min old) - Consider verifying key lines with bookmaker.\n\n`;
   } else if (dataAgeMinutes > 15) {

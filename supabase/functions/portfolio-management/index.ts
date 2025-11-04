@@ -421,9 +421,9 @@ async function getPortfolioSummary(supabase: any, userId: string) {
   let currentStreak = 0, streakType = 'none';
 
   if (recentBets && recentBets.length > 0) {
-    wins = recentBets.filter(b => b.outcome === 'win').length;
-    losses = recentBets.filter(b => b.outcome === 'loss').length;
-    pushes = recentBets.filter(b => b.outcome === 'push').length;
+    wins = recentBets.filter((b: any) => b.outcome === 'win').length;
+    losses = recentBets.filter((b: any) => b.outcome === 'loss').length;
+    pushes = recentBets.filter((b: any) => b.outcome === 'push').length;
 
     // Calculate current streak
     const lastOutcome = recentBets[0].outcome;
