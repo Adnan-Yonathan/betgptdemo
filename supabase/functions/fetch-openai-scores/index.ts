@@ -169,10 +169,10 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const rundownApiKey = Deno.env.get('THE_RUNDOWN_API');
+    const rundownApiKey = Deno.env.get('X_RAPID_APIKEY') ?? Deno.env.get('THE_RUNDOWN_API');
 
     if (!rundownApiKey) {
-      throw new Error('THE_RUNDOWN_API key is not configured');
+      throw new Error('No betting odds API key configured (expected THE_RUNDOWN_API or X_RAPID_APIKEY)');
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);

@@ -74,7 +74,7 @@ Data Freshness: ${dataAgeMinutes < 5 ? 'FRESH' :
 **Problem**: The Rundown API integration might have issues
 
 **Possible causes**:
-- Expired/invalid API key (`THE_RUNDOWN_API`)
+- Expired/invalid API key (`THE_ODDS_API_KEY` or `X_RAPID_APIKEY`)
 - Rate limit exceeded
 - API endpoint changes
 - Wrong sport_id mapping
@@ -259,7 +259,7 @@ serve(async (req) => {
 
 ```typescript
 if (!rundownApiKey) {
-  console.error('THE_RUNDOWN_API key not configured');
+  console.error('No betting odds API key configured (THE_ODDS_API_KEY or X_RAPID_APIKEY/THE_RUNDOWN_API)');
 
   // NEW: Log this error to betting_odds_fetch_log for monitoring
   await supabaseClient
@@ -269,13 +269,13 @@ if (!rundownApiKey) {
       success: false,
       events_count: 0,
       odds_count: 0,
-      error_message: 'THE_RUNDOWN_API key not configured',
+      error_message: 'No betting odds API key configured (THE_ODDS_API_KEY or X_RAPID_APIKEY/THE_RUNDOWN_API)',
     });
 
   return new Response(JSON.stringify({
-    error: 'THE_RUNDOWN_API key not configured',
+    error: 'No betting odds API key configured (THE_ODDS_API_KEY or X_RAPID_APIKEY/THE_RUNDOWN_API)',
     success: false,
-    message: 'Please configure THE_RUNDOWN_API in backend secrets',
+    message: 'Please configure THE_ODDS_API_KEY (primary) or X_RAPID_APIKEY/THE_RUNDOWN_API (fallback) in backend secrets',
   }), {
     status: 500,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },

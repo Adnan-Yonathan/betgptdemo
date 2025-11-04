@@ -6,7 +6,7 @@ BetGPT uses premium APIs to provide accurate, real-time sports betting data and 
 
 ## Data Sources
 
-### 1. The Rundown API
+### 1. The Odds API (Primary) & The Rundown API (Fallback)
 **Purpose**: Real-time betting lines and odds from 15+ sportsbooks
 
 **What we fetch**:
@@ -18,11 +18,15 @@ BetGPT uses premium APIs to provide accurate, real-time sports betting data and 
 
 **Implementation**: `supabase/functions/fetch-betting-odds/index.ts`
 
-**API Endpoint**: The Rundown API via RapidAPI (`therundown-therundown-v1.p.rapidapi.com`)
+**API Endpoints**:
+- The Odds API (`https://api.the-odds-api.com/v4/...`) – primary source
+- The Rundown API via RapidAPI (`therundown-therundown-v1.p.rapidapi.com`) – fallback when primary is unavailable
 
 **Cache Duration**: 30 minutes (configurable via cron job)
 
-**API Key Required**: Yes - Set `THE_RUNDOWN_API` in Supabase edge function secrets
+**API Keys Required**:
+- Primary: `THE_ODDS_API_KEY`
+- Fallback: `X_RAPID_APIKEY` (or legacy `THE_RUNDOWN_API`)
 
 **Supported Sports**:
 - NFL (`americanfootball_nfl`, sport_id: 2)
@@ -82,7 +86,7 @@ Chat Function (chat/index.ts)
 Determines query type (score vs betting)
     ↓
     ├─→ Score Query → fetch-openai-scores → OpenAI API → Database
-    └─→ Betting Query → fetch-betting-odds → The Rundown API → Database
+    └─→ Betting Query → fetch-betting-odds → The Odds API → Database (fallback: The Rundown API)
     ↓
 Data formatted and returned to user
     ↓
@@ -128,8 +132,9 @@ AI analysis with real-time data
 # OpenAI API Key
 OPENAI_API_KEY=sk-...
 
-# The Rundown API Key
-THE_RUNDOWN_API=...
+# Betting Odds API Keys
+THE_ODDS_API_KEY=...
+X_RAPID_APIKEY=...   # or THE_RUNDOWN_API for legacy setups
 
 # Supabase (already configured)
 SUPABASE_URL=...
