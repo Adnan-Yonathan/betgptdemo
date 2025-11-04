@@ -1121,10 +1121,10 @@ function formatOddsData(odds: any[], query: string): string {
   const lastUpdated = odds[0]?.last_updated ? new Date(odds[0].last_updated) : now;
   const dataAgeMinutes = Math.floor((now.getTime() - lastUpdated.getTime()) / 60000);
 
-  // CRITICAL: Reject data older than 6 hours as too stale for reliable betting
-  // Updated threshold to match new 8-hour fetch frequency (was 2 hours with 30-min fetches)
-  if (dataAgeMinutes > 360) {
-    return `ERROR: Betting odds data is too stale (${dataAgeMinutes} minutes / ${Math.floor(dataAgeMinutes / 60)} hours old). Cannot provide reliable recommendations. Data last updated: ${lastUpdated.toLocaleString()}. The automated refresh system updates every 8 hours. Please try again later or contact support if this persists.`;
+  // CRITICAL: Reject data older than 1 hour as too stale for reliable betting
+  // Updated threshold to match hourly fetch frequency - data must be fresh
+  if (dataAgeMinutes > 60) {
+    return `ERROR: Betting odds data is too stale (${dataAgeMinutes} minutes old). Cannot provide reliable recommendations. Data last updated: ${lastUpdated.toLocaleString()}. The automated refresh system updates every hour. Please try again in a few minutes or contact support if this persists.`;
   }
 
   // Group odds by event
@@ -1141,17 +1141,15 @@ function formatOddsData(odds: any[], query: string): string {
   result += `Data Retrieved: ${now.toLocaleString()}\n`;
   result += `Last Updated: ${lastUpdated.toLocaleString()} (${dataAgeMinutes} minutes ago)\n`;
 
-  // ENHANCED: Staleness warnings adjusted for 8-hour fetch frequency
-  // Note: Data updates every 8 hours, so expectations are adjusted accordingly
-  if (dataAgeMinutes > 240) {
-    result += `⚠️ DATA QUALITY: VERY STALE (>${Math.floor(dataAgeMinutes / 60)} hours old) - Lines may have significantly moved. Use with extreme caution.\n\n`;
-  } else if (dataAgeMinutes > 120) {
-    result += `⚠️ DATA QUALITY: STALE (>${Math.floor(dataAgeMinutes / 60)} hours old) - Lines may have moved since last update. Verify current odds before placing bets.\n\n`;
-  } else if (dataAgeMinutes > 60) {
-    result += `⚠️ DATA QUALITY: MODERATELY STALE (>1 hour old) - Lines may have moved. Consider verifying with bookmaker.\n\n`;
+  // ENHANCED: Staleness warnings adjusted for hourly fetch frequency
+  // Note: Data updates every hour, so data should never be >60 minutes old
+  if (dataAgeMinutes > 45) {
+    result += `⚠️ DATA QUALITY: STALE (${dataAgeMinutes} min old) - Lines may have moved. Next update coming soon.\n\n`;
   } else if (dataAgeMinutes > 30) {
-    result += `Data Freshness: RECENT (updated ${dataAgeMinutes} min ago)\n\n`;
+    result += `⚠️ DATA QUALITY: MODERATELY STALE (${dataAgeMinutes} min old) - Consider verifying key lines with bookmaker.\n\n`;
   } else if (dataAgeMinutes > 15) {
+    result += `Data Freshness: RECENT (updated ${dataAgeMinutes} min ago)\n\n`;
+  } else if (dataAgeMinutes > 5) {
     result += `Data Freshness: FRESH (updated ${dataAgeMinutes} min ago) ✅\n\n`;
   } else {
     result += `Data Freshness: VERY FRESH (updated ${dataAgeMinutes} min ago) ✅✅\n\n`;
@@ -2815,7 +2813,7 @@ RESPONSIBLE GAMBLING:
         console.error('[BETTING GUARDRAIL] Data context:', dataContext?.substring(0, 200));
 
         // Return error message in SSE streaming format so frontend can parse it
-        const errorMessage = "I apologize, but I cannot provide betting recommendations at this time because I don't have access to current, accurate betting lines. The data may be unavailable or too stale (>6 hours old). The system refreshes odds every 8 hours. Please try again later, or contact support if this persists.\n\nIf you need general betting advice or have questions about betting concepts, I'm happy to help with that instead!";
+        const errorMessage = "I apologize, but I cannot provide betting recommendations at this time because I don't have access to current, accurate betting lines. The data may be unavailable or too stale (>60 minutes old). The system refreshes odds every hour. Please try again in a few minutes, or contact support if this persists.\n\nIf you need general betting advice or have questions about betting concepts, I'm happy to help with that instead!";
 
         const encoder = new TextEncoder();
         const stream = new ReadableStream({
