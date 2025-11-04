@@ -1207,7 +1207,7 @@ function formatOddsData(odds: any[], query: string): string {
     result += '---\n\n';
   }
 
-  result += `\nData Source: The Rundown API (Live)\n`;
+  result += `\nData Source: The Odds API (Live)\n`;
   result += `Total Events: ${eventMap.size}\n`;
   
   return result;
@@ -2806,9 +2806,18 @@ RESPONSIBLE GAMBLING:
                                  !dataContext.includes('too stale') &&
                                  !dataContext.includes('not available');
 
+      console.log('[BETTING GUARDRAIL] Checking betting data validity');
+      console.log('[BETTING GUARDRAIL] Has data context:', !!dataContext);
+      console.log('[BETTING GUARDRAIL] Data length:', dataContext?.length || 0);
+      console.log('[BETTING GUARDRAIL] Contains ERROR:', dataContext?.includes('ERROR'));
+      console.log('[BETTING GUARDRAIL] Contains "No betting odds":', dataContext?.includes('No betting odds'));
+      console.log('[BETTING GUARDRAIL] Contains "too stale":', dataContext?.includes('too stale'));
+      console.log('[BETTING GUARDRAIL] Contains "not available":', dataContext?.includes('not available'));
+      console.log('[BETTING GUARDRAIL] Final validation result:', hasValidBettingData);
+
       if (!hasValidBettingData) {
-        console.error('[BETTING GUARDRAIL] Blocking AI response - no valid betting data available');
-        console.error('[BETTING GUARDRAIL] Data context:', dataContext?.substring(0, 200));
+        console.error('[BETTING GUARDRAIL] ❌ BLOCKING AI response - no valid betting data available');
+        console.error('[BETTING GUARDRAIL] Data context preview:', dataContext?.substring(0, 500));
 
         // Return error message in SSE streaming format so frontend can parse it
         const errorMessage = "I apologize, but I cannot provide betting recommendations at this time because I don't have access to current, accurate betting lines. The data may be unavailable or too stale (>60 minutes old). The system refreshes odds every hour. Please try again in a few minutes, or contact support if this persists.\n\nIf you need general betting advice or have questions about betting concepts, I'm happy to help with that instead!";
