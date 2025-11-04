@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.calculate-team-trends]
 verify_jwt = false
+
+[functions.health-check-betting-odds]
+verify_jwt = false
