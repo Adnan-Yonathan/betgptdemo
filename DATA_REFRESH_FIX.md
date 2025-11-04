@@ -41,7 +41,8 @@ Fetches betting odds from The Odds API:
 - Tracks API quota usage
 
 **Configuration Required:**
-- `THE_RUNDOWN_API` environment variable must be set in backend secrets
+- Primary odds key `THE_ODDS_API_KEY`
+- RapidAPI fallback key `X_RAPID_APIKEY` (legacy `THE_RUNDOWN_API` still works)
 
 ### 2. Updated Cron Job Schedules
 
@@ -79,9 +80,12 @@ npx supabase link --project-ref dskfsnbdgyjizoaafqfk
 
 ### Step 2: Set Required Secrets
 ```bash
-# Set The Rundown API key (required for betting odds)
-# Get your API key from RapidAPI: https://rapidapi.com/therundown/api/therundown
-npx supabase secrets set THE_RUNDOWN_API=your-api-key-here
+# Set The Odds API key (primary)
+npx supabase secrets set THE_ODDS_API_KEY=your-odds-api-key
+
+# Set RapidAPI fallback key (optional but recommended)
+npx supabase secrets set X_RAPID_APIKEY=your-rapidapi-key
+# Legacy support: THE_RUNDOWN_API is still read if X_RAPID_APIKEY is absent
 ```
 
 ### Step 3: Deploy Edge Functions
@@ -242,10 +246,13 @@ Expected: `minutes_old` should be less than 60 for all leagues
 
 ### Betting odds not updating?
 
-**Most common issue:** `THE_RUNDOWN_API` not set
+**Most common issue:** `THE_ODDS_API_KEY` or RapidAPI fallback not set
 
 ```bash
-npx supabase secrets set THE_RUNDOWN_API=your-key
+npx supabase secrets set THE_ODDS_API_KEY=your-odds-api-key
+npx supabase secrets set X_RAPID_APIKEY=your-rapidapi-key
+# Optional legacy support
+npx supabase secrets set THE_RUNDOWN_API=your-legacy-key
 ```
 
 ### ESPN scores not updating?

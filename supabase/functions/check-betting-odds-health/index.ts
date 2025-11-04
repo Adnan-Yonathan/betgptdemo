@@ -104,10 +104,15 @@ serve(async (req) => {
     }
 
     // Check API key configuration
-    const hasApiKey = Deno.env.get('THE_RUNDOWN_API') != null;
+    const oddsApiKey = Deno.env.get('THE_ODDS_API_KEY');
+    const rapidApiKey = Deno.env.get('X_RAPID_APIKEY');
+    const legacyRundownKey = Deno.env.get('THE_RUNDOWN_API');
+    const hasApiKey = Boolean(oddsApiKey ?? rapidApiKey ?? legacyRundownKey);
     if (!hasApiKey) {
       status = 'critical';
-      errors.push('THE_RUNDOWN_API key not configured in environment');
+      errors.push('No betting odds API keys configured (THE_ODDS_API_KEY or X_RAPID_APIKEY/THE_RUNDOWN_API)');
+    } else if (!oddsApiKey) {
+      warnings.push('Primary THE_ODDS_API_KEY not configured; relying on RapidAPI fallback');
     }
 
     // Build sports status

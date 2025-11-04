@@ -12,6 +12,9 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUPABASE_URL="${SUPABASE_URL:-}"
 SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY:-}"
+THE_ODDS_API_KEY="${THE_ODDS_API_KEY:-}"
+X_RAPID_APIKEY="${X_RAPID_APIKEY:-}"
+THE_RUNDOWN_API="${THE_RUNDOWN_API:-}"
 
 echo "============================================================================"
 echo "BETTING DATA PIPELINE DIAGNOSTICS"
@@ -89,6 +92,19 @@ if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
   echo "Example: export SUPABASE_SERVICE_ROLE_KEY=your-service-role-key"
 else
   print_success "SUPABASE_SERVICE_ROLE_KEY is set"
+fi
+
+# Check betting odds API secrets
+if [ -n "$THE_ODDS_API_KEY" ]; then
+  print_success "THE_ODDS_API_KEY is configured"
+else
+  print_warning "THE_ODDS_API_KEY not set (primary odds provider)"
+fi
+
+if [ -n "$X_RAPID_APIKEY" ] || [ -n "$THE_RUNDOWN_API" ]; then
+  print_success "RapidAPI fallback key detected"
+else
+  print_warning "No RapidAPI fallback key set (configure X_RAPID_APIKEY or legacy THE_RUNDOWN_API)"
 fi
 
 check_supabase_cli
@@ -234,6 +250,7 @@ echo ""
 echo "2. ❌ NO RECENT FETCHES"
 echo "   - If fetch_time is >60 minutes ago or no logs exist"
 echo "   - Fix: Check if THE_ODDS_API_KEY is set in Supabase secrets"
+echo "   - Fix: Confirm RapidAPI fallback (X_RAPID_APIKEY or THE_RUNDOWN_API) is configured"
 echo "   - Fix: Manually trigger: SELECT trigger_fetch_betting_odds();"
 echo ""
 echo "3. ❌ FETCH ERRORS IN LOGS"

@@ -11,7 +11,7 @@ The live scores ticker was not displaying any scores for NBA and CFB games, even
 
 3. **No Automated Fetching**: There was no cron job set up to regularly call the `monitor-live-bets` function, so the live score cache was never being populated.
 
-4. **Inconsistent Environment Variables**: The `monitor-live-bets` function was using `RUNDOWN_API_KEY` while other functions use `THE_RUNDOWN_API`.
+4. **Inconsistent Environment Variables**: The `monitor-live-bets` function was using `RUNDOWN_API_KEY` while other functions now expect `X_RAPID_APIKEY` (or legacy `THE_RUNDOWN_API`).
 
 ## Fixes Applied
 
@@ -25,7 +25,7 @@ The live scores ticker was not displaying any scores for NBA and CFB games, even
 
 - **Changed to fetch ALL sports**: Modified the function to always fetch live scores for all configured sports, regardless of whether there are active bets. This ensures the ticker always has data.
 
-- **Fixed environment variable**: Changed from `RUNDOWN_API_KEY` to `THE_RUNDOWN_API` to match other functions.
+- **Fixed environment variable**: Changed from `RUNDOWN_API_KEY` to `X_RAPID_APIKEY` (with `THE_RUNDOWN_API` accepted for legacy compatibility) to match other functions.
 
 - **Removed strict authorization**: Removed the authorization check that was preventing the function from being called by automated cron jobs.
 
@@ -94,4 +94,4 @@ To deploy these fixes:
 - The fix ensures live scores are fetched even when there are no active bets
 - Scores update every minute to keep data fresh
 - The ticker will show "No live games at the moment" when there are genuinely no live games
-- The Rundown API must have valid credentials set in environment variable `THE_RUNDOWN_API`
+- The RapidAPI fallback must have valid credentials set in environment variable `X_RAPID_APIKEY` (legacy `THE_RUNDOWN_API` still supported)

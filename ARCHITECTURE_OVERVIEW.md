@@ -497,7 +497,8 @@ VITE_ENABLE_BALLDONTLIE=true                  # Feature flag
 VITE_BALLDONTLIE_ROLLOUT=100                  # Rollout percentage (0-100)
 
 # The Rundown API (EXISTING)
-THE_RUNDOWN_API=your_rundown_api_key          # ✅ Already configured
+THE_ODDS_API_KEY=your_the_odds_api_key        # ✅ Primary odds provider
+X_RAPID_APIKEY=your_rapidapi_key              # ✅ Fallback (legacy THE_RUNDOWN_API)
 
 # OpenAI (EXISTING)
 OPENAI_API_KEY=sk-...                         # ✅ Already configured

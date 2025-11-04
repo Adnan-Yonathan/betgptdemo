@@ -124,7 +124,10 @@ const SPORT_MAP: { [key: string]: number } = {
 /**
  * Fetch odds from The Odds API (primary source)
  */
-async function fetchFromOddsApi(sport: string, oddsApiKey: string): Promise<OddsApiEvent[]> {
+async function fetchFromOddsApi(
+  sport: string,
+  oddsApiKey: string
+): Promise<{ events: OddsApiEvent[]; requestsRemaining: number | null; requestsUsed: number | null }> {
   const regions = 'us'; // Focus on US bookmakers
   const markets = 'h2h,spreads,totals'; // Moneyline, spreads, and totals
   const oddsFormat = 'american'; // American odds format (+150, -110, etc.)
@@ -144,11 +147,17 @@ async function fetchFromOddsApi(sport: string, oddsApiKey: string): Promise<Odds
   const events: OddsApiEvent[] = await response.json();
 
   // Check remaining requests from headers
-  const requestsRemaining = response.headers.get('x-requests-remaining');
-  const requestsUsed = response.headers.get('x-requests-used');
-  console.log(`The Odds API - Requests used: ${requestsUsed}, Remaining: ${requestsRemaining}`);
+  const requestsRemainingHeader = response.headers.get('x-requests-remaining');
+  const requestsUsedHeader = response.headers.get('x-requests-used');
+  console.log(
+    `The Odds API - Requests used: ${requestsUsedHeader ?? 'unknown'}, Remaining: ${requestsRemainingHeader ?? 'unknown'}`,
+  );
 
-  return events;
+  return {
+    events,
+    requestsRemaining: requestsRemainingHeader ? Number(requestsRemainingHeader) : null,
+    requestsUsed: requestsUsedHeader ? Number(requestsUsedHeader) : null,
+  };
 }
 
 /**
@@ -228,10 +237,10 @@ serve(async (req) => {
     // Get API keys from environment
     // Priority: The Odds API (primary) -> The Rundown API (fallback)
     const oddsApiKey = Deno.env.get('THE_ODDS_API_KEY');
-    const rundownApiKey = Deno.env.get('X_RAPID_APIKEY');
+    const rundownApiKey = Deno.env.get('X_RAPID_APIKEY') ?? Deno.env.get('THE_RUNDOWN_API');
 
     if (!oddsApiKey && !rundownApiKey) {
-      console.error('No API keys configured. Need either THE_ODDS_API_KEY or X_RAPID_APIKEY');
+      console.error('No API keys configured. Need either THE_ODDS_API_KEY or X_RAPID_APIKEY/THE_RUNDOWN_API');
 
       // Log this error to betting_odds_fetch_log for monitoring
       await supabaseClient
@@ -241,13 +250,13 @@ serve(async (req) => {
           success: false,
           events_count: 0,
           odds_count: 0,
-          error_message: 'No API keys configured. Need either THE_ODDS_API_KEY or X_RAPID_APIKEY',
+          error_message: 'No API keys configured. Need either THE_ODDS_API_KEY or X_RAPID_APIKEY/THE_RUNDOWN_API',
         });
 
       return new Response(JSON.stringify({
         error: 'No betting odds API keys configured',
         success: false,
-        message: 'Please configure THE_ODDS_API_KEY (primary) or X_RAPID_APIKEY (fallback) in backend secrets',
+        message: 'Please configure THE_ODDS_API_KEY (primary) or X_RAPID_APIKEY/THE_RUNDOWN_API (fallback) in backend secrets',
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -263,7 +272,9 @@ serve(async (req) => {
     if (oddsApiKey) {
       try {
         console.log(`Attempting to fetch from The Odds API (primary source)...`);
-        oddsApiEvents = await fetchFromOddsApi(sport, oddsApiKey);
+        const oddsApiResult = await fetchFromOddsApi(sport, oddsApiKey);
+        oddsApiEvents = oddsApiResult.events;
+        apiRequestsRemaining = oddsApiResult.requestsRemaining;
         usedOddsApi = true;
         apiSource = 'The Odds API';
         console.log(`Successfully fetched ${oddsApiEvents.length} events from The Odds API`);
@@ -327,13 +338,13 @@ serve(async (req) => {
           success: false,
           events_count: 0,
           odds_count: 0,
-          error_message: 'The Odds API failed and X_RAPID_APIKEY not configured as fallback',
+          error_message: 'The Odds API failed and X_RAPID_APIKEY/THE_RUNDOWN_API not configured as fallback',
         });
 
       return new Response(JSON.stringify({
         error: 'The Odds API failed and no fallback API configured',
         success: false,
-        message: 'The Odds API returned no events and X_RAPID_APIKEY is not configured for fallback',
+        message: 'The Odds API returned no events and X_RAPID_APIKEY/THE_RUNDOWN_API is not configured for fallback',
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
