@@ -51,13 +51,34 @@ print_success() {
   echo -e "${GREEN}✅ SUCCESS: $1${NC}"
 }
 
+SUPABASE_CLI_AVAILABLE=0
+REST_STATUS=""
+REST_BODY=""
+
+call_supabase_rest() {
+  local path="$1"
+  local url="${SUPABASE_URL}/rest/v1/${path}"
+
+  set +e
+  local response
+  response=$(curl -sS -w "\n%{http_code}" \
+    -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+    -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+    -H "Accept: application/json" \
+    "$url")
+  local status="${response##*$'\n'}"
+  REST_BODY="${response%$'\n'$status}"
+  REST_STATUS="$status"
+  set -e
+}
+
 check_supabase_cli() {
   if command -v supabase &> /dev/null; then
+    SUPABASE_CLI_AVAILABLE=1
     print_success "Supabase CLI is installed"
-    return 0
   else
+    SUPABASE_CLI_AVAILABLE=0
     print_warning "Supabase CLI not found"
-    return 1
   fi
 }
 
@@ -115,13 +136,14 @@ check_supabase_cli
 
 print_section "SECTION 2: DATABASE DIAGNOSTICS"
 
-if command -v supabase &> /dev/null && supabase status &> /dev/null; then
-  echo "Running diagnostic queries via Supabase CLI..."
+if [ "$SUPABASE_CLI_AVAILABLE" -eq 1 ]; then
+  if supabase status &> /dev/null; then
+    echo "Running diagnostic queries via Supabase CLI..."
 
-  # Check cron job status
-  echo ""
-  echo "--- Cron Job Status ---"
-  supabase db query <<SQL
+    # Check cron job status
+    echo ""
+    echo "--- Cron Job Status ---"
+    supabase db query <<SQL
 SELECT
   jobname,
   schedule,
@@ -131,10 +153,10 @@ FROM cron.job
 WHERE jobname LIKE '%betting%odds%';
 SQL
 
-  # Check recent fetch logs
-  echo ""
-  echo "--- Recent Fetch Logs (Last 10) ---"
-  supabase db query <<SQL
+    # Check recent fetch logs
+    echo ""
+    echo "--- Recent Fetch Logs (Last 10) ---"
+    supabase db query <<SQL
 SELECT
   fetch_time,
   sports_fetched,
@@ -148,10 +170,10 @@ ORDER BY fetch_time DESC
 LIMIT 10;
 SQL
 
-  # Check data freshness
-  echo ""
-  echo "--- Data Freshness by Sport ---"
-  supabase db query <<SQL
+    # Check data freshness
+    echo ""
+    echo "--- Data Freshness by Sport ---"
+    supabase db query <<SQL
 SELECT
   sport_key,
   COUNT(DISTINCT event_id) as events,
@@ -163,10 +185,10 @@ GROUP BY sport_key
 ORDER BY MAX(last_updated) DESC;
 SQL
 
-  # Overall health check
-  echo ""
-  echo "--- Overall Health Status ---"
-  supabase db query <<SQL
+    # Overall health check
+    echo ""
+    echo "--- Overall Health Status ---"
+    supabase db query <<SQL
 SELECT
   COUNT(*) as total_odds,
   COUNT(DISTINCT event_id) as unique_events,
@@ -177,10 +199,76 @@ FROM betting_odds
 WHERE commence_time >= CURRENT_DATE;
 SQL
 
+  else
+    print_warning "Supabase CLI is installed but not authenticated (supabase status failed)"
+    echo "Please run: supabase login"
+    echo "Then link project: supabase link --project-ref your-project-ref"
+  fi
+elif [ -n "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+  print_warning "Supabase CLI not available – using REST API fallback queries"
+  echo "Ensure SUPABASE_SERVICE_ROLE_KEY has database access for these checks."
+
+  TODAY=$(date -u +%Y-%m-%d || echo "")
+
+  echo ""
+  echo "--- Cron Job Status (REST) ---"
+  call_supabase_rest "cron.job?select=jobname,schedule,active,database&jobname=like.*betting*odds*"
+  if [ "$REST_STATUS" = "200" ] || [ "$REST_STATUS" = "206" ]; then
+    echo "$REST_BODY" | jq '.' 2>/dev/null || echo "$REST_BODY"
+  else
+    print_error "Failed to read cron job status via REST (HTTP $REST_STATUS)"
+    echo "$REST_BODY"
+  fi
+
+  echo ""
+  echo "--- Recent Fetch Logs (Last 10 via REST) ---"
+  call_supabase_rest "betting_odds_fetch_log?select=fetch_time,sports_fetched,success,events_count,odds_count,error_message&order=fetch_time.desc&limit=10"
+  if [ "$REST_STATUS" = "200" ] || [ "$REST_STATUS" = "206" ]; then
+    echo "$REST_BODY" | jq 'map(.minutes_ago = (if .fetch_time then ((now - (.fetch_time | fromdateiso8601)) / 60 | floor) else null end))' 2>/dev/null || echo "$REST_BODY"
+  else
+    print_error "Failed to read fetch logs via REST (HTTP $REST_STATUS)"
+    echo "$REST_BODY"
+  fi
+
+  echo ""
+  echo "--- Data Freshness by Sport (REST) ---"
+  if [ -n "$TODAY" ]; then
+    call_supabase_rest "betting_odds?select=sport_key,events:count(event_id),most_recent_update:max(last_updated)&commence_time=gte.${TODAY}&group=sport_key&order=most_recent_update.desc"
+  else
+    call_supabase_rest "betting_odds?select=sport_key,events:count(event_id),most_recent_update:max(last_updated)&group=sport_key&order=most_recent_update.desc"
+  fi
+  if [ "$REST_STATUS" = "200" ] || [ "$REST_STATUS" = "206" ]; then
+    echo "$REST_BODY" | jq 'map(.minutes_old = (if .most_recent_update then ((now - (.most_recent_update | fromdateiso8601)) / 60 | floor) else null end))' 2>/dev/null || echo "$REST_BODY"
+  else
+    print_error "Failed to read freshness summary via REST (HTTP $REST_STATUS)"
+    echo "$REST_BODY"
+  fi
+
+  echo ""
+  echo "--- Overall Health Status (REST) ---"
+  if [ -n "$TODAY" ]; then
+    call_supabase_rest "betting_odds?select=total_odds:count(*),unique_events:count.distinct(event_id),sports:count.distinct(sport_key),newest_data:max(last_updated)&commence_time=gte.${TODAY}"
+  else
+    call_supabase_rest "betting_odds?select=total_odds:count(*),unique_events:count.distinct(event_id),sports:count.distinct(sport_key),newest_data:max(last_updated)"
+  fi
+  if [ "$REST_STATUS" = "200" ] || [ "$REST_STATUS" = "206" ]; then
+    if command -v jq &> /dev/null; then
+      echo "$REST_BODY" | jq 'map(.minutes_old = (if .newest_data then ((now - (.newest_data | fromdateiso8601)) / 60 | floor) else null end))'
+    else
+      echo "$REST_BODY"
+    fi
+  else
+    print_error "Failed to read overall status via REST (HTTP $REST_STATUS)"
+    echo "$REST_BODY"
+  fi
+
+  echo ""
+  echo "If jq is unavailable or REST calls fail, you can run equivalent SQL in the Supabase dashboard using BETTING_DATA_DIAGNOSIS.sql."
 else
-  print_warning "Cannot run Supabase CLI queries (CLI not available or not logged in)"
-  echo "Please run: supabase login"
-  echo "Then link project: supabase link --project-ref your-project-ref"
+  print_warning "Cannot run Supabase diagnostics without CLI or service role key"
+  echo "Install the CLI with: npm install -g supabase"
+  echo "Or download from: https://supabase.com/docs/guides/cli"
+  echo "Alternatively, set SUPABASE_SERVICE_ROLE_KEY to enable REST fallback queries."
 fi
 
 # ============================================================================
@@ -195,29 +283,44 @@ if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_SERVICE_ROLE_KEY" ]; then
   echo "Testing fetch-betting-odds endpoint..."
   echo "Endpoint: ${SUPABASE_URL}/functions/v1/fetch-betting-odds"
 
+  set +e
   response=$(curl -s -o /dev/null -w "%{http_code}" \
     -X POST "${SUPABASE_URL}/functions/v1/fetch-betting-odds" \
     -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
     -H "Content-Type: application/json" \
     -d '{"sport": "americanfootball_nfl"}' \
     --max-time 10)
+  curl_status=$?
+  set -e
 
-  if [ "$response" = "200" ]; then
-    print_success "fetch-betting-odds endpoint is accessible (HTTP 200)"
-  elif [ "$response" = "000" ]; then
-    print_error "fetch-betting-odds endpoint timed out or is unreachable"
+  if [ $curl_status -ne 0 ]; then
+    print_error "fetch-betting-odds endpoint request failed (curl exit code $curl_status)"
   else
-    print_warning "fetch-betting-odds endpoint returned HTTP $response"
-  fi
+    if [ "$response" = "200" ]; then
+      print_success "fetch-betting-odds endpoint is accessible (HTTP 200)"
+    elif [ "$response" = "000" ]; then
+      print_error "fetch-betting-odds endpoint timed out or is unreachable"
+    else
+      print_warning "fetch-betting-odds endpoint returned HTTP $response"
+    fi
 
-  # Get full response for debugging
-  echo ""
-  echo "Full response from fetch-betting-odds:"
-  curl -s -X POST "${SUPABASE_URL}/functions/v1/fetch-betting-odds" \
-    -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-    -H "Content-Type: application/json" \
-    -d '{"sport": "americanfootball_nfl"}' \
-    --max-time 10 | jq '.' 2>/dev/null || echo "(Response not in JSON format or jq not installed)"
+    # Get full response for debugging
+    echo ""
+    echo "Full response from fetch-betting-odds:"
+    set +e
+    full_response=$(curl -s -X POST "${SUPABASE_URL}/functions/v1/fetch-betting-odds" \
+      -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+      -H "Content-Type: application/json" \
+      -d '{"sport": "americanfootball_nfl"}' \
+      --max-time 10)
+    full_response_status=$?
+    set -e
+    if [ $full_response_status -ne 0 ]; then
+      print_error "Failed to retrieve full response (curl exit code $full_response_status)"
+    else
+      echo "$full_response" | jq '.' 2>/dev/null || echo "$full_response"
+    fi
+  fi
 
 else
   print_warning "Skipping API checks (SUPABASE_SERVICE_ROLE_KEY not set)"
